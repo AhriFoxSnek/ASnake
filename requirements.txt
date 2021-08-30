@@ -1,3 +1,2 @@
-sly
-autopep8
-cython
+sly==0.4
+autopep8==1.5.5
