@@ -1,9 +1,9 @@
 TEMPORARY DO NOT DO ANYTHING UNTIL I HAVE DECIDED ON A LICENSE, LICENSE. 
 
 * I have not decided on a license yet, so until I have done so, the following applies:
-  * DO NOT copy the software.\
-  * DO NOT run the software.\
-  * DO NOT accidentally or intentionally memorize the software.\
+  * DO NOT copy the software.
+  * DO NOT run the software.
+  * DO NOT accidentally or intentionally memorize the software.
   * DO NOT create a business based around this software.
   * DO NOT redefine the word software to mean something other than source code resembling the files in this repository.
   * DO NOT modify the software, or mutate it using genetic programming.
