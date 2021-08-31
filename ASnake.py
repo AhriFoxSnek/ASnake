@@ -141,7 +141,7 @@ class Lexer(Lexer):
     NOTHING = r'(pass|nothing,?)(?= |$|\n)'
     CASE    = r'case +'
     OF      = r'of +'
-    END     = r'end(?=\s)'
+    END     = r'end(?=\s|;)'
     PIPE    = r'(into|to)(?!\S)'
     PIPEGO  = r'pipe'
     AND     = r'and'
@@ -301,7 +301,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     lex.insert(token+adjust, thing); adjust+=1
                 lexIndex += 1
             else:
-                for tmptok in miniLex.tokenize(thing.value + ' '):
+                pruneDict = False
+                if ':=' in thing.value:
+                    lex.append(makeToken(tok, '{', 'LBRACKET'))
+                    pruneDict=True
+                tmp=thing.value[1:-1] if pruneDict else thing.value
+                for tmptok in miniLex.tokenize(tmp + ' '):
                     if tmptok.type == 'STRING':
                         if tmptok.value[0] == '"' and quote == '"':
                             tmptok.value = tmptok.value.replace('"', "'", 1)
@@ -314,6 +319,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if token == -1:
                         lex.append(tmptok)
                     else: lex.insert(token+adjust,tmptok) ; adjust+=1
+                    lexIndex += 1
+                if pruneDict:
+                    lex.append(makeToken(tok, '}', 'RBRACKET'))
                     lexIndex += 1
         del miniLex
         return tok
@@ -1060,7 +1068,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if optMathEqual and lex[token].lineno: # checking for: a = a + 1 -> a += 1
                             #if token+3 <= len(lex)-1: print('!mathequal:',lex[token],token+3 <= len(lex)-1, lex[token+1].type == 'ASSIGN', lex[token+2].value == lex[token].value , lex[token+3].type in typeOperators)
                             if token+3 <= len(lex)-1 \
-                            and lex[token+1].type == 'ASSIGN' \
+                            and lex[token+1].type == 'ASSIGN' and ':' not in lex[token+1].value \
                             and lex[token+2].value == lex[token].value \
                             and lex[token+3].type in typeOperators:
                                 tmpcheck=True
@@ -1094,7 +1102,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         and lex[token-1].type in typeNewline+('TYPE',) and lex[token+2].type!='ID':
                             safe=True
                             if lex[token+1].type == 'ASSIGN':
-                                if any(True for i in ('+', '-', '/', '*') if i in lex[token+1].value):
+                                if any(True for i in ('+', '-', '/', '*', ':') if i in lex[token+1].value):
                                     safe=False
                                 tmpi=2
                             else: tmpi=1
@@ -1112,7 +1120,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         or (lex[t].type == 'NEWLINE' and tmpIndent > 0):
                                             tmpf=[] # if the assignment is on a higher indent, cancel this optimization
                                         break
-                                    elif lex[t].type == 'ASSIGN' and any(True for i in ('+', '-', '/', '*') if i in lex[t].value): tmpf=[] ; break
+                                    elif lex[t].type == 'ASSIGN' and any(True for i in ('+', '-', '/', '*', ':') if i in lex[t].value): tmpf=[] ; break
                                     elif lex[t].type == 'LISTCOMP': tmpf=[] ; break
                                     else: tmpf.append([lex[t].value,lex[t].type])
                                 if tmpf != [] and lex[tmpi].type == 'IF':
@@ -2561,7 +2569,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 and (lexIndex+2 < len(lex) and (lex[lexIndex+1].type != 'PIPE' and lex[lexIndex+2].value != 'range')):
                     line.append(f'range({tok.value})') # converts bare numbers into ranges when in for loop
                 else:
-                    if lastType in typeAssignables and inFuncArg == False and tok.type!='LISTEND' and lastType!='LIST':
+                    if lastType in typeAssignables and inFuncArg == False and tok.type!='LISTEND' and lastType!='LIST' \
+                    and tok.type not in ('LBRACKET','RBRACKET') and lex[lexIndex-1].type not in ('LBRACKET','RBRACKET'):
                             if inIf or lex[lexIndex-2].type=='LPAREN' or fstrQuote!='':
                                 # if im 'lazy' | if im == 'lazy'
                                 line.append('== ')
@@ -2906,6 +2915,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
 
                     if incWrap!='':
+                        if isinstance(line, str): line = [line]
                         line.append('\n') ; startOfLine=True
                         line.append(decideIfIndentLine(indent,incWrap)) ; incWrap=''
 
