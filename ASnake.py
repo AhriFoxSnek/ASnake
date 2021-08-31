@@ -1997,9 +1997,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             tmpReplaceWithPass = True
                     if delPoint == None or tmpIndent == None: check=False
                     if check:
-                        breakOnNextNL=False
+                        breakOnNextNL=False ; ttenary=False
                         for tmpi in range(token + 1, len(lex) - 1):
-                            #print(lex[token].value,'!',lex[tmpi].value,lex[tmpi].type)
+                            #print(lex[token].value,'!',lex[tmpi].value,lex[tmpi].type,ttenary)
                             if lex[tmpi].type in ('ID', 'INC', 'BUILTINF','FUNCTION') and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value):
                                 check=False ; break
                             elif lex[tmpi].type == 'INDEX' and lex[tmpi].value.startswith(lex[token].value):
@@ -2014,11 +2014,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         tmp = 0;break
                                 if tmp < tmpIndent:
                                     breakOnNextNL=True
-                            elif breakOnNextNL and lex[tmpi].type in typeNewline: break
+                            elif lex[tmpi].type == 'ASSIGN' and ':' not in lex[tmpi].value and lex[tmpi+1].type == 'IF':
+                                ttenary=True
+                            elif lex[tmpi].type == 'ELSE' and ttenary: ttenary=False
+                            elif breakOnNextNL and not ttenary and lex[tmpi].type in typeNewline: break
                     if check:  # remove the var
+                        ttenary = False
                         for tmpi in range(delPoint+1, len(lex) - 1):
-                            #print(lex[tmpi].type, lex[tmpi].value)
-                            if lex[tmpi].type in typeNewline:
+                            if lex[tmpi].type == 'ASSIGN' and lex[tmpi+1].type == 'IF': ttenary=True
+                            elif ttenary and lex[tmpi].type == 'ELSE': ttenary=False
+
+                            if not ttenary and lex[tmpi].type in typeNewline:
                                 break
                             else:
                                 if tmpReplaceWithPass:
@@ -2284,7 +2290,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tmpFound = True
                 tmpPos = expressionStart + 3
                 line.append(decideIfIndentLine(indent, f'{tmpList}map({tmpf}, '))
-            elif lex[expressionStart+2].type == 'PIPE'  and lex[expressionStart+1].type != 'COMMAGRP' and lex[expressionStart+3].type == 'ID' and lex[expressionStart+4].type in typeNewline:
+            elif expressionStart+4 < len(lex)-1 and lex[expressionStart+2].type == 'PIPE'  and lex[expressionStart+1].type != 'COMMAGRP' and lex[expressionStart+3].type == 'ID' and lex[expressionStart+4].type in typeNewline:
                 if lex[expressionStart + 1 + 4].type == 'LOOP': return False
                 for i in range(4):
                     lex[expressionStart + i].type = 'IGNORE'
@@ -2836,7 +2842,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if fstrQuote != '':
                     if tok.type != 'THEN':
                         tok.type = 'IGNORE' ; continue
-                    else:
+                    elif not tenary: # jumpy
                         tok.value='}{' ; line.append(tok.value) ; lastType=tok.type='FSTR' ; continue
 
                 if lexIndex+1 < len(lex) and lex[lexIndex+1].type in ('AND','OR'):
@@ -2925,7 +2931,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     tok.type='THEN'
 
                 if tok.type == 'THEN' and ':' not in tok.value:
-                    if indent!= 0:
+                    if fstrQuote!='' and tenary: pass
+                    elif indent!= 0:
                         tok.value=f"\n{' '*(storedIndents[-1] if storedIndents!=[] else indent)}" ; tok.type='TAB'
                     # a THEN takes the current indent and turns into a TAB
 
@@ -3144,10 +3151,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if len(listcomp) > 0 or ('list' in listcomp and 'x' in listcomp): # for tenary conditionals inside listcomp
                     if lastType != 'THEN':
                         line.append(codeDict[tok.type]+' ')
-                elif ((lastType in typeAssignables+('ASSIGN','FUNCTION','BUILTINF','LPAREN','RPAREN','BOOL','IGNORE','INDEX','COMMAGRP') and tok.value=='if') or tenary) and startOfLine == False:
+                elif ((lastType in typeAssignables+('ASSIGN','FUNCTION','BUILTINF','LPAREN','RPAREN','BOOL','IGNORE','INDEX','COMMAGRP','FSTR') and tok.value=='if') or tenary) and startOfLine == False:
                     tenary=True
                     # this section is for altered tenary
-                    if lastType in ('ASSIGN','RETURN'): # alias:  c is if True then a else b
+                    if lastType in ('ASSIGN','RETURN') or (lastType == 'FSTR' and fstrQuote!=''): # alias:  c is if True then a else b
                         search=False ; tmp=[]
                         for tmpi in range(lexIndex+1,len(lex)-1):
                             if lex[tmpi].type == 'ELSE': break
