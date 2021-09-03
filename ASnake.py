@@ -2320,6 +2320,53 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         #[print(l.type,l.value) for l in lex]
         return tmpFound
 
+    def checkIfImpureFunction(lexIndex,pyDef,functionArgNames):
+        impure = False
+        tmp = 1
+        tmpIndent=0
+        withoutFromSafe=False # for asnake func, declares it is safe even if no from found
+        for tmpi in range(lexIndex,0,-1):
+            if lex[tmpi].type in typeNewline:
+                if lex[tmpi].type == 'TAB':
+                    tmpIndent=lex[tmpi].value.replace('\t',' ').count(' ')
+                if lex[tmpi].type != 'THEN': break
+        while lexIndex + tmp < len(lex) - 1:
+            if lex[lexIndex + tmp].type == 'FUNCTION' and (lex[lexIndex + tmp].value in ('open', 'ASopen') \
+            or (lex[lexIndex + tmp].value.replace('(', '') not in tuple([i for i in storedCustomFunctions if 'pure' in storedCustomFunctions[i] and storedCustomFunctions[i]['pure']]) + pyBuiltinFunctions)):
+                if lex[lexIndex + tmp].value.replace('(', '') == lex[lexIndex].value:
+                    pass
+                else: impure = True ; break
+            elif lex[lexIndex + tmp].type == 'BUILTINF' and any(i for i in listMods + ('.open', lex[lexIndex].value + '.') if i in lex[lexIndex + tmp].value):
+                impure = True ; break
+            elif (lex[lexIndex + tmp].type == 'ID' and lex[lexIndex + tmp].value in storedVarsHistory) \
+            or (lex[lexIndex + tmp].value in storedCustomFunctions and 'pure' in storedCustomFunctions[lex[lexIndex + tmp].value] and storedCustomFunctions[lex[lexIndex + tmp].value]['pure'] == False):
+                if lex[lexIndex + tmp].value not in functionArgNames:
+                    impure = True ; break  # ^ TODO check if ID is const, if it is then its not impure. sorta does this when constants put a [0] on the var name
+            elif not pyDef and lex[lexIndex + tmp].type == 'FROM':
+                withoutFromSafe = False ; break
+            elif lex[lexIndex + tmp].type == 'TAB' and lex[lexIndex + tmp].value.count(' ') < tmpIndent:
+                if pyDef: break
+                else: withoutFromSafe = True
+            elif lex[lexIndex + tmp].type == 'NEWLINE' and tmpIndent==0:
+                if pyDef: break
+                else: withoutFromSafe=True
+            elif lex[lexIndex + tmp].type == 'SCOPE': impure=True ; break
+            tmp += 1
+        if not pyDef and impure and withoutFromSafe:
+            impure = False
+        return impure
+    def optAddCache():
+        nonlocal code, line, lastType, pythonVersion
+        tmpCache = 'cache' if pythonVersion >= 3.9 else 'lru_cache'
+        if any(i for i in code if f'from functools import {tmpCache}\n' in i) == False:
+            code.insert(1, f'from functools import {tmpCache}\n')
+        startOfLine = True
+        if lastType == 'ASYNC':
+            pass  # seems to mess up ASYNC functions
+        else:
+            line.append(decideIfIndentLine(indent, f'@{tmpCache}{"(maxsize=0)" if tmpCache == "lru_cache" else ""}\n', False))
+
+
     line=[]
     anyCheck='all' # for any of syntax
     fstrQuote='' # keeping track of last quote-type for f-strings
@@ -2470,22 +2517,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmpf=', '.join(newtmp)
 
                     # v impure function detection
-                    tmp=1
-                    while lexIndex + tmp < len(lex) - 1:
-                        if lex[lexIndex + tmp].type == 'FUNCTION' and (lex[lexIndex + tmp].value in ('open', 'ASopen') \
-                        or (lex[lexIndex + tmp].value.replace('(', '') not in tuple([i for i in storedCustomFunctions if 'pure' in storedCustomFunctions[i] and storedCustomFunctions[i]['pure']]) + pyBuiltinFunctions)):
-                            if lex[lexIndex + tmp].value.replace('(', '') == lex[lexIndex].value: pass
-                            else:
-                                impure = True ; break
-                        elif lex[lexIndex + tmp].type == 'BUILTINF' and any(i for i in listMods + ('.open', lex[lexIndex].value + '.') if i in lex[lexIndex + tmp].value):
-                            impure = True ; break
-                        elif (lex[lexIndex + tmp].type == 'ID' and lex[lexIndex + tmp].value in storedVarsHistory) \
-                        or (lex[lexIndex + tmp].value in storedCustomFunctions and 'pure' in storedCustomFunctions[lex[lexIndex + tmp].value] and storedCustomFunctions[lex[lexIndex + tmp].value]['pure'] == False):
-                            if lex[lexIndex + tmp].value not in functionArgNames:
-                                impure = True ; break  # ^ TODO check if ID is const, if it is then its not impure. sorta does this when constants put a [0] on the var name
-                        elif lex[lexIndex+tmp].type == 'FROM':
-                            break
-                        tmp+=1
+                    if impure == False: impure=checkIfImpureFunction(lexIndex,False,functionArgNames)
 
                     # storing function metadata
                     storedCustomFunctions[tok.value]={}
@@ -2499,15 +2531,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if scopey:
                         storedCustomFunctions[tok.value]['scopes']=scopey
                     if optimize and optFuncCache and not impure:
-                        tmpCache='cache' if pythonVersion >= 3.9 else 'lru_cache'
-                        if any(i for i in code if f'from functools import {tmpCache}\n' in i) == False:
-                            code.insert(1, f'from functools import {tmpCache}\n')
-                        startOfLine=True
-                        if lastType == 'ASYNC':
-                            pass # seems to mess up ASYNC functions
-                            #line.insert(-2,decideIfIndentLine(indent,f'@{tmpCache}\n',False))
-                        else:
-                            line.append(decideIfIndentLine(indent,f'@{tmpCache}{"(maxsize=0)" if tmpCache=="lru_cache" else ""}\n',False))
+                        optAddCache()
                     if compileTo == 'Cython' and optimize: # append cy function mods
                         if cyWrapAround:
                             if any(i for i in code if 'cimport cython\n' in i)==False:
@@ -2842,7 +2866,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if fstrQuote != '':
                     if tok.type != 'THEN':
                         tok.type = 'IGNORE' ; continue
-                    elif not tenary: # jumpy
+                    elif not tenary:
                         tok.value='}{' ; line.append(tok.value) ; lastType=tok.type='FSTR' ; continue
 
                 if lexIndex+1 < len(lex) and lex[lexIndex+1].type in ('AND','OR'):
@@ -4247,6 +4271,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.type == 'IGNORE':
                 pass
             elif tok.type == 'PYDEF': # support for Python style function define
+                if checkIfImpureFunction(lex.index(tok),True,(None,)) == False:
+                    # TODO: replace (None,) with function argument vars ^
+                    optAddCache()
                 if tok.value.replace(' ','')[-1] != ':': tok.value+=':'
                 line.append(decideIfIndentLine(indent,f'{tok.value}\n'))
                 startOfLine=True ; indent+=prettyIndent
