@@ -1644,25 +1644,25 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                             if optFuncTricksDict['boolTonotnot'] and lex[token+1].value == 'bool':
                                 # x = var to bool  -->  x = not not var
-                                lex[token + 1].type = 'IGNORE'
-                                lex[token].type = 'RPAREN' ; lex[token].value=')'
                                 if 'in' in lex[token].value: # into
                                     tmpf=True
                                 else: # to
                                     tmpf=False
-                                tmpIndex=False
-                                for tmpi in range(token-1,0,-1):
-                                    if lex[tmpi].type in typeNewline:
-                                        if not tmpIndex: tmpIndex = tmpi + 1
-                                        break
-                                    elif not tmpf and not tmpIndex:
-                                        tmpIndex=tmpi
-                                    elif lex[tmpi].type == 'PIPEGO':
-                                        tmpIndex = tmpi ; lex[tmpi].type = 'IGNORE'
-                                        break
-                                lex.insert(tmpIndex, makeToken(lex[token], 'not ', 'INS'))
-                                lex.insert(tmpIndex, makeToken(lex[token], 'not ', 'INS'))
-                                lex.insert(tmpIndex, makeToken(lex[token], '( ', 'LPAREN'))
+                                if not tmpf or lex[token-2].type != 'PIPE':
+                                    lex[token + 1].type = 'IGNORE'
+                                    lex[token].type = 'RPAREN' ; lex[token].value = ')'
+                                    tmpIndex=False
+                                    for tmpi in range(token-1,0,-1):
+                                        if lex[tmpi].type in typeNewline:
+                                            if not tmpIndex: tmpIndex = tmpi + 1
+                                            break
+                                        elif lex[tmpi].type == 'PIPEGO':
+                                            tmpIndex = tmpi ; break
+                                        elif lex[tmpi].type == 'ASSIGN':
+                                            tmpIndex = tmpi+1 ; break
+                                    lex.insert(tmpIndex, makeToken(lex[token], 'not ', 'INS'))
+                                    lex.insert(tmpIndex, makeToken(lex[token], 'not ', 'INS'))
+                                    lex.insert(tmpIndex, makeToken(lex[token], '( ', 'LPAREN'))
 
                     elif lex[token].type in ('LOOP','WHILE','FOR'):
                         if optLoopAttr and lex[token-1].type in typeNewline+('DEFFUNCT',):
@@ -3915,12 +3915,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif lexIndex+1 < len(lex) and lex[lexIndex+1].type=='NUMBER':
                         line.append(decideIfIndentLine(indent,f"range({lex[lexIndex-1].value}, {lex[lexIndex+1].value})"))
                 elif 'into' in tok.value or (lexIndex-1>0 and lex[lexIndex-1].type == 'INTOED') or line==[]:
-                    if debug: print('line(into)',line)
+                    if debug: print(f'{lex[lexIndex+1].value}(',''.join(line),')')
                     startOfLine=True # in fast mode this will create indents where they dont need to be, but when a indent is needed it does it correctly
-                    if line==[]: line.append(lex[lexIndex-1].value)
-                    line.insert(0,decideIfIndentLine(indent,f"{lex[lexIndex+1].value}("))
-                    line.append(')')
-                    lex[lexIndex+1].type='INTOED'
+                    if optimize and optFuncTricks and optFuncTricksDict['boolTonotnot'] and lex[lexIndex+1].value.strip() == 'bool' and line:
+                        line.insert(0, decideIfIndentLine(indent, f"(not not "))
+                        line.append(')')
+                        lex[lexIndex + 1].type = 'INTOED'
+                    else:
+                        if line==[]: line.append(lex[lexIndex-1].value)
+                        line.insert(0,decideIfIndentLine(indent,f"{lex[lexIndex+1].value}("))
+                        line.append(')')
+                        lex[lexIndex+1].type='INTOED'
                 else:
                     if hasPiped == False:
                         tmpfunc=[]
