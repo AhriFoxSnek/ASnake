@@ -3198,7 +3198,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if tok.type == 'OF' and debug: print(switchCase) # needs to be if, not elif
                             if tok.type == 'ELSE' and tenary==False:
                                 for t in range(lexIndex,0,-1): # i guess another tenary detection of sorts
-                                    if lex[t].type == 'RETURN' or (lex[t].type == 'ASSIGN' and lex[t-1].type in typeAssignables):
+                                    if lex[t].type == 'RETURN' or (lex[t].type == 'ASSIGN' and lex[t-1].type == 'ID' and lex[t+1].type == 'IF'):
                                         line.append(tok.value+' ') ; check=False ; break
                                     elif lex[t].type in typeNewline: check=True ; break
                                 if not check: lastType='ELSE' ; continue
