@@ -143,10 +143,10 @@ class Lexer(Lexer):
     OF      = r'of +'
     END     = r'end(?=\s|;)'
     PIPE    = r'(into|to)(?!\S)'
-    PIPEGO  = r'pipe'
-    AND     = r'and'
+    PIPEGO  = r'pipe '
+    AND     = r'and '
     OR      = r'or '
-    FROM    = r'from'
+    FROM    = r'from '
     RETURN  = r'(return|yield +from|yield |del |raise |assert )'
     BREAK   = r'break|continue'
     FOR     = r'for '
@@ -4305,6 +4305,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 line.append(decideIfIndentLine(indent,f'{tok.value}\n'))
                 indent+=prettyIndent ; startOfLine=True
             elif tok.type == 'NRANGE':
+                if lastType == 'ID':
+                    if lex[lexIndex-2].type in typeNewline+('TYPE','CONST'):
+                          line.append('= ')
+                    elif lex[lexIndex-2].value.strip() != 'print': line.append('== ')
                 if 'to' in tok.value:
                     tmp=tok.value.split('to')
                     line.append(decideIfIndentLine(indent,f"range({tmp[0]}, {tmp[1]})"))
