@@ -3203,6 +3203,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     elif lex[t].type in typeNewline: check=True ; break
                                 if not check: lastType='ELSE' ; continue
 
+                                if inIf and not tenary:
+                                    return AS_SyntaxError('You need to end your conditional experssion.',f"if {''.join(line)}do 'something'\n# or\n\tif {''.join(line)}then 'something'\n# or\n\tif {''.join(line)}\n\t\t'something'",lineNumber,data)
+
                                 line.append('\n')
                                 if switchCase['case']==False \
                                 and (lastType!='TAB' or (lastType=='TAB' and (len(lastIndent[2])>0 and lastIndent[0] > lastIndent[2][-1]))):
