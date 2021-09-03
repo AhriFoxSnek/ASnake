@@ -1967,7 +1967,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if fromImport not in lex[token].value.split('import')[-1]:
                                     lex[token].value=lex[token].value+', %s'%fromImport
             elif optDeadVariableElimination and lex[token].type == 'ID' and lex[token].value != 'print':
-                if ((lex[token + 1].type in typeAssignables and lex[token+1].type!='LIST') or (lex[token + 1].type=='ASSIGN' and lex[token + 1].value in ('=','is','is '))) and lex[token - 1].type in typeNewline + ('CONST', 'TYPE'):
+                if ((lex[token + 1].type in typeAssignables and lex[token+1].type!='LIST') or (lex[token + 1].type=='ASSIGN' and lex[token + 1].value in ('=','is','is '))) and lex[token - 1].type in typeNewline + ('CONSTANT', 'TYPE'):
                     delPoint = tmpIndent = None ; check = True ; tmpReplaceWithPass = False
                     tmpCurrentIndent = 0
                     # tmpIndent is var's indent, tmpCurrentIndent is iterations indent
