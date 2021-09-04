@@ -837,7 +837,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             # it captures y 12 for x, it shouldnt
                                             if lex[t].type not in ('ID','ASSIGN'):
                                                 tmpNoEqualsAssign=False
-                                        else:
+                                        if not tmpNoEqualsAssign:
                                             if lex[t].type in typeNewline and listScope==0: valueStop=t ; break
                                             elif lex[t].type == 'ID':
                                                 if lex[t].value in definedFuncs or lex[t].value == lex[token].value: tmpf=None ; break
@@ -854,6 +854,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             elif lex[t].type in ('FUNCTION','PIPE'): tmpf=None ; break
                                             elif lex[t].type == 'ASSIGN' and ':' not in lex[t].value: tmpf=[]
                                             else: vartype=None ; tmpf.append(deepcopy(lex[t]))
+
                                 if tmpf == []: tmpf=None
                                 if tmpf!=None and len(tmpf)>2 and tmpf[0].type in ('ID','BUILTINF') and tmpf[1].type == 'LINDEX' and (tmpf[-1].type == 'RINDEX' or tmpf[-2].type == 'RINDEX'):
                                     tmpf=None # thing[index] folding is slower than using var reference from var=thing[index]
