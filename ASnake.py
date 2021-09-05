@@ -12,7 +12,7 @@ from sys import argv
 import re
 from keyword import iskeyword
 
-ASnakeVersion='v0.11.5'
+ASnakeVersion='v0.11.6'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -382,7 +382,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif tok.type == 'IMPORT' and tok.value.startswith('import this'): # The ASnake Rebellion
                 code.append(''.join(("import zlib as ASnake\n","myDress = ",str(b'x\x9c\x95UK\x8f\xda0\x10\xbe\xf3+\xac\xed\x05\xa4he;\xce\xc3U\xf7\xd4\xd3J\x95\xfa:"\x0e\x04\xc2n*6a\t\xa9\xd4\x7f_?\xc7\xe3$@\x8bD\x94xf\xbe\xf9\xe6\xe9E\xf5\xb4.EB\x185\x0f\x96\x90\x94\'$\xcf\x12R\xa6\xea\x80\xd1\x84\xc8BK\n$.\xb9\xfb\x90\xa5{a\xb4\x84G\xa6\xed\x983\x16\xc2\x9a\x18M\x8e\xe0\xadC&\x9c\x85>.\xa8\xb7\xe4\xfa\xcd\xfd\x8b\xd4J\x19\x93\x00\\\x803\xea\x85\xc2\x11e9\x0e\xc6\x9c\x83\x7f\xcf\xdf\xd8\x1am\xce\x11\xad`k\x91\xe8\xc8\xd4\x9e\x06\'&\n\x8e\xf9\x88\xdcr\xce\x0b\xaf-"\xb7\x1c"p\xb4\x8co\x14\x94\xd1gY\x9cU>\xe21\xc2\t\xf8\xf6h\x9a\x00\x83\xe8\xb9\x95\x05\x14\xc9k\xce\xe4\xc4*P@\xc9<\n\xa8{\x04\xf4\x95y\x1e\x19\xa4\xc7\xd4\x8cC(\x0c\xf1\x80\xae\xb3\x14CaSL\xeb:\x96:\x932\x8aE\'\xd3\x13\xf4m\xa3U\xa2r:0\xdf\xdd3y\x94\xd0h3\xf4]o\xc6>o\xa7\xf6\xff\xf1\xee\xc7\xe0\x99\xdb/9\x89\xc3S*r(a\x8e\xb5!\xd6\x12[\xc1\xa8\xc7\xe3\x80:L\xe0v\x0f\xbd!\xa2r\xb1+\x03\x95\xcf\x02\x8f\x92?368|4\xad\xfe\x98{\x16\x01<0\x80md\x08\xb3r\xe4\xca*\x85\xd0`\xa9\x85a\x93(\x9b\xa65\xf9\xec\xec\x86\xba\xc00Hhg\x08\xc8\x16\x07\x86(\x8d\xca\x18/\x1a\x81\n^xWx\xc3\x8c{\n\xad\xa6h\xf2\xd1\x1c\x8d&-^\xa1Yl\x19oL9\xe6\x8e\x86g\xbe\xae7W\xd2\xb4\x82q\xf1\xd1J\xa4\x8e\xe4\xbd\x056\xe3\xdd\xae\x92\xb0\xa7s\xcc\n\xeah{\xc4\xdfi\xeeAq\xa83\xc8W\xb6[H\x94KP\x1e\xddK\xd1\xdd\x18O2^\xb4Z(1\xe10\x02\xf9\xa4\xc6\x02\x94T[xIX\x19\x05.\xed?\\\xee\xf6\x9e\xb5\xf1\xf9I@\xb7W\xd4\xc8\xa3}\x92n\x16\xc7\xa6\xbf|=\xfc\xa8wu{\xf9v\xae\xfbf\xaf^\xfa\xe7\xef?w\x9d\xfazZo\x16\x87\xeeL\xaa\x8a4-9o\xdb\x97zI\x93c\xdd.\xab\xd5\xea#\xf9\xf0L\x8e\xc3o2(\xf9\x82\xa8\xdfm\xb0\xc7\xed\xe9T\xb7\xfbe\xb5\xae\xaa\xcd\xca\x18Tu\x7f\xf9Ro_\x86\xfa\xf3\xeb\xf6\xed\xd4t\xad\xf6\xa8%\xdak\xf3>\xf6z\xdb\x81\xa2dl\xf5\xaf9\xdca\xb3n\xde7\xe4\x13a)Uq\xfc\xe9\x06\xd2\xf4d?\xbcU\x1d@\xcc\x13\xf4Q\xec^\xcfw\xe8h\x0f\xab\xd5\xe2tn\xda\xcb\xf2\xe1\xe1\xf1W\xd7\xa8\xbcM\x00\x95\xca_\x02|\xfa\xf9'),"\n# who wears myDress the best?\nexec(ASnake.decompress(myDress)) ; del ASnake")))
         elif tok.type == 'ID':
-            if any(i for i in defaultTypes.split('|') if i == tok.value):
+            if any(i for i in defaultTypes.split('|') if i == tok.value) and tok.value.strip() not in reservedIsNowVar:
                 tok.type='TYPE' # dumb fix for it not detecting types
             elif tok.value.isascii() == False:
                 tok.value=convertEmojiToAscii(tok.value)
@@ -688,6 +688,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         else:
             if reservedIsNowVar and tok.value in reservedIsNowVar: tok.type='ID'
             lex.append(tok)
+        if lex[lexIndex].type == 'TYPE' and tok.type != 'ID' and lex[lexIndex-1].type not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT'):
+            lex[lexIndex].type='ID' ; reservedIsNowVar.append(lex[lexIndex].value.strip())
         lexIndex+=1
     lex=[l for l in lex if l.type not in ('IGNORE','IGNORENL')]
 
@@ -3658,6 +3660,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     else: line.append(',')
                 else: line.append(',')
             elif tok.type == 'TYPE': # idTYPE
+                if lex[lexIndex+1].type != 'ID' and lastType not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT'):
+                    return AS_SyntaxError('Type must be declared to variable',f'{tok.value} variable = value', lineNumber, data)
+                if lastType not in typeNewline+('CONSTANT','DEFFUNCT','TYPEWRAP'):
+                    return AS_SyntaxError('Invalid token before type declaration.',f'{tok.value} {lex[lexIndex+1].value} = value',lineNumber,data)
                 if lex[lexIndex+1].type == 'ID' and lex[lexIndex+2].type == 'LISTCOMP':
                     tok.type='ID' ; line.append(tok.value)
                 elif tok.value  == 'range' and lex[lexIndex+1].type == 'NRANGE': tok.type='IGNORE' ; continue
