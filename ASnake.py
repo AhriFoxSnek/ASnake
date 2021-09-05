@@ -985,6 +985,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                         tmpf[0].value = ')' ; tmpf[0].type = 'RPAREN'
                                                                     break
                                                         if lex[tmpi-2].type == 'LOOP' and isinstance(tmpf[0],str) == False and tmpf[0].type == 'RPAREN': tmpsafe=False
+                                                        if vartype == 'STRING' and (lex[tmpi-1].type == 'FSTR' or lex[tmpi+1].type == 'FSTR'):
+                                                            if isinstance(tmpf[0],str) == False and '\\\\' in tmpf[0].value: tmpsafe=False
+                                                            elif '\\\\' in tmpf: tmpsafe=False
 
                                                         if tmpsafe:
                                                             if debug: print(f'replacing lex #{tmpi} (lastType:{lex[tmpi-1].type})')
@@ -2808,6 +2811,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     miniLex=Lexer()
                     for i in miniLex.tokenize(tmp+' '):
                         lex.insert(lexIndex+1,i)
+                elif lex[lexIndex+1].type == 'LIST' and lastType in typeNewline: line.append(tok.value) # Python nested typing
                 else:
                     if compileTo == 'Cython' and lexIndex-2 > 0 and lex[lexIndex-2].type in typeNewline+('DEFFUNCT',):
                         line.append(decideIfIndentLine(indent,'AStempVar = '))
