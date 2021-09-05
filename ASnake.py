@@ -3665,7 +3665,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 else: line.append(',')
             elif tok.type == 'TYPE': # idTYPE
                 if lex[lexIndex+1].type != 'ID' and lastType not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT'):
-                    return AS_SyntaxError('Type must be declared to variable',f'{tok.value} variable = value', lineNumber, data)
+                    return AS_SyntaxError('Type must be declared to a variable.',f'{tok.value} variable = value', lineNumber, data)
                 if lastType not in typeNewline+('CONSTANT','DEFFUNCT','TYPEWRAP'):
                     return AS_SyntaxError('Invalid token before type declaration.',f'{tok.value} {lex[lexIndex+1].value} = value',lineNumber,data)
                 if lex[lexIndex+1].type == 'ID' and lex[lexIndex+2].type == 'LISTCOMP':
