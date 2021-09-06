@@ -765,6 +765,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
         definedFuncs=[]
         wasImported={}
+        doNotModThisToken=[]
         newOptimization=True
         optimizeRound=0
         while newOptimization: # continue to optimize until there is nothing left
@@ -1345,21 +1346,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     elif lex[token].type in ('BUILTINF','FUNCTION','COMMAGRP') or (lex[token].type == 'TYPE' and lex[token+1].type=='LPAREN'): # COMMAGRP might be dubious, but it does solve some cases for optFromFunc
                         if optFromFunc:
                             tmpf = [i for i in wasImported if i in lex[token].value]
-                            if len(tmpf) > 0: # TODO AAHHHHH multi import blah.blah.thing()
+                            if len(tmpf) > 0:
                                 # tmpf is moduleName. like random.
                                 # func is all of the things after it, like .randint
                                 restr='((?: |,)'+tmpf[0].replace('.','\.')+r"""\w*\b(?=([^"'\\]*(\\.|("|')([^"'\\]*\\.)*[^"'\\]*("|')))*))"""
                                 # thing\.\w*\b is all thats needed, rest is for excluding it if its in quotes
                                 func=re.findall(restr,' '+lex[token].value,re.MULTILINE)
-                                #if tmpf[0][:-1] in lex[token].value :#tmpf[0] in wasImported and tmpf[0][:-1] in wasImported[tmpf[0]]:
-                                #    print(tmpf[0],'no!!',wasImported)
-                                    #wasImported[tmpf[0]]=[]
-                                    #del wasImported[tmpf[0]]
-                                #    func=[] # fixes instances like  datetime.datetime.now()
-                                    # ^^ new issue, blocks random for random.random() due to case for datetime.datetime.now()
-                                if len(func) > 0: func=[f[0] for f in func]
+                                if len(func) > 0: func = [f[0] for f in func]
+
                                 if len(func) == 0 or any(i for i in func if i.count('.')>1): pass # must not be multi import like:  ctypes.c_int.from_address
-                                else:
+                                elif lex[token] not in doNotModThisToken:
+                                    if func[0].split('.')[-1] + '.' in tmpf: # dont not importname.importname.thing()
+                                        doNotModThisToken.append(lex[token])
                                     if lex[token].type=='COMMAGRP':
                                         lex[token].value = lex[token].value[:lex[token].value.index(',')+1] + lex[token].value[lex[token].value.index(',')+len(tmpf[0])+1:]
                                     else: lex[token].value=lex[token].value[len(tmpf[0]):] # replaces module.thing to thing
