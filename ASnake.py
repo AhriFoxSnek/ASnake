@@ -340,6 +340,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     lex=[]
     lexIndex=0
     currentTab=0
+    bracketScope=0
     lastIndent=[0]
     tabBackup=[currentTab,lastIndent[:]]
     inFrom=False
@@ -412,6 +413,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         elif lex[tmpi].type == 'LIST': tmp+=1
                         elif lex[tmpi].type == 'LISTEND': tmp-=1
                     if tmp >= 0: tok.type='IGNORE'
+                if bracketScope > 0: tok.type = 'IGNORE'
                 if tok.type=='IGNORE': lex.append(tok)
                 else: 
                     if lex[lexIndex].type == 'TAB':
@@ -613,12 +615,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     lex.append(t) ; lexIndex += 1
                     if debug: print('--', t)
 
-                #tmptok=deepcopy(tok); tmptok.type='ENDIF' ; tmptok.value=':'
-                #lex.append(tmptok) ; lexIndex+=1
                 tmptok=deepcopy(tok)
-                #if currentTab > 0:
-                #    tmptok.type='TAB' ; tmptok.value='\n'+' '*(currentTab+prettyIndent)
-                #else:
                 tmptok.type = 'THEN' ; tmptok.value = 'then '
                 lex.append(tmptok) ; lexIndex+=1
 
@@ -685,6 +682,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lexIndex+=1
             lexIndex -= 1
             crunch = True
+        elif tok.type == 'LBRACKET':
+            bracketScope+=1 ; lex.append(tok)
+        elif tok.type == 'RBRACKET':
+            bracketScope-=1 ; lex.append(tok)
+        elif tok.type == 'ENDIF' and bracketScope > 0: tok.type='COLON' ; lex.append(tok)
         else:
             if reservedIsNowVar and tok.value in reservedIsNowVar: tok.type='ID'
             lex.append(tok)
@@ -815,7 +817,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if tmpi != None and token+tmpi < len(lex):
                                 tmpf=[] # get expression
                                 vartype=lex[token+tmpi].type
-                                listScope=0
+                                listScope=0 ; tmpBracketScope=0
                                 valueStop=None
                                 if vartype in ('LIST','LPAREN'):
                                     if lex[token+tmpi+1].type in ('LISTEND','RPAREN','RINDEX'): token+=1 ; continue
@@ -841,7 +843,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             if lex[t].type not in ('ID','ASSIGN'):
                                                 tmpNoEqualsAssign=False
                                         if not tmpNoEqualsAssign:
-                                            if lex[t].type in typeNewline and listScope==0: valueStop=t ; break
+                                            if lex[t].type in typeNewline and listScope==0 and tmpBracketScope==0: valueStop=t ; break
                                             elif lex[t].type == 'ID':
                                                 if lex[t].value in definedFuncs or lex[t].value == lex[token].value: tmpf=None ; break
                                                 else: tmpf.append(deepcopy(lex[t]))
@@ -857,6 +859,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             elif lex[t].type in ('FUNCTION','PIPE'): tmpf=None ; break
                                             elif lex[t].type == 'ASSIGN' and ':' not in lex[t].value: tmpf=[]
                                             else: vartype=None ; tmpf.append(deepcopy(lex[t]))
+                                            if lex[t].type == 'LBRACKET': tmpBracketScope+=1
+                                            elif lex[t].type == 'RBRACKET': tmpBracketScope-=1
 
                                 if tmpf == []: tmpf=None
                                 if tmpf!=None and len(tmpf)>2 and tmpf[0].type in ('ID','BUILTINF') and tmpf[1].type == 'LINDEX' and (tmpf[-1].type == 'RINDEX' or tmpf[-2].type == 'RINDEX'):
@@ -1810,11 +1814,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             preRparen=0
                             for t in range(token,0,-1):
                                 # for setting tmpRparen
-                                if lex[t].type in typeNewline: break
+                                if lex[t].type in typeNewline+('ENDIF',): break
                                 elif lex[t].type == 'LPAREN': preRparen+=1 ; tmpRparen+=1
 
+                            #print('~~~')
                             for t in range(token,len(lex)-1):
-                                #print(lex[t].type,lex[t].value)
+                                #print(lex[t].type,tmpRparen)
                                 if lex[t].type in typeNewline:
                                     break
                                 elif lex[t].type == 'MODULO':
@@ -1838,6 +1843,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 tmpf.append(tt)
                                             if doBreak: lex[t].type='IGNORE' ; break
                                         else:
+                                            if lex[t+2].type == 'COLON': break
+                                            #print('!',lex[t+2].type)
                                             tmptok=deepcopy(lex[t])
                                             tmpf.append(tmptok)
                                         lex[t].type='IGNORE'
@@ -1849,7 +1856,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             else:
                                 for t in range(token,len(lex)-1): # restoring types if we cant do the optimization
                                     if lex[t].type.startswith('IGNOREtmp'): lex[t].type=lex[t].type.split('tmp')[-1]
-                            if debug and tmpf: print('optStrFormatToFString',tmpf)
+                            if debug and tmpf: print('optStrFormatToFString',[f.type for f in tmpf])
                             tmpfunc=[]
                             while len(tmpf) > 0:
                                 if tmpf[0].type == 'STRING' and tmpf[0].value[0] not in ('f','r') and '{' not in tmpf[0].value[0] \
@@ -2430,9 +2437,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             if len(expPrint) > 2:
                 expPrint.pop()
         if tok.type=='IGNORE' and tok.value[-1]==')' and parenScope>0: parenScope-=1
-        if debug: print(lineNumber,lexIndex,indent,parenScope,'%s'%('T' if startOfLine == True else 'F'),'%s'%('T' if indentSoon == True else 'F'),'%s'%('T' if inIf == True else 'F'),'%s'%('T' if (hasPiped or hasPiped==None) else 'F'),'%s'%('T' if notInDef == True else 'F'),tok.type,tok.value.replace('\n','\\n').replace('\t','\\t'))
+        if debug: print(lineNumber,lexIndex,indent,parenScope,bracketScope,'%s'%('T' if startOfLine == True else 'F'),'%s'%('T' if indentSoon == True else 'F'),'%s'%('T' if inIf == True else 'F'),'%s'%('T' if (hasPiped or hasPiped==None) else 'F'),'%s'%('T' if notInDef == True else 'F'),tok.type,tok.value.replace('\n','\\n').replace('\t','\\t'))
         if inFuncArg == False or tok.type in typeNewline:
             if tok.type in typeAssignables: # idVALUES
+                if tok.type == 'LBRACKET': bracketScope+=1
+                elif tok.type == 'RBRACKET':
+                    if bracketScope>0: bracketScope-=1
                 if lexIndex+1 < len(lex) and lex[lexIndex+1].type in typeAssignables+('ASSIGN',) \
                 and tok.value in storedCustomFunctions:
                     del storedCustomFunctions[tok.value] ; tok.value=tok.value.replace('()','')
@@ -3659,6 +3669,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         line=line[:-1]
                         lex[lexIndex+1].type='COMMAGRP' ; tok.type='IGNORE' ; lex[lexIndex-1].type='IGNORE'
                         if lex[lexIndex+1].value[-1]==')': parenScope-=1
+                        if lex[lexIndex+1].value[-1]=='}': bracketScope-=1
                     else: line.append(',')
                 else: line.append(',')
             elif tok.type == 'TYPE': # idTYPE
@@ -4265,7 +4276,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 # var = True
                     if inIf:
                         if tok.type=='BOOL' and optimize and optIfTrue and tok.value=='True' and ((lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] == 'BOOL') or lex[lexIndex-1].type == 'OF'):
-                            tok.value='' ; tok.type=='IGNORE'
+                            tok.value='' ; tok.type='IGNORE'
                         else:
                             tok.value=f'== {tok.value}'
                     else:
@@ -4273,7 +4284,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tok.value=f'= {tok.value}'
                 elif inIf and tok.type == 'BOOL' and optimize and optIfTrue and tok.value=='True' and lastType in ('EQUAL','ASSIGN') and ':' not in lastValue and lex[lexIndex-2].type=='ID' and lex[lexIndex-2].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-2].value]['type'] == 'BOOL':
                     # optIfTrue
-                    tok.value='' ; tok.type=='IGNORE'
+                    tok.value='' ; tok.type='IGNORE'
                     lex[lexIndex-1].type='IGNORE'
                     line=line[:-1]
                 if tok.type == 'COMMAGRP' and tok.value.endswith('('): parenScope+=1
