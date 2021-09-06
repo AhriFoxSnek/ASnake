@@ -3119,7 +3119,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         return AS_SyntaxError(
                             f'Variable \"{lastValue}\" is a reserved keyword, use a different name.',
                             f'variableName {tok.value} {lex[lexIndex + 1].value}', lineNumber, data)
-                    if (inIf or fstrQuote!='') and tok.value == 'is ':
+                    if (inIf or fstrQuote!='' or parenScope>0) and tok.value.strip() == 'is':
                         if lex[lexIndex+1].type == 'INS' and lex[lexIndex+1].value.startswith('not') and tok.value.startswith('is'):
                             # is not -> !=
                             line.append('!= ')
