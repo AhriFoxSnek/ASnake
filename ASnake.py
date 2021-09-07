@@ -2411,6 +2411,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     functionPassing=False
     pyIs=False
     autoEnumerate=True
+    intVsStrDoLen=True
 
     listcomp={}
     lexIndex=-1
@@ -3126,7 +3127,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex[lexIndex+1].type='IGNORE'
                         else:
                             # if a is 12 -> if a == 12
-                            line.append('== ')
+                            if tok.value.strip() == 'is' and ((lastType == 'STRING' and lex[lexIndex+1].type == 'NUMBER') or (lastType == 'NUMBER' and lex[lexIndex+1].type == 'STRING')):
+                                tok.type = lastType ; tok.value = lastValue
+                                lex.insert(lexIndex+1,makeToken(tok,'==','EQUAL'))
+                            else:
+                                line.append('== ')
                     elif lastType not in {'ID','INDEX','COMMAGRP','BUILTINF','RINDEX','LISTEND'} and findEndOfFunction(lexIndex-1,goBackwards=True)==False: # syntax error
                         if lastType in typeConditonals:
                             return AS_SyntaxError(
@@ -4410,7 +4415,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         else: pyIs=True
                     else: pyIs=True
                 elif tmpf in metaPyCompat:
-                    pyIs=True ; functionPassing=True ; expPrint.append('') ; autoEnumerate=False
+                    pyIs=True ; functionPassing=True ; expPrint.append('') ; autoEnumerate=False ; intVsStrDoLen=False
                 elif tmpf in {'asnake','Asnake','ASnake'}:
                     pyIs=False ; functionPassing=False
                 elif tmpf in {'Cython','cython'}:
@@ -4510,11 +4515,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 line.append(decideIfIndentLine(indent,tok.value))
                 indent+=prettyIndent
             elif tok.type in typeCheckers:
-                if (lastType in ('STRING','LIST','LISTCOMP','DICT','TUPLE') or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] in ('STRING','LIST','LISTCOMP','DICT','TUPLE'))) \
+                if intVsStrDoLen and (lastType in ('STRING','LIST','LISTCOMP','DICT','TUPLE') or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] in ('STRING','LIST','LISTCOMP','DICT','TUPLE'))) \
                 and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in ('NUMBER','INC') or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type']=='NUMBER'))):
                     line[-1]=line[-1].replace(lex[lexIndex-1].value,f"len({lex[lexIndex-1].value})")
                     line.append(decideIfIndentLine(indent,f'{codeDict[tok.type]} '))
-                elif (lastType in ('NUMBER','INC') or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type']=='NUMBER')) \
+                elif intVsStrDoLen and (lastType in ('NUMBER','INC') or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type']=='NUMBER')) \
                 and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in ('STRING','LIST','LISTCOMP','DICT','TUPLE') or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type'] in ('STRING','LIST','LISTCOMP','DICT','TUPLE')))):
                     tmp=False
                     for tmpi in range(lexIndex,len(lex)):
