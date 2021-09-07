@@ -4188,7 +4188,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     for tmpi in range(lexIndex,len(lex)-1):
                         if lex[tmpi].type in typeNewline: break
                         elif lex[tmpi].type not in typeAssignables+typeOperators+typeCheckers+('INDEX','LPAREN','RPAREN'):
-                            rParen-=1 ; break
+                            if lex[tmpi].type == 'ASSIGN' and lex[tmpi].value.strip() == 'is' and lex[lexIndex].type == 'LPAREN':
+                                pass
+                            else:
+                                rParen-=1 ; break
                         elif tmpi-1 == lexIndex and lex[lexIndex].type == 'ID' and lex[tmpi].type in typeAssignables+('INDEX',):
                             rParen-=1 ; break
                     if rParen == tmp: # normal
