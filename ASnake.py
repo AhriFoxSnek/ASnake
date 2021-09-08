@@ -1101,7 +1101,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if tmpcheck and tmptype:
                                     lex[token].lineno=0
                                     # cheap way to skip a second iteration in the case of:  a = a + a * 2
-                                    # which otherwise would (shouldnt) end up as:  a *= 2
+                                    # which otherwise would (shouldn't) end up as:  a *= 2
 
 
                                     if tmpbit:
@@ -3351,6 +3351,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     forthingin=lex[lexIndex+2].value ; lex[lexIndex+2].type='IGNORE'
                 elif lex[lexIndex+2].type == 'INC' and '[' not in lex[lexIndex+2].value:
                     forthingin=lex[lexIndex+2].value.replace('--','').replace('++','')
+                elif compileTo == 'Cython' and lex[lexIndex+2].value in storedVarsHistory and 'type' in storedVarsHistory[lex[lexIndex+2].value] and storedVarsHistory[lex[lexIndex+2].value]['type'] == 'Py_ssize_t':
+                    forthingin=lex[lexIndex+2].value ; lex[lexIndex+2].type='IGNORE'
                 else: forthingin='_'
                 #print(lex[lexIndex+2].type == 'ID',compileTo=='Cython',lex[lexIndex+2].value not in storedVarsHistory,lex[lexIndex+2].value not in storedCustomFunctions , lex[lexIndex+3].type not in typeOperators)
 
@@ -3373,7 +3375,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if lex[lexIndex+1].type == 'NUMBER' or (lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type'] == 'NUMBER'):
                                 tmp='Py_ssize_t'
                             else: tmp=None
-                        if tmp!=None and all(True if f'cdef {tmp} {forthingin}\n' not in i else False for i in code) and forthingin not in storedVarsHistory:
+                        if tmp!=None and lastIndent[2] == [] and all(True if f'cdef {tmp} {forthingin}\n' not in i else False for i in code) and forthingin not in storedVarsHistory:
                             line.append(decideIfIndentLine(indent,f'cdef {tmp} {forthingin}\n')) ; startOfLine=True
                             storedVarsHistory[forthingin]={'type':tmp,'staticType':True}
 
@@ -4672,21 +4674,24 @@ if __name__ == '__main__':
         if compileTo == 'Cython':
             if "'" in fileName:
                 fileName=fileName.replace("'","\\'")
-            with open('ASsetup.py','w') as f:
-                f.write(f"""
-{'import numpy' if 'import numpy' in data else ''}
-from setuptools import setup
-from Cython.Build import cythonize
-setup(ext_modules = cythonize('{filePath+fileName}',annotate={True if '-a' in argv else False}),
-{'include_dirs=[numpy.get_include(),"."]' if 'import numpy' in data else 'include_dirs=["."]'})""")
             from platform import system as OSName
             from subprocess import check_output
             if 'windows' in OSName().lower():
-                py3Command='"'+check_output(['WHERE', 'python']).decocde()[:-1]+'"'
+                py3Command='"'+(check_output(['WHERE', 'python']).decode().split('\n')[0]).replace('\r','')+'"'
             else: # linux
                 if len(check_output(['which', 'python3']).decode()) > 0:
                     py3Command='python3'
                 else: py3Command='python'
+            with open('ASsetup.py', 'w') as f:
+                f.write(f"""
+{'import numpy' if 'import numpy' in data else ''}
+from setuptools import setup
+try:
+    from Cython.Build import cythonize
+except ModuleNotFoundError:
+    print('Cython is not installed, ASnake is unable to compile to .so file.\\nThe .pyx file still compiled.\\nDo something like:\\n\\t{"python" if "windows" in OSName().lower() else py3Command} -m pip install cython') ; exit()
+setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if '-a' in argv else False}),
+{'include_dirs=[numpy.get_include(),"."]' if 'import numpy' in data else 'include_dirs=["."]'})""")
             os.system(f'{py3Command} ASsetup.py build_ext --inplace')
             os.remove('ASsetup.py')
             if runCode:
