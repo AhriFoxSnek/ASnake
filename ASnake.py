@@ -147,7 +147,7 @@ class Lexer(Lexer):
     AND     = r'and(?= |\t)'
     OR      = r'or(?= |\t)'
     FROM    = r'from(?= |\t)'
-    RETURN  = r'(return|yield +from|yield |del |raise |assert )'
+    RETURN  = r'(return|yield +from|yield|del|raise|assert)(?=[\W\d\n]|$)'
     BREAK   = r'(break|continue)(?= |\n|\t)'
     FOR     = r'for(?= |\t)'
     LOOP    = r'loop(?= |\n)'
