@@ -2375,7 +2375,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         if lastType == 'ASYNC':
             pass  # seems to mess up ASYNC functions
         else:
-            line.append(decideIfIndentLine(indent, f'@{tmpCache}{"(maxsize=0)" if tmpCache == "lru_cache" else ""}\n', False))
+            line.append(decideIfIndentLine(indent, f'@{tmpCache}{"(maxsize=128)" if tmpCache == "lru_cache" else ""}\n', False))
 
 
     line=[]
