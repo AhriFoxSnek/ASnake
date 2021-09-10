@@ -2291,7 +2291,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
             # list( is needed for globals in functions. in instances where its known function is pure, we should get rid of it
             if lex[expressionStart+1].type == 'FUNCTION' and lex[expressionStart+2].type != 'COMMAGRP' and lex[expressionStart+3].type == 'RPAREN' and lex[expressionStart+4].type in typeNewline:
-                if lex[expressionStart + 3 + 2].type == 'LOOP': return False
+                if expressionStart + 3 + 2 < len(lex)-1 and lex[expressionStart + 3 + 2].type == 'LOOP': return False
                 lex[expressionStart+1].type = lex[expressionStart+2].type = 'IGNORE'
                 tmpf = lex[expressionStart + 1].value.replace("(","")
                 if tmpf in storedCustomFunctions and storedCustomFunctions[tmpf]['pure']:
@@ -2367,7 +2367,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             impure = False
         return impure
     def optAddCache():
-        nonlocal code, line, lastType, pythonVersion
+        nonlocal code, line, lastType, pythonVersion, startOfLine
         tmpCache = 'cache' if pythonVersion >= 3.9 else 'lru_cache'
         if any(i for i in code if f'from functools import {tmpCache}\n' in i) == False:
             code.insert(1, f'from functools import {tmpCache}\n')
@@ -3316,7 +3316,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if startOfLine==False and lastType=='INDEX': line[-1]=f" {line[-1]}"
             elif tok.type == 'FOR':
                 tmpFound = False
-                if optimize and optLoopToMap:
+                if optimize and optLoopToMap and lastType in typeNewline:
                     tmpFound=optLoopToMap_Function(lexIndex)
                 if not optimize or not tmpFound:
                     if 'list' in listcomp and 'x' in listcomp:
