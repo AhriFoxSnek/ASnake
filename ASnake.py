@@ -2,13 +2,12 @@
 
 # dependencies
 from sly import Lexer
-import autopep8
+from autopep8 import fix_code
 
 # standard library
 import os
 from copy import deepcopy
 from time import time # just for timing how long stuff takes, not really needed
-from sys import argv
 import re
 from keyword import iskeyword
 
@@ -4578,7 +4577,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False):
     if pep:
         s=time()
-        code=autopep8.fix_code(code)
+        code=fix_code(code)
         print('autopep8 time:', time() - s)
     with open('ahrscriptExec.py','w',encoding='utf-8') as f:
         f.write(code)
@@ -4618,40 +4617,53 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False):
 
         
 if __name__ == '__main__':
+    from argparse import ArgumentParser, FileType
+    argParser=ArgumentParser()
+    argParser.add_argument('-r', '--run', action='store_true', help="Compiles file in memory then runs it.")
+    argParser.add_argument('-v', '--version', action='store', help="Specify which Python version to compile to.")
+    argParser.add_argument('-c', '--compile', action='store_true', help="Compiles file to .py and writes it on disk. On Cython will attempt to compile to .so file.")
+    argParser.add_argument('-o', '--optimize', action='store_true', help="Toggles optimization on and off. On by default.")
+    argParser.add_argument('-f', '--fast', action='store_true', help="Turns off code formatting, and turns off optimization. Useful for fast compile times.")
+    argParser.add_argument('-nc', '--no-comment', action='store_true', help="Turns off comments in the compiled file.")
+    argParser.add_argument('-np', '--no-print', action='store_true', help="Doesn't print the compiled file on console.")
+    argParser.add_argument('-jr', '--just-run', action='store_true', help="Will run compiled version of file if it exists, otherwise will compile and run it.")
+    argParser.add_argument('-cy', '--cython', '--Cython', action='store_true', help="Compiles the code to Cython and .pyx")
+    argParser.add_argument('-pp', '--pypy', '--PyPy', action='store_true', help="Compiles to be compatible with latest PyPy3 Runtime.")
+    argParser.add_argument('-ps', '--pyston', '--Pyston', action='store_true', help="Compiles to be compatible with Pyston runtime.")
+    argParser.add_argument('-a', '--annotate', action='store_true',help="When compiling to Cython, will compile a html file showing Python to C conversions.")
+    argParser.add_argument('-d', '--debug', action='store_true', help="Debug info for compiler developers.")
+    argParser.add_argument('-t', '--test', action='store_true', help="Headless debug for compiler developers.")
+    argParser.add_argument("file", type=FileType("r"), help="Your ASnake file to compile.")
 
     compileTo='Python' ; pythonVersion=3.9
     enforceTyping=compileAStoPy=runCode=headless=debug=justRun=False
     comment=optimize=pep=fancy=True
-    if len(argv) > 1:
-        #print([i for i in argv])
-        argv=argv[1:]
-        try:
-            ASFile=[i for i in argv if os.path.isfile(i)][0]
-            argv.remove(ASFile)
-            with open(ASFile,'r',encoding='utf-8') as f:
-                data=f.read()
-        except: print('Couldn\'t open file :(\nCheck to make sure the path is correct.');exit()
-        if '-r' in argv or '--run' in argv: runCode=True
-        if '--test' in argv: headless=True
-        if '-f' in argv or '--fast' in argv: pep=False ; optimize=False
-        if '-o' in argv or '--optimize' in argv:
-            if optimize: optimize=False
-            else: optimize=True 
-        if '-d' in argv or '--debug' in argv: debug=True
-        if '-np' in argv: fancy=False
-        if '-c' in argv or '--compile' in argv: compileAStoPy=True
-        if '-cy' in argv or '--cython' in argv or '--Cython' in argv: compileTo='Cython'
-        if '--pyston' in argv: compileTo='Pyston'
-        if '-pypy' in argv: compileTo='PyPy3'
-        if '-nc' in argv or '--no-comment' in argv: comment=False
-        if '-jr' in argv or '--just-run' in argv: 
-            justRun=True ; fancy=False ; runCode=True ; pep=False
-        if '-v' in argv or '--version' in argv:
-            for x in range(0,len(argv)):
-                if argv[x] in ('-v','--version') and x+1 < len(argv):
-                    if argv[x+1].count('.') > 1: argv[x+1]='.'.join(argv[x+1].split('.')[:2])
-                    try: pythonVersion=float(argv[x+1]) ; break
-                    except: pass
+
+    args = argParser.parse_args()
+    try:
+        ASFile=args.file.name
+        if not os.path.isfile(ASFile): raise Exception
+        data=args.file.read()
+    except: print('Couldn\'t open file :(\nCheck to make sure the path is correct.');exit()
+    del args.file
+    if args.run: runCode=True
+    if args.test: headless=True
+    if args.fast: pep=False ; optimize=False
+    if args.optimize:
+        if optimize: optimize=False
+        else: optimize=True
+    if args.debug: debug=True
+    if args.no_print: fancy=False
+    if args.compile: compileAStoPy=True
+    if args.cython: compileTo='Cython'
+    if args.pyston: compileTo='Pyston'
+    if args.pypy: compileTo='PyPy3'
+    if args.no_comment: comment=False
+    if args.just_run:
+        justRun=True ; fancy=False ; runCode=True ; pep=False
+    if args.version:
+        try: pythonVersion=float(args.version)
+        except: pass
 
     if compileTo=='Cython': enforceTyping=True
     
@@ -4667,7 +4679,7 @@ if __name__ == '__main__':
         ASFile='.'.join(ASFile.rsplit('.')[:-1])
         ASFile = "".join(x for x in ASFile.split('/')[-1] if x.isalnum())
         fileName=f'{ASFile}.py{"x" if compileTo=="Cython" else ""}'
-        if pep: code=autopep8.fix_code(code)
+        if pep: code=fix_code(code)
         if filePath=='/': filePath=''
         with open(filePath+fileName,'w',encoding='utf-8') as f:
             f.write(code)
@@ -4690,7 +4702,7 @@ try:
     from Cython.Build import cythonize
 except ModuleNotFoundError:
     print('Cython is not installed, ASnake is unable to compile to .so file.\\nThe .pyx file still compiled.\\nDo something like:\\n\\t{"python" if "windows" in OSName().lower() else py3Command} -m pip install cython') ; exit()
-setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if '-a' in argv else False}),
+setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.annotate else False}),
 {'include_dirs=[numpy.get_include(),"."]' if 'import numpy' in data else 'include_dirs=["."]'})""")
             os.system(f'{py3Command} ASsetup.py build_ext --inplace')
             os.remove('ASsetup.py')
