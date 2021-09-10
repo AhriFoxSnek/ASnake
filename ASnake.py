@@ -3195,7 +3195,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if len(listcomp) > 0 or ('list' in listcomp and 'x' in listcomp): # for tenary conditionals inside listcomp
                     if lastType != 'THEN':
                         line.append(codeDict[tok.type]+' ')
-                elif ((lastType in typeAssignables+('ASSIGN','FUNCTION','BUILTINF','LPAREN','RPAREN','BOOL','IGNORE','INDEX','COMMAGRP','FSTR') and tok.value=='if') or tenary) and startOfLine == False:
+                elif ((lastType in typeAssignables+('ASSIGN','FUNCTION','BUILTINF','LPAREN','RPAREN','BOOL','IGNORE','INDEX','COMMAGRP','FSTR','RETURN') and tok.value=='if') or tenary) and startOfLine == False:
                     tenary=True
                     # this section is for altered tenary
                     if lastType in ('ASSIGN','RETURN') or (lastType == 'FSTR' and fstrQuote!=''): # alias:  c is if True then a else b
@@ -3217,14 +3217,22 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if tok.type in ('ELSE','ELIF','OF'):
                             if tok.type == 'OF' and debug: print(switchCase) # needs to be if, not elif
                             if tok.type == 'ELSE' and tenary==False:
+                                tmpFoundIF=False ; tmpFirstNL=False ; tmpFoundReturn=False
                                 for t in range(lexIndex,0,-1): # i guess another tenary detection of sorts
-                                    if lex[t].type == 'RETURN' or (lex[t].type == 'ASSIGN' and lex[t-1].type == 'ID' and lex[t+1].type == 'IF'):
+                                    if lex[t].type == 'RETURN': tmpFoundReturn=True
+                                    if (lex[t].type == 'RETURN' and tmpFoundIF) or (lex[t].type == 'ASSIGN' and lex[t-1].type == 'ID' and tmpFoundIF):
                                         line.append(tok.value+' ') ; check=False ; break
-                                    elif lex[t].type in typeNewline: check=True ; break
+                                    elif lex[t].type in typeNewline:
+                                        if tmpFirstNL: break
+                                        check=True ; tmpFirstNL=True
+                                    elif lex[t].type == 'IF': tmpFoundIF=True
+                                if tmpFoundIF and check and lastType not in typeNewline:
+                                    startOfLine=True
+                                    if tmpFoundReturn: lex.insert(lexIndex+1,makeToken(tok,':','COLON'))
                                 if not check: lastType='ELSE' ; continue
 
-                                if inIf and not tenary:
-                                    return AS_SyntaxError('You need to end your conditional experssion.',f"if {''.join(line)}do 'something'\n# or\n\tif {''.join(line)}then 'something'\n# or\n\tif {''.join(line)}\n\t\t'something'",lineNumber,data)
+                                if inIf and not tenary and not startOfLine:
+                                    return AS_SyntaxError('You need to end your conditional expression.',f"if {''.join(line).replace('  ',' ')}do 'something'\n# or\n\tif {''.join(line).replace('  ',' ')}then 'something'\n# or\n\tif {''.join(line).replace('  ',' ')}\n\t\t'something'",lineNumber,data)
 
                                 line.append('\n')
                                 if switchCase['case']==False \
