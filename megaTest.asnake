@@ -33,6 +33,11 @@ if result 3 $worked
 else 'Default expression' $failed
 
 $start
+not 12
+if result False $worked
+else 'Default expression on not' $failed
+
+$start
 a b c d e f g 12
 if all of a,b,c,d,e,f,g are 12 $worked
 else 'Multi-assign and all-of check' $failed

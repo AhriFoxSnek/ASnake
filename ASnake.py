@@ -194,6 +194,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     typeAssignables=('STRING','NUMBER','ID','LIST','LISTEND','DICT','BINARY','LBRACKET')
     typeOperators=('PLUS','MINUS','TIMES','DIVIDE','RDIVIDE','EXPONENT','BITWISE','MODULO')
     typeCheckers=('LESS','LESSEQ','GREATEQ','GREATER', 'EQUAL', 'PYIS')
+    typePrintable=typeAssignables+typeOperators+typeCheckers+('LINDEX','RINDEX','INDEX','LPAREN','RPAREN','MODULO','IGNORE','INC')
     mopConv={'TIMES':'*=','PLUS':'+=','DIVIDE':'/=','RDIVIDE':'//=','MINUS':'-='}
     typeMops=tuple(i for i in mopConv)
     typeConditonals=('IF','ELIF','ELSE','OF','WHILE')
@@ -2749,7 +2750,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     rParen+=1
                                     for tmpi in range(lexIndex,len(lex)-1):
                                         if lex[tmpi].type in typeNewline+('FROM',): break
-                                        elif lex[tmpi].type not in typeAssignables+typeOperators+typeCheckers+('LINDEX','RINDEX','INDEX','LPAREN','RPAREN','MODULO','IGNORE','COMMAGRP'):
+                                        elif lex[tmpi].type not in typePrintable:
                                             rParen-=1 ; break
                                         elif lex[tmpi].type == 'RINDEX' and lex[tmpi+1].type == 'ID':
                                             rParen-=1 ; break
@@ -4193,7 +4194,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     rParen+=1
                     for tmpi in range(lexIndex,len(lex)-1):
                         if lex[tmpi].type in typeNewline: break
-                        elif lex[tmpi].type not in typeAssignables+typeOperators+typeCheckers+('INDEX','LPAREN','RPAREN'):
+                        elif lex[tmpi].type not in typePrintable:
                             if lex[tmpi].type == 'ASSIGN' and lex[tmpi].value.strip() == 'is' and lex[lexIndex].type == 'LPAREN':
                                 pass
                             else:
@@ -4269,6 +4270,16 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if lex[tmpi].type in typeNewline:
                                 if lex[tmpi].type == 'TAB': lex[tmpi].type='THEN'
                                 break
+                                
+                    if startOfLine:
+                        doPrint=True
+                        for tmpi in range(lexIndex + 1, len(lex)-1):
+                            if lex[tmpi].type in typeNewline:
+                                break
+                            elif lex[tmpi].type not in typePrintable:
+                                doPrint = False
+                        if doPrint: line.append(f'{expPrint[-1]}('); bigWrap = True; rParen += 1
+
                 # 1,2,3 in a
                 if tok.type == 'COMMAGRP':
                     if lastType == 'ID' and lex[lexIndex-1].value!='print' and inIf == False and findEndOfFunction(lexIndex-1,goBackwards=True)==False:
@@ -4442,7 +4453,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         doPrint=True
                         for tmpi in range(lexIndex+1,len(lex)):
                             if lex[tmpi].type in typeNewline: break
-                            elif lex[tmpi].type not in typeAssignables+typeCheckers+typeOperators+('INC','IGNORE'):
+                            elif lex[tmpi].type not in typePrintable:
                                 doPrint=False
                 else: doPrint=False
                 if tok.value.startswith('++') or tok.value.startswith('--'):
