@@ -1886,7 +1886,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         definedFuncs.append(lex[token-1].value)
                     elif lex[token].type == 'PYDEF':
                         definedFuncs.append(lex[token].value.split('(')[0])
-                    if token < len(lex)-1: token=len(lex)-1 # fixes when short script, but could have bad effects later
+                    if token > len(lex)-1: break
                     if lex[token].type == 'IGNORE':
                         del lex[token] ; token-=2
                     if optCompilerEval and lex[token].type in ('STRING','NUMBER'):
