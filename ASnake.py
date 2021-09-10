@@ -139,7 +139,7 @@ class Lexer(Lexer):
     WHILE   = r'while|until'
     NOTHING = r'(pass|nothing,?)(?= |$|\n)'
     CASE    = r'case +'
-    OF      = r'of +'
+    OF      = r'of( |(?=[\W\d]))'
     END     = r'end(?=\s|;)'
     PIPE    = r'(into|to)(?!\S)'
     PIPEGO  = r'pipe(?= |\t)'
