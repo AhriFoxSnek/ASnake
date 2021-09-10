@@ -194,7 +194,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     typeAssignables=('STRING','NUMBER','ID','LIST','LISTEND','DICT','BINARY','LBRACKET')
     typeOperators=('PLUS','MINUS','TIMES','DIVIDE','RDIVIDE','EXPONENT','BITWISE','MODULO')
     typeCheckers=('LESS','LESSEQ','GREATEQ','GREATER', 'EQUAL', 'PYIS')
-    typePrintable=typeAssignables+typeOperators+typeCheckers+('LINDEX','RINDEX','INDEX','LPAREN','RPAREN','MODULO','IGNORE','INC')
+    typePrintable=typeAssignables+typeOperators+typeCheckers+('LINDEX','RINDEX','INDEX','LPAREN','RPAREN','MODULO','IGNORE','INC','INS')
     mopConv={'TIMES':'*=','PLUS':'+=','DIVIDE':'/=','RDIVIDE':'//=','MINUS':'-='}
     typeMops=tuple(i for i in mopConv)
     typeConditonals=('IF','ELIF','ELSE','OF','WHILE')
@@ -4188,14 +4188,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if check:
                             line.append(decideIfIndentLine(indent,f'{expPrint[-1]}('))
                             rParen+=1 ; bigWrap=True
-                elif tok.type in 'LPAREN' and startOfLine and inIf==False:
-                    # vvv copy pasted from typeAssignables for print
+                elif tok.type == 'LPAREN' and startOfLine and inIf==False:
                     tmp=rParen
                     rParen+=1
                     for tmpi in range(lexIndex,len(lex)-1):
                         if lex[tmpi].type in typeNewline: break
                         elif lex[tmpi].type not in typePrintable:
-                            if lex[tmpi].type == 'ASSIGN' and lex[tmpi].value.strip() == 'is' and lex[lexIndex].type == 'LPAREN':
+                            if lex[tmpi].type == 'ASSIGN' and lex[tmpi].value.strip() == 'is':
                                 pass
                             else:
                                 rParen-=1 ; break
@@ -4270,8 +4269,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if lex[tmpi].type in typeNewline:
                                 if lex[tmpi].type == 'TAB': lex[tmpi].type='THEN'
                                 break
-                                
-                    if startOfLine:
+
+                    if startOfLine and not inIf:
                         doPrint=True
                         for tmpi in range(lexIndex + 1, len(lex)-1):
                             if lex[tmpi].type in typeNewline:
@@ -4447,7 +4446,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
             elif tok.type == 'INC': #idINC
                 if lexIndex-1 > 0 and (lex[lexIndex-1].type in typeNewline+('TRY','ENDIF','ELSE') or (lexIndex-3>0 and (lex[lexIndex-3].type=='LOOP' or lex[lexIndex-2].type=='LOOP'))):
-                    if lex[lexIndex+1].type in typeNewline+typeConditonals:
+                    if lex[lexIndex+1].type in typeNewline+typeConditonals or inIf:
                         doPrint=False
                     else:
                         doPrint=True
