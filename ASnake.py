@@ -1886,7 +1886,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         definedFuncs.append(lex[token-1].value)
                     elif lex[token].type == 'PYDEF':
                         definedFuncs.append(lex[token].value.split('(')[0])
-
+                    if token < len(lex)-1: token=len(lex)-1 # fixes when short script, but could have bad effects later
                     if lex[token].type == 'IGNORE':
                         del lex[token] ; token-=2
                     if optCompilerEval and lex[token].type in ('STRING','NUMBER'):
@@ -3292,14 +3292,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if indent <= 0:
                                 indent=prettyIndent
                     elif startOfLine:
-                            line.append(f'{" "*indent}{codeDict[tok.type]} ')
-                            startOfLine=False
-                            if lexIndex+1 <= len(lex)-1 and lex[lexIndex+1].type == 'TAB':
-                                pass
-                            else:
-                                indent+=prettyIndent
-                                indentSoon=True
-                            code.append(''.join(line)) ; line=[] ; combineLines=True
+                        line.append(f'{" "*indent}{codeDict[tok.type]} ')
+                        startOfLine=False
+                        if lexIndex+1 <= len(lex)-1 and lex[lexIndex+1].type == 'TAB':
+                            pass
+                        else:
+                            indent+=prettyIndent
+                            indentSoon=True
+                        code.append(''.join(line)) ; line=[] ; combineLines=True
                     else:
                         line.append(codeDict[tok.type]+' ')
                         if tenary==False: indentSoon=True
@@ -4223,7 +4223,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lex[t].type == 'PIPE': check = False; break
                         if tok.value.replace('f','').startswith('"""') or tok.value.replace('f','').startswith("'''"): check = False
                         if check: line.append(decideIfIndentLine(indent,expPrint[-1]+'(')) ; bigWrap=True ; rParen+=1
-                    if tok.value[-1] == fstrQuote: fstrQuote=''
+                    if tok.value[-1] == fstrQuote:
+                        fstrQuote=''
+                        if tenary == False and lex[lexIndex+1].type == 'ELSE':
+                            lex.insert(lexIndex+1,makeToken(tok,'then','THEN'))
                     elif fstrQuote=='':
                         for i in tok.value:
                             if i == '"': fstrQuote=i ; break
