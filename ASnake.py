@@ -106,6 +106,9 @@ class Lexer(Lexer):
     LIST    = r'\['
     LISTEND = r'\]'
     DICT    = r'''(?!['"].*){([^{}]*:(.*?),?\n?)*}(?= then|do|[ +\-\/*\n\[\];])'''
+    IF      = r'if(?=[\W\d\n(])'
+    ELIF    = r'(, )?elif(?= |\t|\()'
+    ELSE    = r'(, *)?else(?= |\n|\t|:|\()'
     FUNCTION= r'\w+\('
     NRANGE  = r'(-?(\d+|\w+(\(.\))?)\.\.\.?(-?\d+|\w+(\(.\))?))|-?\d+ ?to ?-?\d+'
     BUILTINF= """(([a-zA-Z_]+\d*|[^\s\d='";()+\-*]*|(f|u)?\"[^\"]*\"|(f|u)?\'[^\"\']*\')\.[a-zA-Z_]+\d*)+"""
@@ -129,9 +132,6 @@ class Lexer(Lexer):
     GREATEQ = r'(>=)|(=>)'
     ASSIGN  = r'''=|is( |(?=("|'|{|\[|\()))|(\+|-|\*\*?|\/\/?|:|%)='''
     ENDIF   = r': *'
-    ELIF    = r'(, )?elif(?= |\t)'
-    IF      = r'if'
-    ELSE    = r'(, *)?else(?= |\n|\t|:)'
     DEFFUNCT= r'does(?= |\n|\t)'
     SCOPE   = r'(global|local|nonlocal) (\w* *,?)*'
     THEN    = r'then\s|do\s|then do\s|, then\s|, do\s|, then do\s|;|(:(?=\n)+)'
@@ -2030,6 +2030,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 ttenary=True
                             elif lex[tmpi].type == 'ELSE' and ttenary: ttenary=False
                             elif breakOnNextNL and not ttenary and lex[tmpi].type in typeNewline: break
+
                     if check:  # remove the var
                         ttenary = False ; tmpPass=False ; tmpEnd=0
                         for tmpi in range(delPoint+1, len(lex)*2):
@@ -2044,7 +2045,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if tmpReplaceWithPass:
                                     lex[tmpi].type = 'NOTHING'
                                     tmpReplaceWithPass=False
-                                elif lex[tmpi].type == 'INC':
+                                elif lex[tmpi].type == 'INC' and lex[tmpi].value.replace('+','').replace('-','').strip() != lex[token].value:
                                     lex.insert(tmpi+1,makeToken(lex[tmpi],'then','tmpPass')) ; tmpPass=True
                                 elif lex[tmpi].type == 'tmpPass': pass
                                 else:
@@ -2462,7 +2463,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     del storedCustomFunctions[tok.value] ; tok.value=tok.value.replace('()','')
                 if tok.type == 'ID' and lexIndex+1 <= len(lex)-1 \
                 and lex[lexIndex+1].type == 'DEFFUNCT': # this is where functions are made
-
                     # check to make sure function isnt empty
                     tmp=0
                     for tmpi in range(lexIndex+2,len(lex)):
@@ -2568,8 +2568,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
 
                     if debug: print(f"{impure =}") #; print(storedCustomFunctions)
-
-                    line.append(f'def {tok.value}({tmpf}):\n')
+                    line.append(decideIfIndentLine(indent,f'def {tok.value}({tmpf}):\n'))
                     startOfLine=True ; indent+=prettyIndent ; indentSoon=True
                     if lexIndex+tmp+3 < len(lex) and (lex[lexIndex+tmp+2].type not in typeNewline or lex[lexIndex+tmp+3].type not in typeNewline): indentSoon=False
                     else:
