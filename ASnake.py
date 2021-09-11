@@ -1109,7 +1109,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     else: lex[token+1].value=mopConv[tmptype]
                                     lex.pop(token+2) ; lex.pop(token+2)
                                     newOptimization=True
-                        if optWalrus and compileTo != 'Cython' and lex[token+1].type in typeAssignables+('ASSIGN','COMMAGRP') \
+                        if optWalrus and compileTo != 'Cython' and pythonVersion >= 3.8 and lex[token+1].type in typeAssignables+('ASSIGN','COMMAGRP') \
                         and lex[token-1].type in typeNewline+('TYPE',) and lex[token+2].type!='ID':
                             safe=True
                             if lex[token+1].type == 'ASSIGN':
@@ -1133,6 +1133,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         break
                                     elif lex[t].type == 'ASSIGN' and any(True for i in ('+', '-', '/', '*', ':') if i in lex[t].value): tmpf=[] ; break
                                     elif lex[t].type == 'LISTCOMP': tmpf=[] ; break
+                                    elif lex[t].type == 'INC': tmpf=[] ; break
                                     else: tmpf.append([lex[t].value,lex[t].type])
                                 if tmpf != [] and lex[tmpi].type == 'IF':
                                     search=False
@@ -2030,20 +2031,31 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lex[tmpi].type == 'ELSE' and ttenary: ttenary=False
                             elif breakOnNextNL and not ttenary and lex[tmpi].type in typeNewline: break
                     if check:  # remove the var
-                        ttenary = False
-                        for tmpi in range(delPoint+1, len(lex) - 1):
+                        ttenary = False ; tmpPass=False ; tmpEnd=0
+                        for tmpi in range(delPoint+1, len(lex)*2):
+                            if tmpi >= len(lex)-1:
+                                tmpEnd = tmpi-1 ; break
                             if lex[tmpi].type == 'ASSIGN' and lex[tmpi+1].type == 'IF': ttenary=True
                             elif ttenary and lex[tmpi].type == 'ELSE': ttenary=False
 
                             if not ttenary and lex[tmpi].type in typeNewline:
-                                break
+                                tmpEnd=tmpi ; break
                             else:
                                 if tmpReplaceWithPass:
                                     lex[tmpi].type = 'NOTHING'
                                     tmpReplaceWithPass=False
-                                elif lex[tmpi].type == 'INC': pass
+                                elif lex[tmpi].type == 'INC':
+                                    lex.insert(tmpi+1,makeToken(lex[tmpi],'then','tmpPass')) ; tmpPass=True
+                                elif lex[tmpi].type == 'tmpPass': pass
                                 else:
                                     lex[tmpi].type = 'IGNORE'
+                        if tmpPass:
+                            # for removing the INCs from the expression while still keeping their effects by splitting them into new lines
+                            # tmpPass is so the previous section doesnt delete the THEN inserts
+                            for tmpi in range(delPoint + 1, tmpEnd*3):
+                                if tmpi >= len(lex) - 1: break
+                                if lex[tmpi].type == 'tmpPass':
+                                    lex[tmpi].type='THEN'
                         if debug: print('eliminated variable:', lex[token].value)
             #print(' '.join([t.value for t in lex]))
         # clean up vv
