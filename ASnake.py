@@ -2041,6 +2041,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if tmpReplaceWithPass:
                                     lex[tmpi].type = 'NOTHING'
                                     tmpReplaceWithPass=False
+                                elif lex[tmpi].type == 'INC': pass
                                 else:
                                     lex[tmpi].type = 'IGNORE'
                         if debug: print('eliminated variable:', lex[token].value)
@@ -2403,7 +2404,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     bigWrap=False
     rParen=0
     constWrap=False
-    incWrap=''
+    incWrap=['',0]
 
     # meta
     expPrint=[0,'print']
@@ -2960,10 +2961,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             del inLoop[2]
 
 
-                    if incWrap!='':
+                    if incWrap[0]!='':
                         if isinstance(line, str): line = [line]
-                        line.append('\n') ; startOfLine=True
-                        line.append(decideIfIndentLine(indent,incWrap)) ; incWrap=''
+                        while incWrap[1] > 0:
+                            line.append('\n') ; startOfLine=True
+                            line.append(decideIfIndentLine(indent,incWrap[0]))
+                            incWrap[1]-=1
+                        incWrap=['',0]
 
                     bigWrap=False
 
@@ -4476,6 +4480,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             return AS_SyntaxError(f"{tok.value} cannot be after an elif when compiling to {compileTo}",f'if {tok.value}',lineNumber,data)
                         if doPrint: tmp=f'{expPrint[-1]}({tmp}' ; bigWrap=True ; rParen+=1
                         if lex[lexIndex+1].type not in typeNewline or lex[lexIndex-1].type not in typeNewline:
+                            if lastType == 'INC': line.append('== ')
                             line.append(decideIfIndentLine(indent,tmp))
                         if inIf: indent-=prettyIndent
                         startOfLine=True
@@ -4487,7 +4492,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lastType == 'WHILE':
                                 # increment at start
                                 bigWrap = True
-                                incWrap = f'{tok.value[2:]}{tok.value[0]}=1\n'
+                                incWrap = [f'{tok.value[2:]}{tok.value[0]}=1\n',incWrap[1]+1]
                             else:
                                 line.insert(0,decideIfIndentLine(indent,f'{tok.value[2:]}{tok.value[0]}=1\n'))
                         if inIf: indent+=prettyIndent
@@ -4517,9 +4522,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                     else:
                         if doPrint: tmp=f'{expPrint[-1]}({tmp}' ; rParen+=1
+                        if lastType == 'INC': line.append('== ')
                         if lex[lexIndex+1].type not in typeNewline or lex[lexIndex-1].type not in typeNewline:
                             line.append(decideIfIndentLine(indent,tmp))
-                        incWrap=f'{tok.value[:-2]}{tok.value[-1]}=1\n'
+                        incWrap=[f'{tok.value[:-2]}{tok.value[-1]}=1\n',incWrap[1]+1]
             elif tok.type == 'DIVMOD':
                 if lexIndex+1 < len(lex) and lexIndex-1 > 0:
                     if (lex[lexIndex-1].type == 'NUMBER' or  (lex[lexIndex-1].type == 'ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] in ('NUMBER','int','float')))\
