@@ -2626,12 +2626,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 and (lexIndex+2 < len(lex) and (lex[lexIndex+1].type != 'PIPE' and lex[lexIndex+2].value != 'range')):
                     line.append(f'range({tok.value})') # converts bare numbers into ranges when in for loop
                 else:
-                    if lastType in typeAssignables and inFuncArg == False and tok.type!='LISTEND' and lastType!='LIST' \
+                    if lastType in typeAssignables+('BUILTINF',) and inFuncArg == False and tok.type!='LISTEND' and lastType!='LIST' \
                     and tok.type not in ('LBRACKET','RBRACKET') and lex[lexIndex-1].type not in ('LBRACKET','RBRACKET'):
                             if inIf or lex[lexIndex-2].type=='LPAREN' or fstrQuote!='':
                                 # if im 'lazy' | if im == 'lazy'
                                 line.append('== ')
-                            elif lastType in ('ID','OF') and lex[lexIndex-1].value!='print':
+                            elif lastType in ('ID','OF','BUILTINF') and lex[lexIndex-1].value!='print':
                             # im 'lazy' | im = 'lazy'
                                 check=False
                                 if compileTo == 'Cython':
