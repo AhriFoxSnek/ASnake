@@ -3023,6 +3023,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                         indent=storedIndents[-1]
 
+                        if indentSoon and lastIndent[2] and indent == lastIndent[2][-1]:
+                            # after a conditional if the indent it lower, we can assume it was meant to be indented
+                            indent+=prettyIndent
+
                         if debug: print(storedIndents)
 
 
