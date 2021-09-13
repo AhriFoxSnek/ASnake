@@ -11,7 +11,7 @@ from time import time # just for timing how long stuff takes, not really needed
 import re
 from keyword import iskeyword
 
-ASnakeVersion='v0.11.6'
+ASnakeVersion='v0.11.7'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -202,6 +202,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     listMods=('.pop','.append','.extend','.insert','.remove','.reverse','.sort','.copy','.clear')
     pyBuiltinFunctions=('abs', 'delattr', 'hash', 'memoryview', 'set', 'all', 'dict', 'help', 'min', 'setattr', 'any', 'dir', 'hex', 'next', 'slice', 'ascii', 'divmod', 'id', 'object', 'sorted', 'bin', 'enumerate', 'input', 'oct', 'staticmethod', 'bool', 'int', 'open', 'str', 'breakpoint', 'isinstance', 'ord', 'sum', 'bytearray', 'filter', 'issubclass', 'pow', 'super', 'bytes', 'float', 'iter', 'print', 'tuple', 'callable', 'format', 'len', 'property', 'type', 'chr', 'frozenset', 'list', 'range', 'vars', 'classmethod', 'getattr', 'locals', 'repr', 'zip', 'compile', 'globals', 'map', 'reversed', 'complex', 'hasattr', 'max', 'round', 'exec', 'eval', '__import__')
     metaPyCompat = {'pythonCompatibility','pycompat','pyCompatibility','pyCompat','pythonCompat'}
+    metaPyVersion = {'version','pythonVersion','pyver','PythonVersion','pyVersion'}
 
     if compileTo == 'PyPy3': pythonVersion=3.7
     elif compileTo == 'Cython': pythonVersion=3.6
@@ -560,12 +561,19 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 # hacky thing to make def an alias of inline. do dont make it elif
                 if tok.value[tok.value.index('def')+3]==' ':
                     tok.value='$ inline '+tok.value.split('def',1)[-1]
-
-            if tok.value.replace('$', '').replace(' ', '').startswith('inline'):
+            metaCall = tok.value.replace('$', '').replace(' ', '')
+            if metaCall.startswith('inline'):
                 name=''.join(tok.value.split('=')[0].split('inline')[1]).replace(' ','')
                 value='='.join(tok.value.split('=')[1:])
                 inlineReplace[name] = ''.join(value)
                 lexIndex-=1
+            elif metaCall.startswith(tuple(metaPyVersion)):
+                tmp=tok.value.split('=')[-1].strip()
+                try:
+                    pythonVersion=float(tmp)
+                except ValueError:
+                    return AS_SyntaxError(f'Meta {tok.value.split("=")[0].strip()[1:]} must be given a float/decimal.',f'$ {tok.value.split("=")[0].strip()[1:]} = 3.8', None, data)
+                lexIndex -= 1
             elif tok.value.split('=')[0].replace(' ','').replace('$','') in inlineReplace or any(i for i in inlineReplace if f'${i}' in tok.value):
                 if debug: print('inlineReplace',inlineReplace)
                 miniLex=Lexer()
@@ -4499,6 +4507,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         lex.insert(lexIndex+1,t)
                         if debug: print('--', t)
                     del miniLex
+                elif tmpf in metaPyVersion:
+                    pythonVersion = float(tok.value.split('=')[-1].strip()) # in pre-phase it already checked if it was float
+
 
 
             elif tok.type == 'INC': #idINC
