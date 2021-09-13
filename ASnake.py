@@ -2628,7 +2628,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 else:
                     if lastType in typeAssignables+('BUILTINF',) and inFuncArg == False and tok.type!='LISTEND' and lastType!='LIST' \
                     and tok.type not in ('LBRACKET','RBRACKET') and lex[lexIndex-1].type not in ('LBRACKET','RBRACKET'):
-                            if inIf or lex[lexIndex-2].type=='LPAREN' or fstrQuote!='':
+                            if (inIf or lex[lexIndex-2].type=='LPAREN' or fstrQuote!='') and not (tok.type=='LIST' and lastType=='STRING'):
                                 # if im 'lazy' | if im == 'lazy'
                                 line.append('== ')
                             elif lastType in ('ID','OF','BUILTINF') and lex[lexIndex-1].value!='print':
@@ -4270,25 +4270,31 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if tok.type == 'WITHAS' and tok.value.startswith('with'):
                     indentSoon=True ; indent+=prettyIndent
                 elif tok.type == 'ENDIF' and bracketScope < 1:
-                    inIf=indentSoon=False ; startOfLine=True
-                    if lastType=='ELSE':
-                        code[-1]+=':\n' ; line=[]
-                    else:
-                        if ':' not in line[-1]:
-                            line.append(':')
-                        line.append('\n')
-                        if combineLines:
-                            if isinstance(line,str): line=[line]
-                            line.insert(0,code[-1])
-                            code.pop()
-                            combineLines=False
-                        code.append(''.join(line)) ; line=[]
-                    if lex[lexIndex+1].type not in typeNewline:
-                        tmptok=deepcopy(tok)
-                        tmptok.type='TAB' ; tmptok.value=f"\n{' '*indent}"
-                        lex.insert(lexIndex+1,tmptok) ; del tmptok
-                    elif lex[lexIndex+1].type == 'NEWLINE':
-                        lex[lexIndex+1].type='TAB' ; lex[lexIndex+1].value=f"\n{' '*indent}"
+                    tmpScope=0
+                    for t in range(lexIndex,0,-1): # ENDIFs can mess up indexes
+                        if lex[t].type in ('LINDEX','LIST'): tmpScope+=1
+                        elif lex[t].type in ('RINDEX','LISTEND'): tmpScope-=1
+                        elif lex[t].type in typeNewline: break
+                    if tmpScope < 1:
+                        inIf=indentSoon=False ; startOfLine=True
+                        if lastType=='ELSE':
+                            code[-1]+=':\n' ; line=[]
+                        else:
+                            if ':' not in line[-1]:
+                                line.append(':')
+                            line.append('\n')
+                            if combineLines:
+                                if isinstance(line,str): line=[line]
+                                line.insert(0,code[-1])
+                                code.pop()
+                                combineLines=False
+                            code.append(''.join(line)) ; line=[]
+                        if lex[lexIndex+1].type not in typeNewline:
+                            tmptok=deepcopy(tok)
+                            tmptok.type='TAB' ; tmptok.value=f"\n{' '*indent}"
+                            lex.insert(lexIndex+1,tmptok) ; del tmptok
+                        elif lex[lexIndex+1].type == 'NEWLINE':
+                            lex[lexIndex+1].type='TAB' ; lex[lexIndex+1].value=f"\n{' '*indent}"
             elif tok.type in ('INS','LIST','COMMAGRP','BOOL','DICT','SET','ASYNC','RETURN','BREAK','LAMBDA'): # printing value with space
                 if tok.type == 'INS':
                     if 'are in' in tok.value: tok.value='in'
