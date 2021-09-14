@@ -549,6 +549,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tmptok=deepcopy(tok)
                 tmptok.type='LISTEND' ; tmptok.value=']'
                 lex.append(tmptok) ; del tmptok ; lexIndex+=1
+            elif re.match(r'([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*\[', tok.value):
+                if lex[lexIndex].type == 'TYPE':
+                    lex[lexIndex].type = 'ID' ; reservedIsNowVar.append(lex[lexIndex].value.strip())
+                miniLex = Lexer()
+                tmp=tok.value.split('[')[0]+' ['+'['.join(tok.value.split('[')[1:])
+                for i in miniLex.tokenize(tmp+' '):
+                    lex.append(i)
+                    lexIndex += 1
+                    if debug: print('--', i)
+                del miniLex
+                tok.type='IGNORE'
         elif tok.type in {'STRAW','STRLIT','STRING'}:
             if tok.type in ('STRRAW','STRLIT'): tok.type='STRING'
             if tok.value[0]=='f':
