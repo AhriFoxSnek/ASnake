@@ -3631,20 +3631,23 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             check=lex[lexIndex+1].value
                             tmpcheck=lex[lexIndex+2].value
                             lex[lexIndex+2].type = 'IGNORE'
-                        elif lex[lexIndex+1].type in typeAssignables+('BOOL','BOOL'):
+                        elif lex[lexIndex+1].type == 'INS' and lex[lexIndex+1].value.strip() == 'not':
+                            if tok.value.strip() == 'are':
+                                check='!='
+                            else: check = '=='
+                        elif lex[lexIndex+1].type in typeAssignables+('BOOL',):
                             check='==' ; tmpcheck=lex[lexIndex+1].value
-                        elif tmpcheck in typeCheckers: check=lex[lexIndex+1].value
                         else: check = '=='
+
                         if check == 'equal':
                             check = '=='
                         elif check in ('unequal','not equal','not ',' not','not','!='):
                             check='!='
-                        if check == '==' and tmpcheck=='False':
+                        if check == '==' and tmpcheck in ('False',False):
                             check='!=' ; tmpcheck='True'
-
                         # check is operator, tmpcheck is object
                         # like check ==     tmpcheck True
-                        if lex[lexIndex+1].type in ('FUNCTION','BUILTINF') or (lex[lexIndex+1].type in ('IGNORE','NOTEQ') and lex[lexIndex+2].type in ('FUNCTION','BUILTINF')):
+                        if lex[lexIndex+1].type in ('FUNCTION','BUILTINF') or (lex[lexIndex+1].type in ('IGNORE','NOTEQ','INS') and lex[lexIndex+2].type in ('FUNCTION','BUILTINF')):
                             tmpcheck='' ; tmpScope=0
                             for tmpi in range(lexIndex+(1 if lex[lexIndex+1].type in ('FUNCTION','BUILTINF') else 2),len(lex)-1):
                                 if lex[tmpi].type in typeNewline: break
