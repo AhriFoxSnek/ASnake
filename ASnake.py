@@ -114,7 +114,7 @@ class Lexer(Lexer):
     BUILTINF= """(([a-zA-Z_]+\d*|[^\s\d='";()+\-*]*|(f|u)?\"[^\"]*\"|(f|u)?\'[^\"\']*\')\.[a-zA-Z_]+\d*)+"""
     COMMAGRP= """(?!\[)(([\[\w\d\]=.-]|(((f|r)?\"[^\"]*\")|((f|r)?\'[^\']*\')))+ ?,)+([\[\]\w\d=.-]|((f|r)?\"[^\"]*\")|((f|r)?\'[^\']*\'))+"""
     TRY     = r'((try)|(except *[A-Z]\w*( as \w*)?)|(except)|(finally)) *:?'
-    TYPEWRAP= fr'({defaultTypes})( ?\[\w*\])? *: *\n'
+    TYPEWRAP= fr'({defaultTypes})( ?\[\w*\])? *: *(#.*)?\n'
     TYPE    = '\\s%s\\s'%f'({defaultTypes})'
     LAMBDA  = r'lambda ?(\w* *,?)*:'
     LISTCOMP= r'\-?\w*: \w+'
@@ -482,8 +482,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if tok.type != 'TYPE' and '[' in tok.value:
                     miniLex = Lexer()
                     tmpf=tok.value.split('[',1)
-                    if '.' in tmpf[0]: tmp='BUILTINF'
-                    else: tmp='ID'
+                    tmp=list(miniLex.tokenize(tmpf[0]+' '))
+                    if not tmp: tmp='ID'
+                    else: tmp=tmp[-1].type
                     if len(tmpf[0]) > 0:
                         lex.append(makeToken(tok,tmpf[0],tmp)) ; lexIndex += 1
                     lex.append(makeToken(tok, '[', 'LINDEX'))
@@ -2643,8 +2644,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if (inIf or lex[lexIndex-2].type=='LPAREN' or fstrQuote!='') and not (tok.type=='LIST' and lastType=='STRING'):
                                 # if im 'lazy' | if im == 'lazy'
                                 line.append('== ')
-                            elif lastType in ('ID','OF','BUILTINF') and lex[lexIndex-1].value!='print':
-                            # im 'lazy' | im = 'lazy'
+                            elif lastType in ('ID','OF','BUILTINF') and lex[lexIndex-1].value.strip() not in ('print','print(') and lex[lexIndex-2].value.strip() not in ('print','print('):
+                                # im 'lazy' | im = 'lazy'
                                 check=False
                                 if compileTo == 'Cython':
                                     # for cython, checks if there is a type before grouping vars into a,b,c
