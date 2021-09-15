@@ -1927,13 +1927,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if lex[token].type == 'IGNORE':
                         del lex[token] ; token-=2
                     if optCompilerEval and lex[token].type in ('STRING','NUMBER'):
-
+                        orderOfOps = {'RPAREN': 7, 'LPAREN': 6, 'EXPONENT': 5, 'MODULO': 4, 'TIMES': 4, 'DIVIDE': 4,
+                                      'RDIVIDE': 4, 'PLUS': 1, 'MINUS': 1}
                         check=False
                         if token+3 < len(lex)-1 and lex[token+3].type == 'PIPE' and lex[token+3].value == 'to': pass
                         elif lex[token-1].type in typeOperators and lex[token+1].type in typeOperators:
                             # helps follow the order of operations for more accuracy
-                            orderOfOps = {'RPAREN': 7, 'LPAREN': 6,  'EXPONENT': 5, 'MODULO': 4, 'TIMES': 4, 'DIVIDE': 4, 'RDIVIDE': 4,
-                                          'PLUS': 1, 'MINUS': 1}
                             if orderOfOps[lex[token-1].type] <= orderOfOps[lex[token+1].type]:
                                 check=True
                             #print('~',check,orderOfOps[lex[token-1].type],lex[token].type,orderOfOps[lex[token+1].type])
@@ -1941,7 +1940,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             # needed for some reason
                             check=True
                             #print(lex[token-1].type in typeOperators , lex[token-1].type, lex[token+1].type in typeOperators,lex[token+1].type)
-
                         if check:
                             if lex[token].type == 'NUMBER' and lex[token+1].type in typeOperators and (lex[token+2].type == 'NUMBER' or (lex[token+2].type == 'LPAREN' and lex[token+3].type == 'NUMBER')):
                                 tmpscope=0 ; tmpf=[] ; fail=False
@@ -1964,6 +1962,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     except (TypeError, ZeroDivisionError): pass
                             while lex[token].type == 'STRING' and lex[token+1].type == 'PLUS' and lex[token+2].type == 'STRING' \
                             and lex[token].value.startswith("'''")==False and lex[token].value.startswith('"""')==False and lex[token+2].value.startswith("'''")==False and lex[token+2].value.startswith('"""')==False:
+                                if lex[token+3].type in typeOperators and orderOfOps[lex[token+3].type] > orderOfOps[lex[token+1].type]: break
                                 quotes=None
                                 for c in range(len(lex[token].value)):
                                     if lex[token].value[c] in ('"',"'"):
