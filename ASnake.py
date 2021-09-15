@@ -201,6 +201,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     typeNewline=('NEWLINE','TAB','THEN','END')
     listMods=('.pop','.append','.extend','.insert','.remove','.reverse','.sort','.copy','.clear')
     pyBuiltinFunctions=('abs', 'delattr', 'hash', 'memoryview', 'set', 'all', 'dict', 'help', 'min', 'setattr', 'any', 'dir', 'hex', 'next', 'slice', 'ascii', 'divmod', 'id', 'object', 'sorted', 'bin', 'enumerate', 'input', 'oct', 'staticmethod', 'bool', 'int', 'open', 'str', 'breakpoint', 'isinstance', 'ord', 'sum', 'bytearray', 'filter', 'issubclass', 'pow', 'super', 'bytes', 'float', 'iter', 'print', 'tuple', 'callable', 'format', 'len', 'property', 'type', 'chr', 'frozenset', 'list', 'range', 'vars', 'classmethod', 'getattr', 'locals', 'repr', 'zip', 'compile', 'globals', 'map', 'reversed', 'complex', 'hasattr', 'max', 'round', 'exec', 'eval', '__import__')
+    pyReservedKeywords=('False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield')
     metaPyCompat = {'pythonCompatibility','pycompat','pyCompatibility','pyCompat','pythonCompat'}
     metaPyVersion = {'version','pythonVersion','pyver','PythonVersion','pyVersion'}
 
@@ -459,7 +460,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif lex[lexIndex].type=='INDEX' and tok.value.startswith('['):
                 tok.value=f'{lex[lexIndex].value}{tok.value}'
                 lex[lexIndex].type='IGNORE'
-            elif tok.value.split('[')[0] in {'list','tuple','dict','set'}:
+            elif tok.value.split('[')[0] in {'list','tuple','dict','set'} and tok.value.split('[')[1].split(']')[0] in defaultTypes.split('|'):
                 # typing inside elements like dict[int, str]
                 tok.type='TYPE'
             if tok.type != 'TYPE' and len(re.findall('''(?!('|").*)for (?!.*('|"))''',tok.value)) > 0:
@@ -550,6 +551,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tmptok.type='LISTEND' ; tmptok.value=']'
                 lex.append(tmptok) ; del tmptok ; lexIndex+=1
             elif re.match(r'([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*\[', tok.value):
+                # when a index is mistaken for commagrp
                 if lex[lexIndex].type == 'TYPE':
                     lex[lexIndex].type = 'ID' ; reservedIsNowVar.append(lex[lexIndex].value.strip())
                 miniLex = Lexer()
@@ -702,6 +704,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lexIndex+=1
             lexIndex -= 1
             crunch = True
+        elif tok.type == 'FUNCTION' and tok.value[-1]=='(' and tok.value[:-1].strip() in pyReservedKeywords and tok.value[:-1].strip() not in reservedIsNowVar:
+            miniLex = Lexer()
+            for t in miniLex.tokenize(tok.value.replace('(',' (')+' '):
+                if debug: print('---',t)
+                lex.append(t)
+                lexIndex+=1
+            lexIndex -= 1
+            del miniLex
         elif tok.type == 'LBRACKET':
             bracketScope+=1 ; lex.append(tok)
         elif tok.type == 'RBRACKET':
@@ -719,7 +729,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     tmptok.type='NEWLINE' ; tmptok.value='\n'
     lex.append(tmptok) ; del tmptok ; #del inlineReplace
     # ^ need newline at the end , some stuff relies on that
-    
+
+
     
     # optimize section
     if optimize == True:
@@ -3746,11 +3757,22 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     else: line.append(',')
                 else: line.append(',')
             elif tok.type == 'TYPE': # idTYPE
-                if lex[lexIndex+1].type != 'ID' and lastType not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT'):
+                if lex[lexIndex+1].type == 'ASSIGN' or tok.value.strip() in reservedIsNowVar:
+                    tok.type='ID'
+                    if tok.value.strip() not in reservedIsNowVar: reservedIsNowVar.append(tok.value.strip())
+                    doPrint = True
+                    if startOfLine:
+                        for tmpi in range(lexIndex+1,len(lex)-1):
+                            if lex[tmpi].type in typeNewline: break
+                            elif lex[tmpi].type not in typePrintable: doPrint=False
+                    if doPrint: line.append(decideIfIndentLine(indent,f'{expPrint[-1]}(')); bigWrap = True; rParen += 1
+                    line.append(decideIfIndentLine(indent, tok.value))
+
+                elif lex[lexIndex+1].type != 'ID' and lastType not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT'):
                     return AS_SyntaxError('Type must be declared to a variable.',f'{tok.value} variable = value', lineNumber, data)
-                if lastType not in typeNewline+('CONSTANT','DEFFUNCT','TYPEWRAP'):
+                elif lastType not in typeNewline+('CONSTANT','DEFFUNCT','TYPEWRAP'):
                     return AS_SyntaxError('Invalid token before type declaration.',f'{tok.value} {lex[lexIndex+1].value} = value',lineNumber,data)
-                if lex[lexIndex+1].type == 'ID' and lex[lexIndex+2].type == 'LISTCOMP':
+                elif lex[lexIndex+1].type == 'ID' and lex[lexIndex+2].type == 'LISTCOMP':
                     tok.type='ID' ; line.append(tok.value)
                 elif tok.value  == 'range' and lex[lexIndex+1].type == 'NRANGE': tok.type='IGNORE' ; continue
                 else:
@@ -4354,7 +4376,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 break
                             elif lex[tmpi].type not in typePrintable:
                                 doPrint = False
-                        if doPrint: line.append(f'{expPrint[-1]}('); bigWrap = True; rParen += 1
+                        if doPrint: line.append(decideIfIndentLine(indent,f'{expPrint[-1]}(')); bigWrap = True; rParen += 1
 
                 # 1,2,3 in a
                 if tok.type == 'COMMAGRP':
