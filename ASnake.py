@@ -412,8 +412,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     for tmpi in range(lexIndex,0,-1):
                         if tmp >= 0: break
                         elif lex[tmpi].type in typeNewline: break
-                        elif lex[tmpi].type == 'LIST': tmp+=1
-                        elif lex[tmpi].type == 'LISTEND': tmp-=1
+                        elif lex[tmpi].type != 'STRING':
+                            tmp += lex[tmpi].value.count('[')
+                            tmp -= lex[tmpi].value.count(']')
                     if tmp >= 0: tok.type='IGNORE'
                 if bracketScope > 0: tok.type = 'IGNORE'
                 if tok.type=='IGNORE': lex.append(tok)
@@ -469,8 +470,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 # it will parse the inside as ASnake, meanwhile surrounded by [ ]
                 miniLex=Lexer()
                 tmpval=tok.value.lstrip('[').rsplit(']',1)[0]
-                tmptok=deepcopy(tok) ; tmptok.value='[' ; tmptok.type='LIST'
-                lex.append(tmptok) ; del tmptok
+                tmpCount=0
+                while tok.value[tmpCount] == '[':
+                    tmpCount+=1
+                for t in range(tmpCount):
+                    tmptok=deepcopy(tok) ; tmptok.value='[' ; tmptok.type='LIST'
+                    lex.append(tmptok) ; del tmptok ; lexIndex+=1
                 for i in miniLex.tokenize(tmpval+' '):
                     if i.type not in typeNewline: # genius, you can go crazy with whitespace in listcomps
                         lex.append(i)
@@ -478,7 +483,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if debug: print('--',i)
                 del miniLex
                 tmptok=deepcopy(tok) ; tmptok.value=']' ; tmptok.type='LISTEND'
-                lex.append(tmptok) ; del tmptok ; lexIndex+=1
+                lex.append(tmptok) ; del tmptok
             else:
                 if tok.type != 'TYPE' and '[' in tok.value:
                     miniLex = Lexer()
@@ -2038,6 +2043,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         elif lex[tmpi].type in typeConditonals and delPoint:
                             # prevents dead variables defined in conditionals from breaking syntax
                             tmpReplaceWithPass = True
+                        elif lex[tmpi].type == 'PYCLASS' and delPoint:
+                            check=False
                     if delPoint == None or tmpIndent == None: check=False
                     if check:
                         breakOnNextNL=False ; ttenary=False
@@ -4664,6 +4671,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 else: line.append(tok.value)
             elif tok.type in codeDict:
                 if tok.type == 'DEFFUNCT': notInDef=False
+                elif lastType == 'BUILTINF' and tok.type in ('AND','OR') and not startOfLine:
+                    line.append(' ')
                 line.append(decideIfIndentLine(indent,f'{codeDict[tok.type]} '))
 
             if lastType=='TRY': indentSoon=False
