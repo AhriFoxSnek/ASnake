@@ -2394,7 +2394,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     tmpIndent=lex[tmpi].value.replace('\t',' ').count(' ')
                 if lex[tmpi].type != 'THEN': break
         while lexIndex + tmp < len(lex) - 1:
-            if lex[lexIndex + tmp].type == 'FUNCTION' and (lex[lexIndex + tmp].value in ('open', 'ASopen') \
+            if lex[lexIndex + tmp].type == 'FUNCTION' and (lex[lexIndex + tmp].value.replace('(', '') in ('open', 'ASopen','input') \
             or (lex[lexIndex + tmp].value.replace('(', '') not in tuple([i for i in storedCustomFunctions if 'pure' in storedCustomFunctions[i] and storedCustomFunctions[i]['pure']]) + pyBuiltinFunctions)):
                 if lex[lexIndex + tmp].value.replace('(', '') == lex[lexIndex].value:
                     pass
@@ -4427,7 +4427,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.type == 'IGNORE':
                 pass
             elif tok.type == 'PYDEF': # support for Python style function define
-                if checkIfImpureFunction(lex.index(tok),True,(None,)) == False:
+                if optimize and checkIfImpureFunction(lex.index(tok),True,(None,)) == False:
                     # TODO: replace (None,) with function argument vars ^
                     optAddCache()
                 if tok.value.replace(' ','')[-1] != ':': tok.value+=':'
