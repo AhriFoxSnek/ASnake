@@ -1065,8 +1065,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     elif lex[tmpi].type == 'COMMAGRP' and isinstance(tmpf[0],str) == True:
                                                         # replacing inside of commagrp
                                                         tmp=lex[tmpi].value.split(',')
-                                                        for i in range(0,len(tmp)-1):
-                                                            if tmp[i].replace(' ','') == lex[token].value:
+                                                        for i in range(0,len(tmp)):
+                                                            print(tmp[i],lex[token].value)
+                                                            if tmp[i].strip() == lex[token].value:
                                                                 if debug: print(f'replacing value {tmp[i]} inside COMMAGRP {lex[tmpi].value}')
                                                                 tmp[i]=''.join(tmpf)
                                                                 newOptimization = True
