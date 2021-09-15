@@ -884,7 +884,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 if lex[t].value in definedFuncs or lex[t].value == lex[token].value: tmpf=None ; break
                                                 else: tmpf.append(deepcopy(lex[t]))
                                             elif lex[t].value == lex[token].value and lex[t+1].type=='LINDEX': tmpf=None ; break
-                                            elif lex[t].type in (vartype,'IGNORE','LPAREN','RPAREN','INS')+typeOperators:
+                                            elif lex[t].type in (vartype,'IGNORE','LPAREN','RPAREN','INS','DEFEXP')+typeOperators:
                                                 if lex[t].type == 'LIST':
                                                     listScope+=1
                                                 elif lex[t].type == 'LISTEND': listScope-=1
@@ -1029,11 +1029,24 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         if vartype == 'STRING' and (lex[tmpi-1].type == 'FSTR' or lex[tmpi+1].type == 'FSTR'):
                                                             if isinstance(tmpf[0],str) == False and '\\\\' in tmpf[0].value: tmpsafe=False
                                                             elif '\\\\' in tmpf: tmpsafe=False
+                                                        if tmpsafe and lex[tmpi-1].type not in typeNewline:
+                                                            # sometimes folding will invalidate the print-on-default-expression feature
+                                                            # so on instances where we know it doesn't break behaviour, we make a
+                                                            # DEFEXP token to signify it is safe.
+                                                            tmpStartOfline=0 ; tmpDefExp=True
+                                                            for tt in range(tmpi,0,-1):
+                                                                if lex[tt].type in typeNewline: tmpStartOfline=tt ; break
+                                                            for tt in range(tmpStartOfline+1,len(lex)-1):
+                                                                if lex[tt].type in typeNewline: break
+                                                                elif lex[tt].type == 'DEFEXP': tmpDefExp=tmpsafe=False ; break
+                                                                elif lex[tt].type not in typePrintable: tmpDefExp=False
+                                                            if tmpDefExp and tmpsafe:
+                                                                lex.insert(tmpStartOfline+1,makeToken(lex[0],'defExp','DEFEXP'))
+                                                                tmpi+=1
 
                                                         if tmpsafe:
                                                             if debug: print(f'replacing lex #{tmpi} (lastType:{lex[tmpi-1].type})')
                                                             if isinstance(tmpf[0],str) == False: # if tmpf[0] is not string, then its a lex
-
                                                                 if not pyCompatibility: # These fix it not printing in ASnake mode. If in Python mode, don't fix it.
                                                                     if len(tmpf) == 1 and tmpf[0].type == 'STRING' and (tmpf[0].value.startswith('"""') or tmpf[0].value.startswith("'''")) and lex[tmpi-1].type in typeNewline:
                                                                         # multiline strings dont print due to doc-strings, thus when constant folding onto a asnake bare ID,
@@ -1042,7 +1055,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                     elif lex[tmpi-1].type in typeNewline and lex[tmpi+1].type in typeNewline and lex[tmpi].type == 'ID' and lex[tmpi].value not in definedFuncs:
                                                                         # when it folds onto a bare ID, it should still print
                                                                         tmpf.append(makeToken(tmpf[0], 'print', 'ID'))
-
                                                                 lex[tmpi].type='IGNORE'
                                                                 for t in tmpf:
                                                                     lex.insert(tmpi,deepcopy(t))
@@ -4669,6 +4681,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if lastType == 'ID' and lex[lexIndex-2].type == 'TYPE':
                     line.append(' = '+tok.value)
                 else: line.append(tok.value)
+            elif tok.type == 'DEFEXP':
+                line.append(decideIfIndentLine(indent, f'{expPrint[-1]}(')) ; rParen+=1 ; bigWrap=True
             elif tok.type in codeDict:
                 if tok.type == 'DEFFUNCT': notInDef=False
                 elif lastType == 'BUILTINF' and tok.type in ('AND','OR') and not startOfLine:
