@@ -939,7 +939,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             search=False ; linkType=False ; break # discards list mods like .append()
                                         elif lex[tmpi].type == 'SCOPE' and lex[token].value in lex[tmpi].value:
                                             search=False ; break # no global var pls
-                                        elif lex[tmpi].type in ('WHILE','FOR') or (lex[tmpi].type == 'LOOP' and lex[tmpi+2].value == lex[token].value):
+                                        elif lex[tmpi].type in ('WHILE','FOR') or (lex[tmpi].type == 'LOOP' and tmpi+2 < len(lex)-1 and lex[tmpi+2].value == lex[token].value):
                                             pass
                                             #linkType=False # for/while loops? oh boy
                                         elif lex[tmpi].type == 'META' and lex[token].value in '='.join(lex[tmpi].value.split('=')[1:]):
@@ -1091,7 +1091,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             elif (lex[tmpii].type=='TAB' and lex[tmpii].value.replace('\t',' ').count(' ') < inLoop[1]) \
                                                             or (lex[tmpii].type == 'NEWLINE' and lex[tmpii].type!='TAB' and inLoop[1]>0) or (lex[tmpii].type=='THEN' and '\n' in lex[tmpii].value and lex[tmpii].value.replace('\t',' ').count(' ') < inLoop[1]):
                                                                 inLoop=[False,0] ; break
-                                                        if lex[tmpi].type == 'LOOP' and (lex[tmpi+1].type=='ID' and lex[tmpi+1].value==lex[token].value) or (lex[tmpi+2].type=='ID' and lex[tmpi+2].value==lex[token].value) \
+                                                        if lex[tmpi].type == 'LOOP' and (lex[tmpi+1].type=='ID' and lex[tmpi+1].value==lex[token].value) or (tmpi+2 < len(lex)-1 and lex[tmpi+2].type=='ID' and lex[tmpi+2].value==lex[token].value) \
                                                         and isinstance(tmpf[0],str) == False and tmpf[0].type != 'RPAREN':
                                                             if (lex[tmpi+1].type=='ID' and lex[tmpi+1].value==lex[token].value): tmp=1
                                                             else: tmp=2
