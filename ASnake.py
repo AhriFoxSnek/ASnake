@@ -673,7 +673,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 else: tmp=lexIndex
                 if not skip: comments.append([tok.value,tmp]) ; lexIndex-=1
             else:
-                if lex[lexIndex].type == 'IGNORENL': lexIndex-=1 # newline is not real if IGNORENL \
+                if lexIndex>0 and lex[lexIndex].type == 'IGNORENL': lexIndex-=1 # newline is not real if IGNORENL \
                 else: inFrom=False ; lex.append(tok) # newline
         elif tok.type == 'ASSIGN':
             if ':' in tok.value:
@@ -3663,7 +3663,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             for tmpi in range(lexIndex-1,0,-1):
                                 if lex[tmpi].type in typeNewline+('ANYOF',):
                                     try: line=line[:-line.index(lex[tmpi+1].value)]
-                                    except IndexError: line=[]
+                                    except (IndexError, ValueError): line=[]
                                     break
                                 else: tmpfirst.append(lex[tmpi].value)
                             tmpfirst=''.join(reversed(tmpfirst))
@@ -4192,7 +4192,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmpi+=len(lex)+1
                             else:
                                 tmpi+=len(lex)+1
-                        if (startOfLine or len(line)==0) and indent>0: line.append(f"{' '*indent}{''.join(tmpfunc)}")
+                        if (startOfLine or len(line)==0 or line==['']) and indent>0: line.append(f"{' '*indent}{''.join(tmpfunc)}")
                         else: line.append(''.join(tmpfunc))
                         if lexIndex+1<len(lex) and lex[lexIndex+1].type == 'COMMAGRP': hasPiped=False
                         else: hasPiped=True
