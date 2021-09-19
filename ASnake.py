@@ -199,6 +199,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     typeMops=tuple(i for i in mopConv)
     typeConditonals=('IF','ELIF','ELSE','OF','WHILE')
     typeNewline=('NEWLINE','TAB','THEN','END')
+    # useful sets of strings
     listMods=('.pop','.append','.extend','.insert','.remove','.reverse','.sort','.copy','.clear')
     pyBuiltinFunctions=('abs', 'delattr', 'hash', 'memoryview', 'set', 'all', 'dict', 'help', 'min', 'setattr', 'any', 'dir', 'hex', 'next', 'slice', 'ascii', 'divmod', 'id', 'object', 'sorted', 'bin', 'enumerate', 'input', 'oct', 'staticmethod', 'bool', 'int', 'open', 'str', 'breakpoint', 'isinstance', 'ord', 'sum', 'bytearray', 'filter', 'issubclass', 'pow', 'super', 'bytes', 'float', 'iter', 'print', 'tuple', 'callable', 'format', 'len', 'property', 'type', 'chr', 'frozenset', 'list', 'range', 'vars', 'classmethod', 'getattr', 'locals', 'repr', 'zip', 'compile', 'globals', 'map', 'reversed', 'complex', 'hasattr', 'max', 'round', 'exec', 'eval', '__import__')
     pyReservedKeywords=('False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield')
@@ -2833,7 +2834,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             else:
                                 line.append(f'{" "*(indent)}{tok.value} ')
                             if doPrint:
-                                if compileTo in ('Python','PyPy3') or (compileTo=='Cython' and (expPrint[-1]!='print' \
+                                if compileTo != 'Cython' or (compileTo=='Cython' and (expPrint[-1]!='print' \
                                 or (tok.value in storedVarsHistory and 'type' in storedVarsHistory[tok.value] and storedVarsHistory[tok.value]['type'] == 'FSTR'))): # cythonPrint no likely multi token yet :(
                                         line.append(f'{" "*(indent)}{expPrint[-1]}({tok.value})')
                                 elif compileTo == 'Cython':
@@ -4763,6 +4764,7 @@ if __name__ == '__main__':
     from argparse import ArgumentParser, FileType
     argParser=ArgumentParser()
     argParser.add_argument('-r', '--run', action='store_true', help="Compiles file in memory then runs it.")
+    #argParser.add_argument('-e', '--eval', action='store_true', help="Compiles ASnake in a string to Python and runs it.")
     argParser.add_argument('-v', '--version', action='store', help="Specify which Python version to compile to.")
     argParser.add_argument('-c', '--compile', action='store_true', help="Compiles file to .py and writes it on disk. On Cython will attempt to compile to .so file.")
     argParser.add_argument('-o', '--optimize', action='store_true', help="Toggles optimization on and off. On by default.")
