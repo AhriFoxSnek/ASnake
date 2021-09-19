@@ -3957,7 +3957,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
             elif tok.type == 'CONSTANT': # idCONSTANT
                 if (lexIndex+3 < len(lex) or lexIndex+2 < len(lex)) and (lex[lexIndex+1].type == 'ID' or lex[lexIndex+2].type == 'ID'):
-                    if compileTo in ('Python','PyPy3') or (compileTo=='Cython' and ((lex[lexIndex+2].type == 'ASSIGN' and lex[lexIndex+3].type not in ('STRING','LIST','DICT','NUMBER','SET')  or lex[lexIndex+3].value.startswith('f')) or (lex[lexIndex+1].type == 'ID' and lex[lexIndex+2].type not in ('STRING','LIST','DICT','NUMBER','SET') or lex[lexIndex+2].value.startswith('f')) or (lex[lexIndex+2].type == 'ID' and lex[lexIndex+3].type not in ('STRING','LIST','DICT','NUMBER','SET','ASSIGN') or lex[lexIndex+3].value.startswith('f')))):
+                    if compileTo != 'Cython' or (compileTo=='Cython' and ((lex[lexIndex+2].type == 'ASSIGN' and lex[lexIndex+3].type not in ('STRING','LIST','DICT','NUMBER','SET')  or lex[lexIndex+3].value.startswith('f')) or (lex[lexIndex+1].type == 'ID' and lex[lexIndex+2].type not in ('STRING','LIST','DICT','NUMBER','SET') or lex[lexIndex+2].value.startswith('f')) or (lex[lexIndex+2].type == 'ID' and lex[lexIndex+3].type not in ('STRING','LIST','DICT','NUMBER','SET','ASSIGN') or lex[lexIndex+3].value.startswith('f')))):
                         # ^^ when Cython, check if it can be compile-time-constant, else defaults to our implementation
                         tmpval=deepcopy(lex[lexIndex+1])
                         if lex[lexIndex+2].type=='ASSIGN': tmpi=3
@@ -4720,35 +4720,36 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     
 def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False):
     if pep:
-        s=time()
+        if execTime:
+            s=time()
         code=fix_code(code)
-        print('autopep8 time:', time() - s)
-    with open('ahrscriptExec.py','w',encoding='utf-8') as f:
-        f.write(code)
+        if execTime:
+            print('autopep8 time:', time() - s)
     if fancy:
-        with open('ahrscriptExec.py','r',encoding='utf-8') as f:
-            print(f.read().replace('\n\n','\n'))
+        print(code.replace('\n\n','\n'))
         if run: print('\t____________\n\t~ Python Eval\n')
     if run:
         import subprocess as sp
         import platform
-        if headless:
-            if execTime:
-                s = time()
-            child = sp.Popen('python ahrscriptExec.py', stdout=sp.PIPE, cwd=os.getcwd(), shell=True)
-            child.communicate()#[0]
-            #child.returncode
+        if 'linux' in platform.system().lower():
+            proc = sp.Popen("ls -ls /usr/bin/python* | awk '/-> python3/ {print $10 ;exit}'", shell=True, stdout=sp.PIPE, stdin=sp.PIPE)
+            pyCall = proc.stdout.readline().decode().split('/')[-1].strip()
         else:
-            if 'linux' in platform.system().lower():
-                proc = sp.Popen("ls -ls /usr/bin/python* | awk '/-> python3/ {print $10 ;exit}'",shell=True, stdout=sp.PIPE, stdin=sp.PIPE)
-                pyCall=proc.stdout.readline().decode().split('/')[-1].strip()
-            else:
-                pyCall='python'
+            pyCall = 'python'
+
+        if headless:
+            with open('ahrscriptExec.py','w') as f:
+                f.write(code)
             if execTime:
                 s = time()
-            os.system(f'{pyCall} ahrscriptExec.py')
-            
-        
+            child = sp.Popen(f'{pyCall} ahrscriptExec.py', stdout=sp.PIPE, cwd=os.getcwd(), shell=True)
+            child.communicate()
+        else:
+            if execTime:
+                s = time()
+            sp.run([pyCall, "-c", code])
+
+
         if fancy:
             print('\t____________')
         if execTime:
