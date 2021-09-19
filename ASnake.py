@@ -4735,7 +4735,7 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False):
             proc = sp.Popen("ls -ls /usr/bin/python* | awk '/-> python3/ {print $10 ;exit}'", shell=True, stdout=sp.PIPE, stdin=sp.PIPE)
             pyCall = proc.stdout.readline().decode().split('/')[-1].strip()
         else:
-            pyCall = 'python'
+            pyCall = 'py'
 
         if headless:
             with open('ahrscriptExec.py','w') as f:
@@ -4765,7 +4765,7 @@ if __name__ == '__main__':
     from argparse import ArgumentParser, FileType
     argParser=ArgumentParser()
     argParser.add_argument('-r', '--run', action='store_true', help="Compiles file in memory then runs it.")
-    #argParser.add_argument('-e', '--eval', action='store_true', help="Compiles ASnake in a string to Python and runs it.")
+    argParser.add_argument('-e', '--eval', action='store', help="Compiles ASnake in a string to Python and runs it.")
     argParser.add_argument('-v', '--version', action='store', help="Specify which Python version to compile to.")
     argParser.add_argument('-c', '--compile', action='store_true', help="Compiles file to .py and writes it on disk. On Cython will attempt to compile to .so file.")
     argParser.add_argument('-o', '--optimize', action='store_true', help="Toggles optimization on and off. On by default.")
@@ -4779,20 +4779,33 @@ if __name__ == '__main__':
     argParser.add_argument('-a', '--annotate', action='store_true',help="When compiling to Cython, will compile a html file showing Python to C conversions.")
     argParser.add_argument('-d', '--debug', action='store_true', help="Debug info for compiler developers.")
     argParser.add_argument('-t', '--test', action='store_true', help="Headless debug for compiler developers.")
-    argParser.add_argument("file", type=FileType("r"), help="Your ASnake file to compile.")
+    argParser.add_argument("file", type=FileType("r"), nargs='?', const='notGiven', help="Your ASnake file to compile.")
 
     compileTo='Python' ; pythonVersion=3.9
     enforceTyping=compileAStoPy=runCode=headless=debug=justRun=False
     comment=optimize=pep=fancy=True
 
     args = argParser.parse_args()
-    try:
-        ASFile=args.file.name
-        if not os.path.isfile(ASFile): raise Exception
+    if args.file == None or not os.path.isfile(args.file.name):
+        if args.eval:
+            data = args.eval
+            runCode = True
+        else:
+            import sys
+            tmp=[i for i in os.listdir() if i.endswith('.asnake')]
+            if not tmp:
+                tmp='myScript.asnake'
+            else: tmp=tmp[0]
+            print(f'ASnake Compile Error:\n\tCouldn\'t open file. Make sure to provide a path for a file, and that the path is correct.\nSuggestion:\n\t{sys.argv[0]} -r {tmp}')
+            exit()
+    else:
+        ASFile = args.file.name
         data=args.file.read()
-    except: print('Couldn\'t open file :(\nCheck to make sure the path is correct.');exit()
+
+
+
     del args.file
-    if args.run: runCode=True
+    if args.run and not args.eval: runCode=True
     if args.test: headless=True
     if args.fast: pep=False ; optimize=False
     if args.optimize:
@@ -4800,7 +4813,9 @@ if __name__ == '__main__':
         else: optimize=True
     if args.debug: debug=True
     if args.no_print: fancy=False
-    if args.compile: compileAStoPy=True
+    if args.compile:
+        compileAStoPy=True
+        if args.eval: ASFile='cmdEval.asnake'
     if args.cython: compileTo='Cython'
     if args.pyston: compileTo='Pyston'
     if args.pypy: compileTo='PyPy3'
