@@ -11,7 +11,7 @@ from time import time # just for timing how long stuff takes, not really needed
 import re
 from keyword import iskeyword
 
-ASnakeVersion='v0.11.7'
+ASnakeVersion='v0.11.8'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -180,7 +180,17 @@ class Lexer(Lexer):
     RPAREN  = r'\)|]'
     
 
-def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonVersion=3.9,enforceTyping=False):
+def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonVersion=3.9,enforceTyping=False,variableInformation={},outputInternals=False):
+    # data is the string version of code for parsing
+    # optimize when True will enable optimization phase ahd optimizations, False will disable any optimizations.
+    # comment when True will output comments in the final file, False will attempt to have minimal comments.
+    # debug when True will print out information to aid in debugging, False should minimize prints.
+    # compileTo string will be the compile target.
+    # pythonVersion sets the Python version to compile to.
+    # enforceTyping will make the compiler complain more about variable types.
+    # variableInformation will override storedVarsHistory, allowing prior information to be gained that wasn't in the string code.
+    # outputInternals changes its output from the compiled code string, to a tuple with (code, lex, storedVarsHistory)
+
     codeDict={'RDIVIDE':'//','DIVIDE':'/','PLUS':'+','MINUS':'-','TIMES':'*','LPAREN':'(','RPAREN':')',
     'ELIF':'elif','ELSE':'else','IF':'if','WHILE':'while','GREATEQ':'>=','GREATER':'>','LESS':'<',
     'LESSEQ':'<=','EQUAL':'==','ASSIGN':'=','NOTHING':'pass','NOTEQ':'!=','BUILTINF':'.','OF':'elif',
@@ -350,7 +360,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     crunch=False # for smooshing values into the latest lexIndex
     reservedIsNowVar=[]
     # warning to self, when checking previous token, do not do lexIndex-1, lexIndex is the previous, as current token hasn't been added yet
-    for tok in lexer.tokenize('\n'+data+' '):
+    for tok in lexer.tokenize('\n'+data+' \n'):
         # ^^ needs newline at the start
         if crunch:
             if tok.type in typeNewline:
@@ -2486,7 +2496,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     storedIndents=[0]
     storedVars={}
     storedCustomFunctions={}
-    storedVarsHistory={} # {'ASVarExample':{'type':'STRING','value':'AS is cool! sometimes'}}
+    if variableInformation:
+        storedVarsHistory=variableInformation
+    else:
+        storedVarsHistory={} # {'ASVarExample':{'type':'STRING','value':'AS is cool! sometimes'}}
     switchCase={'case':False}
     for tok in lex:
         if lexIndex+1 <= len(lex)-1:
@@ -2812,7 +2825,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lexIndex+1 <= len(lex):
                                 if lex[lexIndex+1].type in typeNewline+typeConditonals+('TRY','ELSE'):
                                     doPrint=True
-                                elif lexIndex-1 > 0 and (lex[lexIndex-1].type in typeNewline+('TRY','ELSE') or (lexIndex-3>0 and lex[lexIndex-3].type=='LOOP') or (lex[lexIndex-1].type == 'DEFFUNCT' or (lex[lexIndex-1].type == 'TYPE' and lex[lexIndex-2].type == 'DEFFUNCT'))):
+                                elif lexIndex-1 >= 0 and (lex[lexIndex-1].type in typeNewline+('TRY','ELSE') or (lexIndex-3>0 and lex[lexIndex-3].type=='LOOP') or (lex[lexIndex-1].type == 'DEFFUNCT' or (lex[lexIndex-1].type == 'TYPE' and lex[lexIndex-2].type == 'DEFFUNCT'))):
                                     tmp=rParen
                                     rParen+=1
                                     for tmpi in range(lexIndex,len(lex)-1):
@@ -4715,7 +4728,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     if len(line) > 0:
         code.append(''.join(line))
     if debug: print('len of lex',len(lex)-1)
-    return '\n'.join(code)
+    if outputInternals:
+        return ('\n'.join(code), lex, storedVarsHistory)
+    else:
+        return '\n'.join(code)
         
     
 def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False):
