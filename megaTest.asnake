@@ -46,6 +46,11 @@ $start
 if 12///3 == (4,0) $worked
 else 'Divmod' $failed
 
+$start
+12///3
+if result is (4,0) $worked
+else 'DefualtExpression on Divmod' $failed
+
 
 $start
 checkList []
@@ -151,6 +156,12 @@ a is 0
 while --a greater than -10 do a
 if result is -10 $worked
 else 'Loop decrement-before-iteration' $failed
+
+$start
+a is 0
+a is ++a+++a+a+++a++
+if a is 10 then $worked
+else 'Multiple Increments one line' $failed
 
 
 $start

@@ -204,7 +204,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     typeAssignables=('STRING','NUMBER','ID','LIST','LISTEND','DICT','BINARY','LBRACKET')
     typeOperators=('PLUS','MINUS','TIMES','DIVIDE','RDIVIDE','EXPONENT','BITWISE','MODULO')
     typeCheckers=('LESS','LESSEQ','GREATEQ','GREATER', 'EQUAL', 'PYIS')
-    typePrintable=typeAssignables+typeOperators+typeCheckers+('LINDEX','RINDEX','INDEX','LPAREN','RPAREN','MODULO','IGNORE','INC','INS')
+    typePrintable=typeAssignables+typeOperators+typeCheckers+('LINDEX','RINDEX','INDEX','LPAREN','RPAREN','MODULO','IGNORE','INC','INS','DIVMOD')
     mopConv={'TIMES':'*=','PLUS':'+=','DIVIDE':'/=','RDIVIDE':'//=','MINUS':'-='}
     typeMops=tuple(i for i in mopConv)
     typeConditonals=('IF','ELIF','ELSE','OF','WHILE')
@@ -213,6 +213,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     listMods=('.pop','.append','.extend','.insert','.remove','.reverse','.sort','.copy','.clear')
     pyBuiltinFunctions=('abs', 'delattr', 'hash', 'memoryview', 'set', 'all', 'dict', 'help', 'min', 'setattr', 'any', 'dir', 'hex', 'next', 'slice', 'ascii', 'divmod', 'id', 'object', 'sorted', 'bin', 'enumerate', 'input', 'oct', 'staticmethod', 'bool', 'int', 'open', 'str', 'breakpoint', 'isinstance', 'ord', 'sum', 'bytearray', 'filter', 'issubclass', 'pow', 'super', 'bytes', 'float', 'iter', 'print', 'tuple', 'callable', 'format', 'len', 'property', 'type', 'chr', 'frozenset', 'list', 'range', 'vars', 'classmethod', 'getattr', 'locals', 'repr', 'zip', 'compile', 'globals', 'map', 'reversed', 'complex', 'hasattr', 'max', 'round', 'exec', 'eval', '__import__')
     pyReservedKeywords=('False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield')
+    ASnakeKeywords=('nothing', 'minus', 'plus', 'times', 'greater', 'end', 'of', 'case', 'until', 'then', 'do', 'does', 'less', 'than', 'equals', 'power', 'remainder','loop')
     metaPyCompat = {'pythonCompatibility','pycompat','pyCompatibility','pyCompat','pythonCompat'}
     metaPyVersion = {'version','pythonVersion','pyver','PythonVersion','pyVersion'}
 
@@ -705,7 +706,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lex.append(tok)
             elif lex[lexIndex].type == 'PIPEGO':
                 lex[lexIndex].type='ID' ; lex.append(tok) ; reservedIsNowVar.append('pipe')
-            elif lex[lexIndex].type != 'ID' and (any(True for x in {'nothing', 'minus', 'plus', 'times', 'greater', 'end', 'of', 'case', 'until', 'then', 'do', 'does', 'less', 'than', 'equals', 'power', 'remainder'} if x == lex[lexIndex].value) \
+            elif lex[lexIndex].type != 'ID' and (any(True for x in ASnakeKeywords if x == lex[lexIndex].value) \
             or any(True for x in [i for i in convertType]+defaultTypes.split('|') if x == lex[lexIndex].value)):
                 # !! allows reassignment of reserved keywords !!                    add any new ones here ^
                 lex[lexIndex].type = 'ID' ; lex.append(tok) ; reservedIsNowVar.append(lex[lexIndex].value)
@@ -2840,7 +2841,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     if rParen == tmp: # normal
                                         line.append(f'{" "*(indent)}{tok.value} ')
                                     else: # expression which can be print (no functions or assignment)
-                                        line.append(decideIfIndentLine(indent,f'{expPrint[-1]}({tok.value}'))
+                                        line.append(decideIfIndentLine(indent,f'{expPrint[-1]}('))
+                                        line.append(tok.value)
                                         bigWrap=True
                                 else: line.append(decideIfIndentLine(indent,tok.value+' '))
                             elif lexIndex == len(lex)-1 or (lexIndex+1 == len(lex)-1 and lex[lexIndex+1].type == 'NEWLINE'):
