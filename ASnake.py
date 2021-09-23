@@ -180,7 +180,7 @@ class Lexer(Lexer):
     RPAREN  = r'\)|]'
     
 
-def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonVersion=3.9,enforceTyping=False,variableInformation={},outputInternals=False,metaInformation=[]):
+def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonVersion=3.9,enforceTyping=False,variableInformation={},outputInternals=False,metaInformation=False):
     # data is the string version of code for parsing
     # optimize when True will enable optimization phase ahd optimizations, False will disable any optimizations.
     # comment when True will output comments in the final file, False will attempt to have minimal comments.
@@ -749,7 +749,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
     tmptok=deepcopy(lex[-1])
     tmptok.type='NEWLINE' ; tmptok.value='\n'
-    lex.append(tmptok) ; del tmptok ; #del inlineReplace
+    lex.append(tmptok) ; del tmptok
     # ^ need newline at the end , some stuff relies on that
 
 
@@ -4744,6 +4744,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         code.append(''.join(line))
     if debug: print('len of lex',len(lex)-1)
     if outputInternals:
+        metaInformation=[inlineReplace,expPrint,ignoreIndentation,functionPassing,pyIs,autoEnumerate,intVsStrDoLen]
         return ('\n'.join(code), lex, storedVarsHistory,metaInformation)
     else:
         return '\n'.join(code)
