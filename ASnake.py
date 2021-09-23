@@ -180,7 +180,7 @@ class Lexer(Lexer):
     RPAREN  = r'\)|]'
     
 
-def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonVersion=3.9,enforceTyping=False,variableInformation={},outputInternals=False):
+def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonVersion=3.9,enforceTyping=False,variableInformation={},outputInternals=False,metaInformation=[]):
     # data is the string version of code for parsing
     # optimize when True will enable optimization phase ahd optimizations, False will disable any optimizations.
     # comment when True will output comments in the final file, False will attempt to have minimal comments.
@@ -190,6 +190,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     # enforceTyping will make the compiler complain more about variable types.
     # variableInformation will override storedVarsHistory, allowing prior information to be gained that wasn't in the string code.
     # outputInternals changes its output from the compiled code string, to a tuple with (code, lex, storedVarsHistory)
+    # metaInformation will override various meta variables, allowing metas to be overriden before code is ran.
 
     codeDict={'RDIVIDE':'//','DIVIDE':'/','PLUS':'+','MINUS':'-','TIMES':'*','LPAREN':'(','RPAREN':')',
     'ELIF':'elif','ELSE':'else','IF':'if','WHILE':'while','GREATEQ':'>=','GREATER':'>','LESS':'<',
@@ -346,7 +347,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         data = re.sub(leadingTabs, '    ', data)
 
     #meta
-    inlineReplace={}
+    if metaInformation:
+        inlineReplace=metaInformation[0]
+    else:
+        inlineReplace={}
     comments=[]
     prettyIndent=4
     
@@ -2484,12 +2488,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     incWrap=['',0]
 
     # meta
-    expPrint=[0,'print']
-    ignoreIndentation=False
-    functionPassing=False
-    pyIs=False
-    autoEnumerate=True
-    intVsStrDoLen=True
+    if metaInformation:
+        expPrint = metaInformation[1]
+        ignoreIndentation = metaInformation[2]
+        functionPassing = metaInformation[3]
+        pyIs = metaInformation[4]
+        autoEnumerate = metaInformation[5]
+        intVsStrDoLen = metaInformation[6]
+    else:
+        expPrint=[0,'print']
+        ignoreIndentation=False
+        functionPassing=False
+        pyIs=False
+        autoEnumerate=True
+        intVsStrDoLen=True
 
     listcomp={}
     lexIndex=-1
@@ -4732,7 +4744,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         code.append(''.join(line))
     if debug: print('len of lex',len(lex)-1)
     if outputInternals:
-        return ('\n'.join(code), lex, storedVarsHistory)
+        return ('\n'.join(code), lex, storedVarsHistory,metaInformation)
     else:
         return '\n'.join(code)
         
