@@ -3376,7 +3376,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex.insert(lexIndex+len(switchCase["var"])+1,makeToken(tok,'==','EQUAL'))
                                 indentSoon=True
                                 startOfLine=False
-                                lastIndent[2].append(indent)
+                                if lastIndent[2] and lastIndent[2][-1] < indent:
+                                    lastIndent[2].append(indent)
+                                elif lastIndent[2] and lastIndent[2][-1] > indent:
+                                    # if last conditional is greater indent than current of, we can remove it
+                                    lastIndent[2].pop()
                                 if debug: print('>',indent,switchCase['indent'],line)
                             elif tok.type == 'OF' and switchCase['case'] == False: return AS_SyntaxError('switch case needs case statement','case myVar\n\tof "some" do 1\n\tof "thing" do 2',lineNumber,data)
                             else:
