@@ -11,7 +11,7 @@ from time import time # just for timing how long stuff takes, not really needed
 import re
 from keyword import iskeyword
 
-ASnakeVersion='v0.11.8'
+ASnakeVersion='v0.11.9'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -1882,6 +1882,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 # for setting tmpRparen
                                 if lex[t].type in typeNewline+('ENDIF',): break
                                 elif lex[t].type == 'LPAREN': preRparen+=1 ; tmpRparen+=1
+                                elif lex[t].type == 'FUNCTION' and lex[t].value[-1] == '(':
+                                    preRparen += 1 ; tmpRparen += 1
 
                             #print('~~~')
                             for t in range(token,len(lex)-1):
@@ -3104,8 +3106,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                         indent=storedIndents[-1]
 
-                        if indentSoon and lastIndent[2] and indent == lastIndent[2][-1]:
-                            # after a conditional if the indent it lower, we can assume it was meant to be indented
+                        if indentSoon and lastIndent[2] and indent <= lastIndent[2][-1]:
+                            # after a conditional if the indent is lower, we can assume it was meant to be indented
                             indent+=prettyIndent
 
                         if debug: print(storedIndents)
@@ -3372,8 +3374,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 [lex.insert(lexIndex+1,tmptok) for tmptok in reversed(switchCase["var"])]
                                 if lex[lexIndex+len(switchCase["var"])+1].type in typeAssignables:
                                     lex.insert(lexIndex+len(switchCase["var"])+1,makeToken(tok,'==','EQUAL'))
-                                indentSoon=True ; indent+=prettyIndent
+                                indentSoon=True
                                 startOfLine=False
+                                lastIndent[2].append(indent)
                                 if debug: print('>',indent,switchCase['indent'],line)
                             elif tok.type == 'OF' and switchCase['case'] == False: return AS_SyntaxError('switch case needs case statement','case myVar\n\tof "some" do 1\n\tof "thing" do 2',lineNumber,data)
                             else:
@@ -3763,7 +3766,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex.insert(tmpi+1,makeToken(tok,"INS",'not'))
                             break
                 else: return AS_SyntaxError('"any of" needs something after it','any of (1,2,3)',lineNumber,data)
-            elif tok.type == 'END':
+            elif tok.type == 'END': # idEND
                 tmpi=1 ; skipIf=False
                 while -1 < lexIndex-tmpi < len(lex)-1:
                     if lex[lexIndex-tmpi].type in typeConditonals \
@@ -3772,6 +3775,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         else:
                             if len(storedIndents) > 1:
                                 indent=storedIndents[-2]
+                                storedIndents=storedIndents[:-1]
                             else: indent-=prettyIndent
                             if indent < 0: indent=0
                             break
