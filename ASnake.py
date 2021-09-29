@@ -3468,6 +3468,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     return AS_SyntaxError('"loop" needs something after it','loop 12 i',lineNumber,data)
                 if lex[lexIndex+2].type == 'ID' and lex[lexIndex+2].value not in storedCustomFunctions and lex[lexIndex+2].value not in storedVarsHistory and (lex[lexIndex+2].value != 'print' or (lex[lexIndex+2].value == 'print' and 'print' in storedVarsHistory)) and lex[lexIndex+3].type not in typeOperators+('ASSIGN','PIPE'):
                     forthingin=lex[lexIndex+2].value ; lex[lexIndex+2].type='IGNORE'
+                elif lex[lexIndex+2].type == 'ID' and lex[lexIndex+2].value in storedVarsHistory and lex[lexIndex+3].type == 'TAB' and lex[lexIndex+3].value.count(' ') > indent:
+                    # if indented after loop, then we can assume we're trying to redefine this already assigned variable as a iterator variable
+                    forthingin = lex[lexIndex + 2].value ; lex[lexIndex + 2].type = 'IGNORE'
                 elif lex[lexIndex+2].type == 'INC' and '[' not in lex[lexIndex+2].value:
                     forthingin=lex[lexIndex+2].value.replace('--','').replace('++','')
                 elif compileTo == 'Cython' and lex[lexIndex+2].value in storedVarsHistory and 'type' in storedVarsHistory[lex[lexIndex+2].value] and storedVarsHistory[lex[lexIndex+2].value]['type'] == 'Py_ssize_t':
