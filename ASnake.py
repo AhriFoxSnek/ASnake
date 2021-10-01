@@ -409,6 +409,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             lex.append(tok)
         elif tok.type == 'TYPEWRAP':
             tok.value=tok.value.replace(':','').replace('\n','').replace(' ','')
+            if '#' in tok.value: # remove comment from typewrap
+                comments.append(['#'+tok.value.split('#',1)[-1],lexIndex]) # jumpy
+                tok.value=tok.value.split('#',1)[0]
             if lex[lexIndex].type == 'DEFFUNCT': tok.type='TYPE'
             if tok.value in reservedIsNowVar:
                 tok.type='ID' ; lex.append(tok)
@@ -2051,7 +2054,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     tmpCurrentIndent = 0
                     # tmpIndent is var's indent, tmpCurrentIndent is iterations indent
                     for tmpi in range(token-1, 0, -1):
-                        #print(lex[token].value, '!', lex[tmpi].value, lex[tmpi].type)
+                        #print(lex[token].value, '-!', lex[tmpi].value, lex[tmpi].type, tmpIndent)
                         if lex[tmpi].type == 'TAB':
                             if tmpIndent==None: tmpIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
                             if delPoint==None: delPoint=tmpi
@@ -2060,7 +2063,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if tmpIndent==None: tmpIndent = 0
                             if delPoint==None: delPoint=tmpi
                             tmpCurrentIndent = 0
-                            #break
                         elif lex[tmpi].type == 'THEN':
                             if delPoint==None: delPoint=tmpi
                         elif lex[tmpi].type == 'SCOPE' and lex[token].value in lex[tmpi].value :
@@ -2076,17 +2078,24 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             tmpReplaceWithPass = True
                         elif lex[tmpi].type == 'PYCLASS' and delPoint:
                             check=False
+                        elif lex[tmpi].type == 'TYPEWRAP':
+                            if lex[tmpi-1].type == 'TAB':
+                                tmpIndent = lex[tmpi-1].value.replace('\t', ' ').count(' ')
+                            elif lex[tmpi-1].type == 'NEWLINE': tmpIndent=0
+                            else: tmpIndent=None
+                            if delPoint: break
+                            else: delPoint=tmpi
                     if delPoint == None or tmpIndent == None: check=False
                     if check:
                         breakOnNextNL=False ; ttenary=False
                         for tmpi in range(token + 1, len(lex) - 1):
-                            #print(lex[token].value,'!',lex[tmpi].value,lex[tmpi].type,ttenary)
+                            #print(lex[token].value,'+!',lex[tmpi].value,lex[tmpi].type,ttenary,tmpIndent)
                             if lex[tmpi].type in ('ID', 'INC', 'BUILTINF','FUNCTION') and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value):
                                 check=False ; break
                             elif lex[tmpi].type == 'INDEX' and lex[tmpi].value.startswith(lex[token].value):
                                 check=False ; break
                             elif lex[tmpi].type == 'LISTCOMP' and lex[tmpi].value.split(':')[0] == lex[token].value: check=False ; break
-                            elif lex[tmpi].type == 'COMMAGRP' and any(True for x in lex[tmpi].value.split(',') if x.strip() == lex[token].value or lex[token].value+'.' in x.strip()): check=False ; break
+                            elif lex[tmpi].type == 'COMMAGRP' and any(True for x in lex[tmpi].value.split(',') if x.split('=')[-1].strip() == lex[token].value or lex[token].value+'.' in x.strip()): check=False ; break
                             elif lex[tmpi].type == 'FROM':
                                 for tmpii in range(tmpi, 0, -1):
                                     if lex[tmpii].type == 'TAB':
@@ -2103,6 +2112,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if check:  # remove the var
                         ttenary = False ; tmpPass=False ; tmpEnd=0
                         for tmpi in range(delPoint+1, len(lex)*2):
+                            #print(lex[tmpi].type)
                             if tmpi >= len(lex)-1:
                                 tmpEnd = tmpi-1 ; break
                             if lex[tmpi].type == 'ASSIGN' and lex[tmpi+1].type == 'IF': ttenary=True
@@ -2642,7 +2652,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                     if scopey:
                         storedCustomFunctions[tok.value]['scopes']=scopey
-                    if optimize and optFuncCache and not impure:
+                    if optimize and optFuncCache and not impure and 'list' not in tmpf:
                         optAddCache()
                     if compileTo == 'Cython' and optimize: # append cy function mods
                         if cyWrapAround:
@@ -4040,8 +4050,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if lex[lexIndex+tmpi].type == 'ID' and lex[lexIndex+tmpi].value == tmpval.value:
                                    lex[lexIndex+tmpi].value=f'{lex[lexIndex+tmpi].value}[0]'
                                    if lex[lexIndex+tmpi+1].type == 'ASSIGN':
-                                        #lex[lexIndex+tmpi].value=f"print('ASnake Warning: Cannot reassign to constant variable {tmpval.value}') ; {lex[lexIndex+tmpi].value}"
-                                        return AS_SyntaxError(f'Cannot reassign to constant variable {tmpval.value}',None,miniLineNumber,data,'Compile time error')
+                                       safe=False ; tmpParen=0
+                                       for ii in range(lexIndex+tmpi+1,len(lex)-1):
+                                            if lex[ii].type in typeNewline: break
+                                            elif lex[ii].type in ('LISTEND','RPAREN','RINDEX'):
+                                                tmpParen-=1
+                                            elif lex[ii].type in ('LIST','LPAREN','LINDEX'):
+                                                tmpParen+=1
+                                       if tmpParen >= 0:
+                                            return AS_SyntaxError(f'Cannot reassign to constant variable {tmpval.value}',None,miniLineNumber,data,'Compile time error')
                             elif lex[lexIndex+tmpi].type in ('INDEX','FUNCTION','LIST'):
                                 if tmpval.value+',' in lex[lexIndex+tmpi].value:
                                    tmp=list(lex[lexIndex+tmpi].value)
