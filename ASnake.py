@@ -11,7 +11,7 @@ from time import time
 import re
 from keyword import iskeyword
 
-ASnakeVersion='v0.11.10'
+ASnakeVersion='v0.11.11'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -29,7 +29,7 @@ def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syn
     showError='\n'.join(showError)
     #print(showError)
 
-    return f'print("""\n{showError}\n""")'
+    return f'# ASnake {ASnakeVersion} ERROR\nprint("""\n{showError}\n""")'
     
 defaultTypes='bool|int|float|complex|str|list|tuple|set|dict|bytearray|bytes|enumerate|filter|frozenset|map|memoryview|object|property|range|reversed|slice|staticmethod|super|type|zip'
 
@@ -214,7 +214,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     typeNewline=('NEWLINE','TAB','THEN','END')
     # useful sets of strings
     listMods=('.pop','.append','.extend','.insert','.remove','.reverse','.sort','.copy','.clear')
-    pyBuiltinFunctions=('abs', 'delattr', 'hash', 'memoryview', 'set', 'all', 'dict', 'help', 'min', 'setattr', 'any', 'dir', 'hex', 'next', 'slice', 'ascii', 'divmod', 'id', 'object', 'sorted', 'bin', 'enumerate', 'input', 'oct', 'staticmethod', 'bool', 'int', 'open', 'str', 'breakpoint', 'isinstance', 'ord', 'sum', 'bytearray', 'filter', 'issubclass', 'pow', 'super', 'bytes', 'float', 'iter', 'print', 'tuple', 'callable', 'format', 'len', 'property', 'type', 'chr', 'frozenset', 'list', 'range', 'vars', 'classmethod', 'getattr', 'locals', 'repr', 'zip', 'compile', 'globals', 'map', 'reversed', 'complex', 'hasattr', 'max', 'round', 'exec', 'eval', '__import__')
+    pyBuiltinFunctions=('abs', 'delattr', 'hash', 'memoryview', 'set', 'all', 'dict', 'help', 'min', 'setattr', 'any', 'dir', 'hex', 'next', 'slice', 'ascii', 'divmod', 'id', 'object', 'sorted', 'bin', 'enumerate', 'input', 'oct', 'staticmethod', 'bool', 'int', 'open', 'str', 'breakpoint', 'isinstance', 'ord', 'sum', 'bytearray', 'filter', 'issubclass', 'pow', 'super', 'bytes', 'float', 'iter', 'print', 'tuple', 'callable', 'format', 'len', 'property', 'type', 'chr', 'frozenset', 'list', 'range', 'vars', 'classmethod', 'getattr', 'locals', 'repr', 'zip', 'compile', 'globals', 'map', 'reversed', 'complex', 'hasattr', 'max', 'round', 'exec', 'eval', '__import__', 'exit')
     pyReservedKeywords=('False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield')
     ASnakeKeywords=('nothing', 'minus', 'plus', 'times', 'greater', 'end', 'of', 'case', 'until', 'then', 'do', 'does', 'less', 'than', 'equals', 'power', 'remainder','loop')
     metaPyCompat = {'pythonCompatibility','pycompat','pyCompatibility','pyCompat','pythonCompat'}
@@ -2731,7 +2731,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if search: notInDef=False # if there is a from, activate it, else default for normal indentation
                     code.append(''.join(line)) ; line=[] ; continue
                 elif inFuncArg: pass # dont write to line if function from argument
-                elif tok.value in storedCustomFunctions and '(' not in tok.value and lastType!='FOR' and functionPassing==False:
+                elif ((tok.value in storedCustomFunctions) or (tok.value in pyBuiltinFunctions and tok.value not in storedVarsHistory and lex[lexIndex+1].type in typeNewline+typeOperators)) \
+                and '(' not in tok.value and lastType!='FOR' and functionPassing==False: # jumpy
                     #vvv adding () to function name if it doesn't have one
                     tok.value=f'{tok.value}()' ; tok.type='FUNCTION'
                     if lexIndex+1 < len(lex) and lex[lexIndex+1].type == 'PIPE' and 'into' not in lex[lexIndex+1].value:
