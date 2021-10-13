@@ -5001,11 +5001,14 @@ if __name__ == '__main__':
         code=re.sub(r"""\n\n(?=([^"'\\]*(\\.|("|')([^"'\\]*\\.)*[^"'\\]*("|')))*[^"']*$)""",'\n',code) 
     if compileAStoPy:
         filePath='/'.join(ASFile.split('/')[:-1])+'/'
+        ASFileExt=ASFile.rsplit('.')[-1]
         ASFile='.'.join(ASFile.rsplit('.')[:-1])
         ASFile = "".join(x for x in ASFile.split('/')[-1] if x.isalnum())
         fileName=f'{ASFile}.py{"x" if compileTo=="Cython" else ""}'
         if pep: code=fix_code(code)
         if filePath=='/': filePath=''
+        if ASFileExt == 'py' and os.path.isfile(filePath+fileName):
+            fileName="AS_"+fileName
         with open(filePath+fileName,'w',encoding='utf-8') as f:
             f.write(code)
         if compileTo == 'Cython':
