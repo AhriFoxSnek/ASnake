@@ -4151,10 +4151,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         while lexIndex+tmpi < len(lex)-1:
                             #print('woo',lex[lexIndex+tmpi].type,lex[lexIndex+tmpi].value)
                             if lex[lexIndex+tmpi].type == 'ID' and lex[lexIndex+tmpi].value == tmpval.value:
-                                   lex[lexIndex+tmpi].value=f'{lex[lexIndex+tmpi].value}[0]'
-                                   if lex[lexIndex+tmpi+1].type == 'ASSIGN' and tmpInFunction:
-                                       if tmpParenScope >= 0:
-                                            return AS_SyntaxError(f'Cannot reassign to constant variable {tmpval.value}',None,miniLineNumber,data,'Compile time error')
+                                if tmpParenScope == 0 and not tmpInFunction:
+                                    lex[lexIndex+tmpi].value=f'{lex[lexIndex+tmpi].value}[0]'
+                                if lex[lexIndex+tmpi+1].type == 'ASSIGN' and not tmpInFunction:
+                                    return AS_SyntaxError(f'Cannot reassign to constant variable {tmpval.value}',None,miniLineNumber,data,'Compile time error')
                             elif lex[lexIndex+tmpi].type in ('INDEX','LIST'):
                                 if tmpval.value+',' in lex[lexIndex+tmpi].value:
                                    tmp=list(lex[lexIndex+tmpi].value)
