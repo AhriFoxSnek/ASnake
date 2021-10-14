@@ -10,6 +10,7 @@ from copy import deepcopy
 from time import time
 import re
 from keyword import iskeyword
+from unicodedata import category as unicodeCategory
 
 ASnakeVersion='v0.11.12'
 
@@ -244,7 +245,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         else:
             cutoff = 9000  # is first emoji
         for c in tokValue:
-            if ord(c) > cutoff:
+            if ord(c) > cutoff or unicodeCategory(c) not in {'Lu', 'Ll', 'Lt', 'Lm', 'Lo', 'Nl', 'Other_ID_Start', 'Other_ID_Continue'}:
                 if tmp:
                     tmp += str(ord(c)) + 'e'
                 else:
