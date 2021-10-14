@@ -1097,6 +1097,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         if vartype == 'STRING' and (lex[tmpi-1].type == 'FSTR' or lex[tmpi+1].type == 'FSTR'):
                                                             if isinstance(tmpf[0],str) == False and '\\\\' in tmpf[0].value: tmpsafe=False
                                                             elif '\\\\' in tmpf: tmpsafe=False
+                                                        if tmpsafe and lex[tmpi-2].type == 'BUILTINF' and '.join' in lex[tmpi-2].value and isinstance(tmpf[0],str) == False and any(True for _ in tmpf if _.type in {'FSTR','STRING','COMMAGRP'} and ('"""' in _.value or "'''" in _.value)):
+                                                            tmpsafe = False # dumb pattern fix
+
                                                         if tmpsafe and lex[tmpi-1].type not in typeNewline:
                                                             # sometimes folding will invalidate the print-on-default-expression feature
                                                             # so on instances where we know it doesn't break behaviour, we make a
@@ -1944,39 +1947,39 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                     elif lex[token].type == 'STRING':
                         if optStrFormatToFString and '%s' in lex[token].value and lex[token].value[0] != 'f' and all(True if i not in lex[token].value else False for i in {'%i','%d','%g','%G','%c','%r','%-','%x','%u','%o','%X','%E','%e','%f','%F','%+', '%0','%1','%2','%3','%4','%5','%6','%7','%8','%9'} ):
-                            check=False
+                            #print('~~~')
+                            tmpModuloCheck = tmpParenUsed = False
                             tmpf=[]
                             tmpRparen=0
                             preRparen=0
-                            for t in range(token,0,-1):
-                                # for setting tmpRparen
+                            for t in range(token+1,0,-1):
+                                # looking back to set tmpRparen
                                 if lex[t].type in typeNewline+('ENDIF',): break
                                 elif lex[t].type == 'LPAREN': preRparen+=1 ; tmpRparen+=1
                                 elif lex[t].type == 'FUNCTION' and lex[t].value[-1] == '(':
                                     preRparen += 1 ; tmpRparen += 1
 
-                            #print('~~~')
-                            t = token
+                            t = token+1
                             tmpSkip = 0
                             while t < len(lex)-1:
-                                #print(lex[t].type,tmpRparen)
+                                #print(tmpModuloCheck,tmpParenUsed,lex[t].type,lex[t].value,preRparen,tmpRparen,len(tmpf))
                                 if lex[t].type in typeNewline:
                                     break
                                 elif tmpSkip > 0:
                                     tmpSkip-=1
                                 elif lex[t].type == 'MODULO':
-                                    check=True ; lex[t].type='IGNOREtmp'+lex[t].type
-                                elif lex[t].type == 'LPAREN' and check: lex[t].type='IGNOREtmp'+lex[t].type ; tmpRparen+=1
-                                elif lex[t].type == 'RPAREN' and check:
+                                    tmpModuloCheck=True ; lex[t].type='IGNOREtmp'+lex[t].type
+                                elif lex[t].type == 'LPAREN' and tmpModuloCheck: lex[t].type='IGNOREtmp'+lex[t].type ; tmpRparen+=1 ; tmpParenUsed=True
+                                elif lex[t].type == 'RPAREN' and tmpModuloCheck:
                                     tmpRparen-=1
                                     if preRparen <= 0:
                                         lex[t].type = 'IGNOREtmp' + lex[t].type
                                     preRparen -= 1
                                     if tmpRparen == 0: break
-                                elif lex[t].type == 'COMMA' and tmpRparen <= 0: break
+                                elif lex[t].type == 'COMMA' and (tmpRparen <= 0 or not tmpParenUsed): break
                                 elif lex[t].type not in typeAssignables+('COMMA','COMMAGRP','FUNCTION','LINDEX','RINDEX','BUILTINF')+typeOperators+typeCheckers: break
                                 else:
-                                    if check:
+                                    if tmpModuloCheck:
                                         if lex[t].type=='COMMAGRP':
                                             miniLex=Lexer()
                                             doBreak=False
@@ -1988,17 +1991,16 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             if doBreak: break
                                             del miniLex
                                         else:
-                                            if lex[t+2].type == 'COLON': break
                                             tt=0
                                             tmp=[]
                                             while True:
                                                 #print(lex[t + tt].type,preRparen,tmpRparen)
                                                 if lex[t+tt].type not in ('COMMA',)+typeNewline:
 
-                                                    if check and lex[t + tt].type in {'LPAREN','RPAREN','FUNCTION'}:
+                                                    if tmpModuloCheck and lex[t + tt].type in {'LPAREN','RPAREN','FUNCTION'}:
                                                         if lex[t+tt].type in {'LPAREN','FUNCTION'}:
                                                             tmpRparen += 1
-                                                        elif lex[t+tt].type == 'RPAREN' and check:
+                                                        elif lex[t+tt].type == 'RPAREN' and tmpModuloCheck:
                                                             tmpRparen -= 1
                                                         if tmpRparen == 0 or tmpRparen == preRparen:
                                                             # not sure if tmpRparen == preRparen is the correct solution but it seems to work
@@ -2010,8 +2012,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     lex[t+tt].type='IGNOREtmp' + lex[t + tt].type
                                                     tmp.append(tmptok)
                                                     tt+=1
-                                                elif lex[t+tt].type == 'COMMA':
-                                                    lex[t + tt].type = 'IGNOREtmp' ; break
+                                                elif lex[t+tt].type in 'COMMA':
+                                                    if not tmpParenUsed:
+                                                        t=len(lex)+4 ; tmpModuloCheck=False
+                                                    break
                                                 else: break
                                             tmpf.append(tmp)
                                             tmpSkip+=tt
@@ -4151,7 +4155,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmpInFunction = False ; tmpParenScope = 0
                         while lexIndex+tmpi < len(lex)-1:
                             if lex[lexIndex+tmpi].type == 'ID' and lex[lexIndex+tmpi].value == tmpval.value:
-                                if tmpParenScope == 0 and not tmpInFunction:
+                                if (tmpParenScope == 0 and not tmpInFunction) or (lex[lexIndex+tmpi+1].type!='ASSIGN' and tmpInFunction):
                                     lex[lexIndex+tmpi].value=f'{lex[lexIndex+tmpi].value}[0]'
                                 if lex[lexIndex+tmpi+1].type == 'ASSIGN' and not tmpInFunction:
                                     return AS_SyntaxError(f'Cannot reassign to constant variable {tmpval.value}',None,miniLineNumber,data,'Compile time error')
@@ -4164,6 +4168,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                    tmp=list(lex[lexIndex+tmpi].value)
                                    tmp.insert(lex[lexIndex+tmpi].value.index(','+tmpval.value)+len(tmpval.value)+1,'[0]')
                                    lex[lexIndex+tmpi].value=''.join(tmp)
+                                elif lex[lexIndex+tmpi].type == 'INDEX' and any(True for _ in {':','['} if _+tmpval.value in lex[lexIndex+tmpi].value):
+                                    # detection in indexes to avoid false variable names
+                                    tmp = [_ for _ in {':','['} if _+tmpval.value in lex[lexIndex+tmpi].value][0]
+                                    lex[lexIndex + tmpi].value = lex[lexIndex + tmpi].value.replace(tmp+tmpval.value,tmp+tmpval.value+'[0]')
                             elif lex[lexIndex+tmpi].type == 'FUNCTION' or (lex[lexIndex+tmpi].type == 'ID' and lex[lexIndex+tmpi].value == 'print'):
                                 tmpInFunction = True
                                 if lex[lexIndex+tmpi].type == 'FUNCTION':
