@@ -989,7 +989,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             if lex[tmpi].type != 'INC': break
                                         elif inFrom and lex[tmpi].type == 'ID' and lex[token].value == lex[tmpi].value:
                                             search = False
-                                        elif lex[tmpi].type == 'FUNCTION' and lex[tmpi].value == 'locals(' and lex[tmpi+1].type == 'RPAREN' and lex[tmpi+2].type == 'LINDEX' and lex[tmpi+3].type == 'STRING' and lex[tmpi+3].value.replace('"','').replace("'","") == lex[token].value:
+                                        elif lex[tmpi].type == 'FUNCTION' and lex[tmpi].value in ('locals(','globals(') and lex[tmpi+1].type == 'RPAREN' and lex[tmpi+2].type == 'LINDEX' and lex[tmpi+3].type == 'STRING' and lex[tmpi+3].value.replace('"','').replace("'","") == lex[token].value:
                                             tmpAddToIgnoresWhenNL = tmpi
                                         elif lex[tmpi].type == 'BUILTINF' and lex[tmpi].value.split('.')[0] == lex[token].value and '.'+lex[tmpi].value.split('.')[1] in listMods:
                                             search=False ; linkType=False ; break # discards list mods like .append()
