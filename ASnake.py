@@ -1958,7 +1958,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             t = token
                             tmpSkip = 0
                             while t < len(lex)-1:
-                                #print(lex[t].type,tmpRparen)
+                                print(lex[t].type,tmpRparen)
                                 if lex[t].type in typeNewline:
                                     break
                                 elif tmpSkip > 0:
@@ -2006,7 +2006,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             break
 
                                                     tmptok=deepcopy(lex[t+tt])
-                                                    lex[t+tt].type='IGNOREtmp'
+                                                    lex[t+tt].type='IGNOREtmp' + lex[t + tt].type
                                                     tmp.append(tmptok)
                                                     tt+=1
                                                 elif lex[t+tt].type == 'COMMA':
@@ -4147,21 +4147,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex.insert(lexIndex+tmpi,tmptok) ; del tmptok
                             #old method: lex[lexIndex+tmpi].value=f'({lex[lexIndex+tmpi].value}'
                         bigWrap=True ; constWrap=True ; miniLineNumber=lineNumber
+                        tmpInFunction = False ; tmpParenScope = 0
                         while lexIndex+tmpi < len(lex)-1:
                             #print('woo',lex[lexIndex+tmpi].type,lex[lexIndex+tmpi].value)
                             if lex[lexIndex+tmpi].type == 'ID' and lex[lexIndex+tmpi].value == tmpval.value:
                                    lex[lexIndex+tmpi].value=f'{lex[lexIndex+tmpi].value}[0]'
-                                   if lex[lexIndex+tmpi+1].type == 'ASSIGN':
-                                       safe=False ; tmpParen=0
-                                       for ii in range(lexIndex+tmpi+1,len(lex)-1):
-                                            if lex[ii].type in typeNewline: break
-                                            elif lex[ii].type in ('LISTEND','RPAREN','RINDEX'):
-                                                tmpParen-=1
-                                            elif lex[ii].type in ('LIST','LPAREN','LINDEX'):
-                                                tmpParen+=1
-                                       if tmpParen >= 0:
+                                   if lex[lexIndex+tmpi+1].type == 'ASSIGN' and tmpInFunction:
+                                       if tmpParenScope >= 0:
                                             return AS_SyntaxError(f'Cannot reassign to constant variable {tmpval.value}',None,miniLineNumber,data,'Compile time error')
-                            elif lex[lexIndex+tmpi].type in ('INDEX','FUNCTION','LIST'):
+                            elif lex[lexIndex+tmpi].type in ('INDEX','LIST'):
                                 if tmpval.value+',' in lex[lexIndex+tmpi].value:
                                    tmp=list(lex[lexIndex+tmpi].value)
                                    tmp.insert(lex[lexIndex+tmpi].value.index(tmpval.value+',')+len(tmpval.value),'[0]')
@@ -4170,6 +4164,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                    tmp=list(lex[lexIndex+tmpi].value)
                                    tmp.insert(lex[lexIndex+tmpi].value.index(','+tmpval.value)+len(tmpval.value)+1,'[0]')
                                    lex[lexIndex+tmpi].value=''.join(tmp)
+                            elif lex[lexIndex+tmpi].type == 'FUNCTION' or (lex[lexIndex+tmpi].type == 'ID' and lex[lexIndex+tmpi].value == 'print'):
+                                tmpInFunction = True
+                                if lex[lexIndex+tmpi].type == 'FUNCTION':
+                                    tmpParenScope+=1
+                            elif lex[lexIndex + tmpi].type == 'LPAREN':
+                                tmpParenScope+=1
+                            elif lex[lexIndex + tmpi].type == 'RPAREN':
+                                tmpParenScope-=1
                             elif lex[lexIndex+tmpi].type == 'COMMAGRP' and tmpval.value in lex[lexIndex+tmpi].value:
                                 tmp=lex[lexIndex+tmpi].value.split(',')
                                 for t in range(0,len(tmp)):
