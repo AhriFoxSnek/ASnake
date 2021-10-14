@@ -1958,7 +1958,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             t = token
                             tmpSkip = 0
                             while t < len(lex)-1:
-                                print(lex[t].type,tmpRparen)
+                                #print(lex[t].type,tmpRparen)
                                 if lex[t].type in typeNewline:
                                     break
                                 elif tmpSkip > 0:
@@ -4149,7 +4149,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         bigWrap=True ; constWrap=True ; miniLineNumber=lineNumber
                         tmpInFunction = False ; tmpParenScope = 0
                         while lexIndex+tmpi < len(lex)-1:
-                            #print('woo',lex[lexIndex+tmpi].type,lex[lexIndex+tmpi].value)
                             if lex[lexIndex+tmpi].type == 'ID' and lex[lexIndex+tmpi].value == tmpval.value:
                                 if tmpParenScope == 0 and not tmpInFunction:
                                     lex[lexIndex+tmpi].value=f'{lex[lexIndex+tmpi].value}[0]'
@@ -4167,6 +4166,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lex[lexIndex+tmpi].type == 'FUNCTION' or (lex[lexIndex+tmpi].type == 'ID' and lex[lexIndex+tmpi].value == 'print'):
                                 tmpInFunction = True
                                 if lex[lexIndex+tmpi].type == 'FUNCTION':
+                                    if lex[lexIndex+tmpi].value == 'globals(' and lex[lexIndex+tmpi+3].type == 'STRING' and lex[lexIndex+tmpi+3].value.replace('"','').replace("'","") == tmpval.value:
+                                        return AS_SyntaxError(f'Cannot reassign to constant variable {tmpval.value}','Avoiding globals assignment. The compiler has trouble keeping track of it. It is also confusing for humans.', miniLineNumber, data, 'Compile time error')
                                     tmpParenScope+=1
                             elif lex[lexIndex + tmpi].type == 'LPAREN':
                                 tmpParenScope+=1
