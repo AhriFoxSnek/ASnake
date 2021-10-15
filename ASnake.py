@@ -992,13 +992,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             search = False
                                         elif lex[tmpi].type == 'FUNCTION' and lex[tmpi].value in {'locals(','globals('} and lex[tmpi+1].type == 'RPAREN' and lex[tmpi+2].type == 'LINDEX' and lex[tmpi+3].type == 'STRING' and lex[tmpi+3].value.replace('"','').replace("'","") == lex[token].value:
                                             tmpAddToIgnoresWhenNL = tmpi
-                                            # ignores.append([tmpi-1])
                                         elif lex[tmpi].type in {'FUNCTION','ID'} and lex[tmpi].value in {'ASenumerate','enumerate(','enumerate'} and lex[tmpi-1].type == 'INS':
                                             for tt in range(tmpi,0,-1):
                                                 if lex[tt].type in typeNewline: break
                                                 elif (lex[tt].type == 'ID' and lex[tt].value == lex[token].value) \
                                                 or (lex[tt].type == 'COMMAGRP' and lex[tt].value.split(',')[-1].strip() == lex[token].value):
-                                                    search = False ; break
+                                                    ignores.append(tt) ; break
                                         elif lex[tmpi].type == 'BUILTINF' and lex[tmpi].value.split('.')[0] == lex[token].value and '.'+lex[tmpi].value.split('.')[1] in listMods:
                                             search=False ; linkType=False ; break # discards list mods like .append()
                                         elif lex[tmpi].type == 'SCOPE' and lex[token].value in lex[tmpi].value:
@@ -4970,6 +4969,7 @@ if __name__ == '__main__':
     if args.file == None or not os.path.isfile(args.file.name):
         if args.eval:
             data = args.eval
+            ASFile = False
             runCode = True
         else:
             import sys
@@ -5052,8 +5052,10 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
 {'include_dirs=[numpy.get_include(),"."]' if 'import numpy' in data else 'include_dirs=["."]'})""")
             #os.system(f'{py3Command} ASsetup.py build_ext --inplace')
             try:
+                s = time()
                 cythonCompileText = check_output(f'{py3Command} ASsetup.py build_ext --inplace', shell=True).decode()
                 error=False
+                print('C compile time:',time()-s)
             except CalledProcessError as e:
                 cythonCompileText = e.output
                 error=True
@@ -5066,7 +5068,8 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                     os.rename(cythonsoFile,filePath+cythonsoFile)
 
                 if runCode:
-                    os.chdir(filePath)
+                    if filePath:
+                        os.chdir(filePath)
                     execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=fancy)
                     if '/' in ASFile: tmp=f"import sys\nsys.path.append('{ASFile.split('/')[-1]}')\nimport {ASFile.split('/')[-1]}"
                     else: tmp=f'import {ASFile}'
@@ -5077,8 +5080,9 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                         print('\t____________')
         if fancy: print(f'{ASFile}.asnake compiled to {fileName}')
     else:
-        tmp='/'.join(ASFile.split('/')[:-1])+'/'
-        if tmp != '/': os.chdir(tmp)
+        if ASFile:
+            tmp='/'.join(ASFile.split('/')[:-1])+'/'
+            if tmp != '/': os.chdir(tmp)
         if compileTo == 'Cython':
             ASFile='.'.join(ASFile.rsplit('.')[:-1])
             execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=fancy)
