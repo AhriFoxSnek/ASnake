@@ -987,17 +987,25 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 # if we reach a point where we can determine its no longer constant, then ignore that point onward so the previous code still gets folded
                                             if wasInDefs and lex[tmpi+1].type in typeAssignables+('ASSIGN',):
                                                 search = False
-                                            if lex[tmpi].type != 'INC': break
+                                            #if lex[tmpi].type != 'INC': break
                                         elif inFrom and lex[tmpi].type == 'ID' and lex[token].value == lex[tmpi].value:
                                             search = False
-                                        elif lex[tmpi].type == 'FUNCTION' and lex[tmpi].value in ('locals(','globals(') and lex[tmpi+1].type == 'RPAREN' and lex[tmpi+2].type == 'LINDEX' and lex[tmpi+3].type == 'STRING' and lex[tmpi+3].value.replace('"','').replace("'","") == lex[token].value:
+                                        elif lex[tmpi].type == 'FUNCTION' and lex[tmpi].value in {'locals(','globals('} and lex[tmpi+1].type == 'RPAREN' and lex[tmpi+2].type == 'LINDEX' and lex[tmpi+3].type == 'STRING' and lex[tmpi+3].value.replace('"','').replace("'","") == lex[token].value:
                                             tmpAddToIgnoresWhenNL = tmpi
+                                            # ignores.append([tmpi-1])
+                                        elif lex[tmpi].type in {'FUNCTION','ID'} and lex[tmpi].value in {'ASenumerate','enumerate(','enumerate'} and lex[tmpi-1].type == 'INS':
+                                            for tt in range(tmpi,0,-1):
+                                                print(lex[tt].value.split(',')[-1].strip() == lex[token].value)
+                                                if lex[tt].type in typeNewline: break
+                                                elif (lex[tt].type == 'ID' and lex[tt].value == lex[token].value) \
+                                                or (lex[tt].type == 'COMMAGRP' and lex[tt].value.split(',')[-1].strip() == lex[token].value):
+                                                    search = False ; break
                                         elif lex[tmpi].type == 'BUILTINF' and lex[tmpi].value.split('.')[0] == lex[token].value and '.'+lex[tmpi].value.split('.')[1] in listMods:
                                             search=False ; linkType=False ; break # discards list mods like .append()
                                         elif lex[tmpi].type == 'SCOPE' and lex[token].value in lex[tmpi].value:
                                             search=False ; break # no global var pls
-                                        elif lex[tmpi].type in ('WHILE','FOR') or (lex[tmpi].type == 'LOOP' and tmpi+2 < len(lex)-1 and lex[tmpi+2].value == lex[token].value):
-                                            pass
+                                        #elif lex[tmpi].type in ('WHILE','FOR') or (lex[tmpi].type == 'LOOP' and tmpi+2 < len(lex)-1 and lex[tmpi+2].value == lex[token].value):
+                                        #    pass
                                             #linkType=False # for/while loops? oh boy
                                         elif lex[tmpi].type == 'META' and lex[token].value in '='.join(lex[tmpi].value.split('=')[1:]):
                                             search=False
@@ -1353,15 +1361,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                     elif lex[token].type in ('LPAREN','LIST') and lex[token-1].type == 'INS' and lex[token-1].value.strip() == 'in'\
                     and optInSet:
-                        tmpscope=1 ; tmp=0 ; tmpf=[]
+                        tmpscope=1 ; tmp=0 ; tmpf=[] ; tmpLeftScope = 1
                         for tmpi in range(token+1,len(lex)):
-                            if lex[tmpi].type == lex[token].type: tmpscope+=1
+                            if lex[tmpi].type == lex[token].type: tmpscope+=1 ; tmpLeftScope+=1
                             elif lex[token].type == 'LPAREN' and lex[tmpi].type == 'RPAREN': tmpscope-=1
                             elif lex[token].type == 'LIST' and lex[tmpi].type == 'LISTEND': tmpscope -= 1
                             if tmpscope == 0: tmp=tmpi ; break
                             else: tmpf.append(deepcopy(lex[tmpi]))
                         # if tmp is 0 then syntax error, but i don't think optimization stage is where to show it
-                        if tmp>0 \
+                        if 0 < tmp and tmpLeftScope == 1 \
                         and lex[tmp+1].type != 'PLUS':
                             if len(tmpf) == 1 and tmpf[0].type == 'COMMAGRP':
                                 tmpf=tmpf[0].value.split(',')
@@ -1371,6 +1379,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 # if all are unique
                                 lex[token].type='LBRACKET' ; lex[token].value='{'
                                 lex[tmp].type = 'RBRACKET' ; lex[tmp].value = '}'
+                            newOptimization=True
 
                     elif lex[token].type in ('LIST','INDEX') and lex[token-1].type == 'INS' and lex[token-1].value.strip() == 'in':
                         if optListToTuple:
