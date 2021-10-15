@@ -12,7 +12,7 @@ import re
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.11.12'
+ASnakeVersion='v0.11.13'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -875,7 +875,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if lex[token-1].type not in typeConditonals+('OR','AND','LOOP'):
                                 if lex[token+1].type in typeAssignables and lex[token+1].type not in ('LISTEND',) and lex[token+2].type not in ('PIPE','LISTCOMP'):
                                     tmpi=1
-                                elif lex[token+1].type == 'ASSIGN' and lex[token+1].value.strip() in ('is','=') and lex[token+2].type in typeAssignables+('LPAREN','LBRACKET','FUNCTION') and lex[token+2].type not in ('LISTEND',) and lex[token+3].type not in ('PIPE','LISTCOMP'):
+                                elif lex[token+1].type == 'ASSIGN' and lex[token+1].value.strip() in ('is','=') and lex[token+2].type in typeAssignables+('LPAREN','LBRACKET','FUNCTION','MINUS','INS') and lex[token+2].type not in ('LISTEND',) and lex[token+3].type not in ('PIPE','LISTCOMP'):
                                     tmpi=2
                             if lex[token].value == 'print' or lex[token-1].type == 'COMMA': tmpi=None
                             if optMathEqual and token+3 < len(lex) and lex[token+2].value == lex[token].value and lex[token+3].type in typeOperators: tmpi=None
@@ -1056,7 +1056,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             if search == False: token+=1 ; continue # if linktype and search are false, why are we here? leave
 
                                         if debug:
-                                            print('constant-folding:',lex[token].value)
+                                            print('constant-propagation:',lex[token].value)
                                             if isinstance(tmpf[0],str) == False:
                                                 print('tokens!',lex[token].value,'=',''.join([f.value for f in tmpf[::-1]]))
                                             else: print('str!',lex[token].value,'=',''.join([f for f in tmpf]))
@@ -1235,7 +1235,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     else: lex[token+1].value=mopConv[tmptype]
                                     lex.pop(token+2) ; lex.pop(token+2)
                                     newOptimization=True
-                        if optWalrus and compileTo != 'Cython' and pythonVersion >= 3.8 and lex[token+1].type in typeAssignables+('ASSIGN','COMMAGRP') \
+                        if optWalrus and lex[token+1].type in typeAssignables+('ASSIGN','COMMAGRP') \
                         and lex[token-1].type in typeNewline+('TYPE',) and lex[token+2].type!='ID':
                             safe=True
                             if lex[token+1].type == 'ASSIGN':
@@ -2688,7 +2688,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             scopey=' '.join(lex[lexIndex+tmp].value.split()[1:]).split(',')
                             impure = True
                         elif lex[lexIndex+tmp].type == 'DEFFUNCT' and lex[lexIndex+tmp]!=lex[lexIndex+1]: tmp=len(lex)+1
-                        if compileTo=='Cython' and optimize:
+                        if compileTo=='Cython' and optimize and lexIndex+tmp < len(lex)-1:
                             if lex[lexIndex+tmp-1].type == 'LINDEX' and lex[lexIndex+tmp].type == 'MINUS': cyWrapAround=False
                             elif lex[lexIndex+tmp-2].type == 'LINDEX' and (lex[lexIndex+tmp-1].type == 'NUMBER' or (lex[lexIndex+tmp-1].type == 'ID' and lex[lexIndex+tmp-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+tmp-1].value]['type'] == 'NUMBER'  and 'line' in storedVarsHistory[lex[lexIndex+tmp-1].value] and any(True for i in storedVarsHistory[lex[lexIndex+tmp-1].value]['line'] if i.type == 'MINUS')==False)) \
                             and lex[lexIndex+tmp].type == 'RINDEX': cyWrapAround=True
@@ -3536,7 +3536,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if tok.type != 'ELSE':
                         inIf=True
                         startOfLine=False
-                    if tok.type == 'IF':
+                    if tok.type in ('IF','WHILE'):
                         if indent >= prettyIndent:
                             lastIndent[2].append(indent-prettyIndent)
                         else: lastIndent[2].append(indent)
@@ -4856,6 +4856,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 line.append(decideIfIndentLine(indent, f'{expPrint[-1]}(')) ; rParen+=1 ; bigWrap=True
             elif tok.type in codeDict:
                 if tok.type == 'DEFFUNCT': notInDef=False
+
                 elif lastType == 'BUILTINF' and tok.type in ('AND','OR') and not startOfLine:
                     line.append(' ')
                 line.append(decideIfIndentLine(indent,f'{codeDict[tok.type]} '))
@@ -5027,7 +5028,7 @@ if __name__ == '__main__':
             if "'" in fileName:
                 fileName=fileName.replace("'","\\'")
             from platform import system as OSName
-            from subprocess import check_output
+            from subprocess import check_output, CalledProcessError
             if 'windows' in OSName().lower():
                 py3Command='"'+(check_output(['WHERE', 'python']).decode().split('\n')[0]).replace('\r','')+'"'
             else: # linux
@@ -5044,15 +5045,35 @@ except ModuleNotFoundError:
     print('Cython is not installed, ASnake is unable to compile to .so file.\\nThe .pyx file still compiled.\\nDo something like:\\n\\t{"python" if "windows" in OSName().lower() else py3Command} -m pip install cython') ; exit()
 setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.annotate else False}),
 {'include_dirs=[numpy.get_include(),"."]' if 'import numpy' in data else 'include_dirs=["."]'})""")
-            os.system(f'{py3Command} ASsetup.py build_ext --inplace')
+            #os.system(f'{py3Command} ASsetup.py build_ext --inplace')
+            try:
+                cythonCompileText = check_output(f'{py3Command} ASsetup.py build_ext --inplace', shell=True).decode()
+                error=False
+            except CalledProcessError as e:
+                cythonCompileText = e.output
+                error=True
             os.remove('ASsetup.py')
-            if runCode:
-                execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=fancy)
-                if '/' in ASFile: tmp=f"import sys\nsys.path.append('{ASFile.split('/')[-1]}')\nimport {ASFile.split('/')[-1]}"
-                else: tmp=f'import {ASFile}'
-                execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=False)
+            if fancy or error:
+                print(cythonCompileText)
+            if not error:
+                cythonsoFile=cythonCompileText.split('/')[-1][:-5]
+                if filePath:
+                    os.rename(cythonsoFile,filePath+cythonsoFile)
+
+                if runCode:
+                    os.chdir(filePath)
+                    execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=fancy)
+                    if '/' in ASFile: tmp=f"import sys\nsys.path.append('{ASFile.split('/')[-1]}')\nimport {ASFile.split('/')[-1]}"
+                    else: tmp=f'import {ASFile}'
+                    if fancy:
+                        print('\t____________\n\t~ Cython Eval\n')
+                    execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=False)
+                    if fancy:
+                        print('\t____________')
         if fancy: print(f'{ASFile}.asnake compiled to {fileName}')
     else:
+        tmp='/'.join(ASFile.split('/')[:-1])+'/'
+        if tmp != '/': os.chdir(tmp)
         if compileTo == 'Cython':
             ASFile='.'.join(ASFile.rsplit('.')[:-1])
             execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=fancy)
