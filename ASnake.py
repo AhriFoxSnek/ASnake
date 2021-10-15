@@ -995,7 +995,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             # ignores.append([tmpi-1])
                                         elif lex[tmpi].type in {'FUNCTION','ID'} and lex[tmpi].value in {'ASenumerate','enumerate(','enumerate'} and lex[tmpi-1].type == 'INS':
                                             for tt in range(tmpi,0,-1):
-                                                print(lex[tt].value.split(',')[-1].strip() == lex[token].value)
                                                 if lex[tt].type in typeNewline: break
                                                 elif (lex[tt].type == 'ID' and lex[tt].value == lex[token].value) \
                                                 or (lex[tt].type == 'COMMAGRP' and lex[tt].value.split(',')[-1].strip() == lex[token].value):
@@ -1004,9 +1003,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             search=False ; linkType=False ; break # discards list mods like .append()
                                         elif lex[tmpi].type == 'SCOPE' and lex[token].value in lex[tmpi].value:
                                             search=False ; break # no global var pls
-                                        #elif lex[tmpi].type in ('WHILE','FOR') or (lex[tmpi].type == 'LOOP' and tmpi+2 < len(lex)-1 and lex[tmpi+2].value == lex[token].value):
-                                        #    pass
-                                            #linkType=False # for/while loops? oh boy
                                         elif lex[tmpi].type == 'META' and lex[token].value in '='.join(lex[tmpi].value.split('=')[1:]):
                                             search=False
                                         elif lex[tmpi].type == 'DEFFUNCT':
