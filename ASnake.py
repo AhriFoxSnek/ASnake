@@ -4979,6 +4979,7 @@ if __name__ == '__main__':
             else: tmp=tmp[0]
             print(f'ASnake Compile Error:\n\tCouldn\'t open file. Make sure to provide a path for a file, and that the path is correct.\nSuggestion:\n\t{sys.argv[0]} -r {tmp}')
             if not args.update:
+                ASFile = False
                 exit()
     else:
         ASFile = args.file.name
