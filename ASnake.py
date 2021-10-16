@@ -4977,8 +4977,10 @@ if __name__ == '__main__':
             if not tmp:
                 tmp='myScript.asnake'
             else: tmp=tmp[0]
-            print(f'ASnake Compile Error:\n\tCouldn\'t open file. Make sure to provide a path for a file, and that the path is correct.\nSuggestion:\n\t{sys.argv[0]} -r {tmp}')
-            exit()
+            if not args.update:
+                print(f'ASnake Compile Error:\n\tCouldn\'t open file. Make sure to provide a path for a file, and that the path is correct.\nSuggestion:\n\t{sys.argv[0]} -r {tmp}')
+                exit()
+            else: ASFile = False
     else:
         ASFile = args.file.name
         data=args.file.read()
@@ -5021,6 +5023,9 @@ if __name__ == '__main__':
             os.rename("ASnake.py", "previous_ASnake.py")
             with open("ASnake.py", 'wb') as file:
                 file.write(ASnek.content)
+            print('Downloaded latest ASnake.')
+            if ASFile == False and not args.eval:
+                exit()
 
     s=time()
     if (compileTo == 'Cython' and justRun) == False:
@@ -5069,7 +5074,7 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                 error=False
                 print('C compile time:',time()-s)
             except CalledProcessError as e:
-                cythonCompileText = e.output
+                cythonCompileText = e.output.decode()
                 error=True
             os.remove('ASsetup.py')
             if fancy or error:
