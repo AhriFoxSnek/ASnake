@@ -12,7 +12,7 @@ import re
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.11.13'
+ASnakeVersion='v0.11.14'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -4958,6 +4958,7 @@ if __name__ == '__main__':
     argParser.add_argument('-a', '--annotate', action='store_true',help="When compiling to Cython, will compile a html file showing Python to C conversions.")
     argParser.add_argument('-d', '--debug', action='store_true', help="Debug info for compiler developers.")
     argParser.add_argument('-t', '--test', action='store_true', help="Headless debug for compiler developers.")
+    argParser.add_argument('--update', action='store_true', help="Updates ASnake to the latest version. Temporary until ASnake is installable by pip.")
     argParser.add_argument("file", type=FileType("r"), nargs='?', const='notGiven', help="Your ASnake file to compile.")
 
     pythonVersion=3.9
@@ -5008,7 +5009,19 @@ if __name__ == '__main__':
     elif args.pyston: compileTo='Pyston'
     elif args.pypy: compileTo='PyPy3'
     else: compileTo='Python'
-    
+
+    if args.update:
+        from requests import get
+        if os.path.isfile('ASnake.py'):
+            ASnek = get("https://raw.githubusercontent.com/AhriFoxSnek/ASnake/main/ASnake.py")
+            try:
+                os.remove("previous_ASnake.py")
+            except:
+                pass
+            os.rename("ASnake.py", "previous_ASnake.py")
+            with open("ASnake.py", 'wb') as file:
+                file.write(ASnek.content)
+
     s=time()
     if (compileTo == 'Cython' and justRun) == False:
         code=build(data,comment=comment,optimize=optimize,debug=debug,compileTo=compileTo,pythonVersion=pythonVersion,enforceTyping=enforceTyping)
