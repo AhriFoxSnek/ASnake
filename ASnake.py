@@ -4977,8 +4977,8 @@ if __name__ == '__main__':
             if not tmp:
                 tmp='myScript.asnake'
             else: tmp=tmp[0]
-            print(f'ASnake Compile Error:\n\tCouldn\'t open file. Make sure to provide a path for a file, and that the path is correct.\nSuggestion:\n\t{sys.argv[0]} -r {tmp}')
             if not args.update:
+                print(f'ASnake Compile Error:\n\tCouldn\'t open file. Make sure to provide a path for a file, and that the path is correct.\nSuggestion:\n\t{sys.argv[0]} -r {tmp}')
                 exit()
             else: ASFile = False
     else:
@@ -5074,7 +5074,7 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                 error=False
                 print('C compile time:',time()-s)
             except CalledProcessError as e:
-                cythonCompileText = e.output
+                cythonCompileText = e.output.decode()
                 error=True
             os.remove('ASsetup.py')
             if fancy or error:
