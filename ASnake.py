@@ -2408,12 +2408,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     loopSyntaxCount+=1
                 if loopSyntaxCount > 2:
                     if lex[lexIndex+1].value in storedVarsHistory: return False # for when it isn't a iteration variable
-                    recordIter = tmpFirstIndent = False
+                    recordIter = False
                     iterVar = lex[tmpi].value
                     tmpIter.append(deepcopy(lex[tmpi-1]))
                     if expressionStart == None: expressionStart = tmpi
                     if lex[tmpi].type == 'TAB': tmpindent = lex[tmpi].value.replace('\t', ' ').count(' ')
+                    elif lex[tmpi + 1].type == 'PIPE' and lex[tmpi].type == 'ID' and lex[tmpi].value not in storedVarsHistory:
+                        expressionStart -= 1
                 continue
+
             if lex[tmpi].type in typeNewline:
                 if tmpFirstIndent:
                     recordIter = tmpFirstIndent = False
@@ -2424,8 +2427,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         return False
                     else:
                         break
-            elif tmpFound:
-                lex[tmpi].type = 'IGNORE'
             elif tmpFirstIndent and recordIter and lex[tmpi].type != 'ENDIF':
                 if forLoop and (lex[tmpi].type == 'NUMBER' or (lex[tmpi].value in storedVarsHistory and 'type' in storedVarsHistory[
                 lex[tmpi].value] and storedVarsHistory[lex[tmpi].value]['type'] == 'NUMBER')) and tmpIter == [] and lex[tmpi+1].type in typeNewline+('ENDIF',):
@@ -2433,7 +2434,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     tmpIter.append(deepcopy(lex[tmpi]))
                     tmpIter.append(makeToken(lex[tmpi], ')', 'RPAREN'))
                 else: tmpIter.append(deepcopy(lex[tmpi]))
-            elif tmpFirstIndent and forLoop and lex[tmpi].type == 'INS' and lex[tmpi].value in ('in ', ' in', 'in'):
+            elif tmpFirstIndent and forLoop and lex[tmpi].type == 'INS' and lex[tmpi].value.strip() == 'in':
                 recordIter = True ; iterVar = lex[tmpi-1].value
             elif lex[tmpi].type in typeNewline+('FOR','LOOP') and not tmpFirstIndent:
                 return False
@@ -2452,6 +2453,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if '.' in lex[tmpi].value and lex[tmpi].value.split('.')[0] in storedVarsHistory:
                     tmpVal = lex[tmpi].value.split('.')[0]
                     break
+                elif '.' in lex[tmpi].value and lex[tmpi].value.split('.')[0] == '' and lex[tmpi-1].type == 'ID' and lex[tmpi-1].value in storedVarsHistory:
+                    tmpVal = lex[tmpi-1].value
                 elif optLoopAttr and '_append' in lex[tmpi].value and lex[tmpi].value.startswith('AS'):
                     tmpVal = lex[tmpi].value[2:-7]
                     break
@@ -2466,15 +2469,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tmpIter.append(makeToken(lex[lexIndex], ')', 'RPAREN'))
             else:
                 tmpIter = [deepcopy(lex[lexIndex + 1])]
+
         if isAppending and tmpVal and tmpVal in storedVarsHistory and 'type' in storedVarsHistory[tmpVal] \
         and storedVarsHistory[tmpVal]['type'] in ('LIST', 'LISTCOMP') and 'line' in storedVarsHistory[tmpVal]:
-            lex[tmpi].type = 'IGNORE'
             for ii in range(tmpi,len(lex)-1):
                 if lex[ii].type in typeNewline:
                     tmpPos=ii-1 ; break
             if storedVarsHistory[tmpVal]['type'] == 'LIST' and len(storedVarsHistory[tmpVal]['line']) <= 2:
                 # empty list
-                #line.append(decideIfIndentLine(indent, f'{tmpVal} = list(map({func},'))
                 tmpPreTokens.append(makeToken(lex[lexIndex], tmpVal, 'ID'))
                 tmpPreTokens.append(makeToken(lex[lexIndex], 'list(', 'FUNCTION'))
                 tmpPreTokens.append(makeToken(lex[lexIndex], 'map(', 'FUNCTION'))
@@ -2486,16 +2488,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             tmpFound = True
         elif not isAppending and expressionStart != None and expressionStart+4 < len(lex):
             tmpFound = False
-
             # list( is needed for globals in functions. in instances where its known function is pure, we should get rid of it
             if lex[expressionStart+1].type == 'FUNCTION' and lex[expressionStart+2].type != 'COMMAGRP' and lex[expressionStart+3].type == 'RPAREN' and lex[expressionStart+4].type in typeNewline:
                 if expressionStart + 3 + 2 < len(lex)-1 and lex[expressionStart + 3 + 2].type == 'LOOP': return False
                 lex[expressionStart+1].type = lex[expressionStart+2].type = 'IGNORE'
                 tmpf = lex[expressionStart + 1].value.replace("(","")
-                if tmpf in storedCustomFunctions and 'pure' in storedCustomFunctions[tmpf] and storedCustomFunctions[tmpf]['pure']:
-                    tmpList = '' ; tmpParen = 1
-                else:
-                    tmpList = 'list(' ; tmpParen = 2
+                tmpList = 'list(' ; tmpParen = 2
                 tmpFound = True
                 tmpPos = expressionStart + 3
                 line.append(decideIfIndentLine(indent, f'{tmpList}map({tmpf}, '))
@@ -2504,14 +2502,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 for i in range(4):
                     lex[expressionStart + i].type = 'IGNORE'
                 tmpf=lex[expressionStart+3].value
-                if tmpf in storedCustomFunctions and storedCustomFunctions[tmpf]['pure']:
-                    tmpList='' ; tmpParen = 1
-                else: tmpList='list(' ; tmpParen = 2
+                tmpList='list(' ; tmpParen = 2
                 tmpFound = True
                 tmpPos = expressionStart + 1
                 line.append(decideIfIndentLine(indent, f'{tmpList}map({tmpf}, '))
-
-
 
         if tmpFound:
             for t in range(lexIndex, tmpPos+1):
@@ -2526,11 +2520,16 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     lex.insert(tmpPos, t)
             if isAppending and optLoopAttr and f"AS{tmpVal}_append = {tmpVal}.append" in code[-1]:
                 code = code[:-1]
-        #[print(l.type,l.value) for l in lex]
+
         return tmpFound
 
     def checkIfImpureFunction(lexIndex,pyDef,functionArgNames):
-        unsafeFunctions = {'map', 'open', 'ASopen','input'}
+        unsafeFunctions = {'map', 'open', 'input', 'print'}
+        if optimize and optLoopAttr:
+            # accounts for Python builtins renamed by the optimizer.
+            unsafeFunctions.update({f"AS{uf}" for uf in unsafeFunctions})
+
+        # TODO: detect default expressions. the function can be impure, however we can check if the function in expPrint is marked as safe.
 
         impure = False
         tmp = 1
