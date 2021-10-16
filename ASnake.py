@@ -5021,6 +5021,9 @@ if __name__ == '__main__':
             os.rename("ASnake.py", "previous_ASnake.py")
             with open("ASnake.py", 'wb') as file:
                 file.write(ASnek.content)
+            print('Downloaded latest ASnake.')
+            if ASFile == False and not args.eval:
+                exit()
 
     s=time()
     if (compileTo == 'Cython' and justRun) == False:
