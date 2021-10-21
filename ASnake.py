@@ -2381,7 +2381,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         if goBackwards:
             scope=0
             for i in range(lexIndex,0,-1):
-                #if debug: print(i,lex[i].type)
                 if lex[i].type == 'RPAREN':
                     scope+=1
                 elif lex[i].type in ('LPAREN','FUNCTION','BUILTINF'):
@@ -5164,4 +5163,4 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
             execPy(tmp,run=runCode,execTime=True,pep=False,headless=False,fancy=False)
         else:
             execPy(code,run=runCode,execTime=True,pep=pep,headless=headless,fancy=fancy)
-    
+
