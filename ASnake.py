@@ -8,7 +8,12 @@ from autopep8 import fix_code
 import os
 from copy import deepcopy
 from time import time
-import re
+from re import sub as REsub
+from re import compile as REcompile
+from re import search as REsearch
+from re import findall as REfindall
+from re import match as REmatch
+from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
@@ -346,9 +351,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         return tok
 
     # v converts leading tabs to space v
-    leadingTabs = re.compile(r"""(?<=\n)\t+(?![\w\s]*('|"){3})""")
-    while re.search(leadingTabs, data):
-        data = re.sub(leadingTabs, '    ', data)
+    leadingTabs = REcompile(r"""(?<=\n)\t+(?![\w\s]*('|"){3})""")
+    while REsearch(leadingTabs, data):
+        data = REsub(leadingTabs, '    ', data)
 
     #meta
     if metaInformation:
@@ -503,7 +508,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.value.split('[')[0] in {'list','tuple','dict','set'} and tok.value.split('[')[1].split(']')[0] in defaultTypes.split('|'):
                 # typing inside elements like dict[int, str]
                 tok.type='TYPE'
-            if tok.type != 'TYPE' and len(re.findall('''(?!('|").*)for (?!.*('|"))''',tok.value)) > 0:
+            if tok.type != 'TYPE' and len(REfindall('''(?!('|").*)for (?!.*('|"))''',tok.value)) > 0:
                 # the dumb INDEX regex will match list comps.
                 # this will detect 'for' inside of it (if not surrounded by quotes)
                 # it will parse the inside as ASnake, meanwhile surrounded by [ ]
@@ -561,9 +566,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif tok.type == 'COMMAGRP': # splitting into proper tokens a,b,c = d if a,b,c=d
             if (lex[lexIndex].type != 'FROM' and inFrom==False) and tok.value.count('=')==1:
                 tmp=tok.value.split(',')
-                #print(len(re.findall(r'\b[^\'"\d]',','.join(tmp[:-1]))),tok.value.count(',')+1)
                 if ('=' in tmp[-1] or tmp[-1].startswith('is') or tmp[-1].startswith(' is') )\
-                and (len(re.findall(r'\b[^\'"\d]',','.join(tmp[:-1])))==tok.value.count(',')+1) \
+                and (len(REfindall(r'\b[^\'"\d]',','.join(tmp[:-1])))==tok.value.count(',')+1) \
                 and len([i for i in tmp if (i[0] in ("'",'"') and i[-1] in ("'",'"'))])==0:
                     miniLex=Lexer()
                     for t in tmp:
@@ -581,7 +585,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             else: 
                 if inFrom:
                     miniLex=Lexer()
-                    for i in miniLex.tokenize(re.sub(r"""(,(?=[^']*(?:'[^']*'[^']*)*$))|,(?=[^"]*(?:"[^"]*"[^"]*)*$)""",' , ',tok.value)):
+                    for i in miniLex.tokenize(REsub(r"""(,(?=[^']*(?:'[^']*'[^']*)*$))|,(?=[^"]*(?:"[^"]*"[^"]*)*$)""",' , ',tok.value)):
                         lex.append(i)
                         lexIndex+=1
                         if debug: print('--',i)
@@ -594,7 +598,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tmptok=deepcopy(tok)
                 tmptok.type='LISTEND' ; tmptok.value=']'
                 lex.append(tmptok) ; del tmptok ; lexIndex+=1
-            elif re.match(r'([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*\[', tok.value):
+            elif REmatch(r'([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*\[', tok.value):
                 # when a index is mistaken for commagrp
                 if lex[lexIndex].type == 'TYPE':
                     lex[lexIndex].type = 'ID' ; reservedIsNowVar.append(lex[lexIndex].value.strip())
@@ -1510,7 +1514,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 # func is all of the things after it, like .randint
                                 restr='((?: |,)'+tmpf[0].replace('.','\.')+r"""\w*\b(?=([^"'\\]*(\\.|("|')([^"'\\]*\\.)*[^"'\\]*("|')))*))"""
                                 # thing\.\w*\b is all thats needed, rest is for excluding it if its in quotes
-                                func=re.findall(restr,' '+lex[token].value,re.MULTILINE)
+                                func=REfindall(restr,' '+lex[token].value,REMULTILINE)
                                 if len(func) > 0: func = [f[0] for f in func]
 
                                 if len(func) == 0 or any(i for i in func if i.count('.')>1): pass # must not be multi import like:  ctypes.c_int.from_address
@@ -1905,7 +1909,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         check=True ; break
                                                     elif lex[ii-1].type == 'TYPE' and ((lex[ii-2].type=='TAB' and lex[ii-2].value.count(' ') >= tmpindent) or lex[ii-2].type in ('NEWLINE','THEN')): check=True;break
                                                 elif lex[ii].type == 'PYDEF':
-                                                    tmp=re.search(r"[\w_\d]+\(.*(?=\))",lex[ii].value)
+                                                    tmp=REsearch(r"[\w_\d]+\(.*(?=\))",lex[ii].value)
                                                     if tmp!=None and lex[tmpi].value.split('.')[0] in tmp[0].lstrip('('):
                                                         check=True ; break
                                                 elif lex[ii].type == 'TAB' and lex[ii].value.count(' ') >= tmpindent and minindent!=None and minindent < lex[ii].value.count(' '):
@@ -3327,9 +3331,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                 if lexIndex+1<len(lex)-1 and lex[lexIndex+1].type=='ELSE' and len(lastIndent[2]) > 0 \
                 and (lastIndent[1] == indent or indent == 0):
-                    if line!=[] and re.search('^ *',line[0].replace('\n','')).group().count(' ')==lastIndent[2][-1]:
+                    if line!=[] and REsearch('^ *',line[0].replace('\n','')).group().count(' ')==lastIndent[2][-1]:
                         if line!=[]:
-                            line[0]=re.sub('^ *',(re.search('^ *',line[0]).group()+(' '*prettyIndent)),line[0])
+                            line[0]=REsub('^ *',(REsearch('^ *',line[0]).group()+(' '*prettyIndent)),line[0])
                         for tmpi in range(len(code)-1,0,-1):
                             tmpindent='' if indent == 0 else ' '*lastIndent[2][-1]
                             tmp=code[tmpi].replace('\n','')
@@ -3338,10 +3342,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             or tmp.startswith('else') \
                             or tmp == f"{' '*(indent+prettyIndent)}else:": break
                             else:
-                                if re.search('^ *',tmp).group().count(' ')==lastIndent[2][-1]:
+                                if REsearch('^ *',tmp).group().count(' ')==lastIndent[2][-1]:
                                     if debug: print('replacingIndent!!',tmp)
-                                    tmpindent=re.search('^ *',code[tmpi]).group()+' '*prettyIndent
-                                    code[tmpi]=re.sub('^ *',tmpindent,code[tmpi])
+                                    tmpindent=REsearch('^ *',code[tmpi]).group()+' '*prettyIndent
+                                    code[tmpi]=REsub('^ *',tmpindent,code[tmpi])
                 # ^^ fixing indentation when there is statements that are the same indent when there is an else. we know those should be indented.
                 tenary=False
                 inFuncArg=False
@@ -4794,7 +4798,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
 
 
-            elif tok.type == 'INC': #idINC
+            elif tok.type == 'INC': # idINC
                 if lexIndex-1 > 0 and (lex[lexIndex-1].type in typeNewline+('TRY','ENDIF','ELSE') or (lexIndex-3>0 and (lex[lexIndex-3].type=='LOOP' or lex[lexIndex-2].type=='LOOP'))):
                     if lex[lexIndex+1].type in typeNewline+typeConditonals or inIf:
                         doPrint=False
@@ -4834,16 +4838,29 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif tok.value.endswith('++') or tok.value.endswith('--'):
                     bigWrap=True
                     tmp=tok.value[:-2]+' '
-                    if lastType == 'WHILE':
+
+                    tmpIndent = None
+                    tmpInWhile = False
+                    for tmpi in range(lexIndex-1,0,-1):
+                        if lex[tmpi].type in typeNewline:
+                            if lex[tmpi].type == 'TAB':
+                                tmpIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
+                                break
+                            elif lex[tmpi].type == 'NEWLINE':
+                                tmpIndent = 0
+                                break
+                        elif lex[tmpi].type == 'WHILE' and not tmpIndent: tmpInWhile = True
+
+                    if tmpInWhile:
+                        if tmpIndent: tmpIndent+=prettyIndent
                         # increment at end
                         line.append(tmp)
-                        tmpIndent=None
-                        for tmpi in range(lexIndex,len(lex)):
+                        for tmpi in range(lexIndex+1,len(lex)):
                             if tmpIndent == None:
                                 if lex[tmpi].type in typeNewline:
                                     if lex[tmpi].type == 'TAB':
                                         tmpIndent = lex[tmpi].value.replace('\t',' ').count(' ')
-                                    else: tmpIndent = 0
+                                    elif lex[tmpi].type == 'NEWLINE': tmpIndent = 0
                             else:
                                 if lex[tmpi].type in typeNewline:
                                     found=False
@@ -4952,11 +4969,11 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False):
     if pep:
         if execTime:
             s=time()
-        code=fix_code(code)
+        code=fix_code(code,options={'ignore': ['E301','E302','E305','E4','E701','E702','E704','E722','E731','W3','W5','W6']})
         if execTime:
-            print('# autopep8 time:', time() - s)
+            print('# autopep8 time:', round(time()-s, 4))
     if fancy:
-        print(code.replace('\n\n','\n'))
+        print(code)
         if run: print('\t____________\n\t~ Python Eval\n')
     if run:
         import subprocess as sp
@@ -4984,11 +5001,8 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False):
             print('\t____________')
         if execTime:
             print('exec time:',time()-s)
-    #elif fancy:
-    #    print('run was disabled, no output')
     try: os.remove('ahrscriptExec.py')
     except: pass
-    #exec(code,None,locals())
 
         
 if __name__ == '__main__':
@@ -5009,7 +5023,7 @@ if __name__ == '__main__':
     argParser.add_argument('-ps', '--pyston', '--Pyston', action='store_true', help="Compiles to be compatible with Pyston runtime.")
     argParser.add_argument('-a', '--annotate', action='store_true',help="When compiling to Cython, will compile a html file showing Python to C conversions.")
     argParser.add_argument('-d', '--debug', action='store_true', help="Debug info for compiler developers.")
-    argParser.add_argument('-t', '--test', action='store_true', help="Headless debug for compiler developers.")
+    argParser.add_argument('-t', '--test', action='store_true', help="Headless run debug for compiler developers.")
     argParser.add_argument('--update', action='store_true', help="Updates ASnake to the latest version. Temporary until ASnake is installable by pip.")
     argParser.add_argument("file", type=FileType("r"), nargs='?', const='notGiven', help="Your ASnake file to compile.")
 
@@ -5083,9 +5097,11 @@ if __name__ == '__main__':
     if (compileTo == 'Cython' and justRun) == False:
         code=build(data,comment=comment,optimize=optimize,debug=debug,compileTo=compileTo,pythonVersion=pythonVersion,enforceTyping=enforceTyping)
     else: code=''
-    print('# build time:',time()-s)
-    for i in range(2): # removes double newlines (ignores strings)
-        code=re.sub(r"""\n\n(?=([^"'\\]*(\\.|("|')([^"'\\]*\\.)*[^"'\\]*("|')))*[^"']*$)""",'\n',code) 
+    print('# build time:',round(time()-s,4))
+    if pep or headless:
+        s=time()
+        code=REsub(r"""\n\n+(?=([^"'\\]*?(\\.|("|')([^"'\\]*?\\.)*?[^"'\\]*?("|')))*?[^"']*?$)""",'\n',code)
+        print('# newline cleanup time:',round(time()-s,4))
     if compileAStoPy:
         filePath='/'.join(ASFile.split('/')[:-1])+'/'
         ASFileExt=ASFile.rsplit('.')[-1]
@@ -5124,13 +5140,14 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                 s = time()
                 cythonCompileText = check_output(f'{py3Command} ASsetup.py build_ext --inplace', shell=True).decode()
                 error=False
-                print('C compile time:',time()-s)
+                print('# C compile time:',time()-s)
             except CalledProcessError as e:
                 cythonCompileText = e.output.decode()
                 error=True
             os.remove('ASsetup.py')
             if fancy or error:
                 print(cythonCompileText)
+            cythonsoFile = ''
             if not error:
                 cythonsoFile=cythonCompileText.split('/')[-1][:-5]
                 if filePath:
@@ -5147,7 +5164,7 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                     execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=False)
                     if fancy:
                         print('\t____________')
-        if fancy: print(f'{ASFile}.asnake compiled to {fileName}')
+        if fancy: print(f'{ASFile}.asnake compiled to {fileName} {"and "+cythonsoFile if not error else ""}')
     else:
         if ASFile:
             tmp='/'.join(ASFile.split('/')[:-1])+'/'
