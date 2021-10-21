@@ -12,7 +12,7 @@ import re
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.11.14'
+ASnakeVersion='v0.11.15'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -99,7 +99,7 @@ class Lexer(Lexer):
     TAB     = r'\n([\t| ]+)'
     NEWLINE = r'\n'
     PYPASS  = r"p!(.|\n)+?!p"
-    META    = r'\$ *?((\w+(?!.*=)(?=[\n \]\)\$]))|(.*((=.*)|(?=\n)|$)))'
+    META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n]*=)(?=[\n \]\)\$]))|([^+\-/*^~<>&\n]*((=.*)|(?=\n)|$)))'
     FUNCMOD = r'@.*'
     PYDEF   = r'c?def +([\w.\[\d:,\] ]* )?\w+ *\(((?!: *return)[^)])*\)*( *((-> ?)?\w* *):?)'
     PYCLASS = r'class ([a-z]|[A-Z])\w*(\(.*\))?:'
@@ -132,7 +132,7 @@ class Lexer(Lexer):
     LESS    = r'<|((is )?less (than )?)|(lesser (than )?)'
     GREATEQ = r'(>=)|(=>)'
     ASSIGN  = r'''=|is( |(?=("|'|{|\[|\()))|(\+|-|\*\*?|\/\/?|:|%|>>|<<)='''
-    BITWISE = r'\^|~|\||&|(<<)|(>>)'
+    BITWISE = r'\$ *?((\w+(?![^+\-/*^~<>&]*=)(?=[\n \]\)\$]))|(.*((=.*)|(?=\n)|$)))'
     ENDIF   = r': *'
     DEFFUNCT= r'does(?= |\n|\t)'
     SCOPE   = r'(global|local|nonlocal) (\w* *,?)*'
@@ -213,6 +213,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     typeMops=tuple(i for i in mopConv)
     typeConditonals=('IF','ELIF','ELSE','OF','WHILE')
     typeNewline=('NEWLINE','TAB','THEN','END')
+    typeLoop=('WHILE','LOOP','FOOR')
     # useful sets of strings
     listMods=('.pop','.append','.extend','.insert','.remove','.reverse','.sort','.copy','.clear')
     pyBuiltinFunctions=('abs', 'delattr', 'hash', 'memoryview', 'set', 'all', 'dict', 'help', 'min', 'setattr', 'any', 'dir', 'hex', 'next', 'slice', 'ascii', 'divmod', 'id', 'object', 'sorted', 'bin', 'enumerate', 'input', 'oct', 'staticmethod', 'bool', 'int', 'open', 'str', 'breakpoint', 'isinstance', 'ord', 'sum', 'bytearray', 'filter', 'issubclass', 'pow', 'super', 'bytes', 'float', 'iter', 'print', 'tuple', 'callable', 'format', 'len', 'property', 'type', 'chr', 'frozenset', 'list', 'range', 'vars', 'classmethod', 'getattr', 'locals', 'repr', 'zip', 'compile', 'globals', 'map', 'reversed', 'complex', 'hasattr', 'max', 'round', 'exec', 'eval', '__import__', 'exit')
@@ -1020,6 +1021,30 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             if lex[token].value.strip()+'(' in lex[tmpi].value.strip():
                                                 inDef = True ; search = False
                                                 ignores.append([tmpi])
+                                        elif lex[tmpi].type in typeLoop:
+                                            if lex[tmpi-1].type == 'TAB':
+                                                tmptmpIndent = lex[tmpi-1].value.count(' ')
+                                            elif lex[tmpi-1].type == 'NEWLINE':
+                                                tmptmpIndent = 0
+                                            elif lex[tmpi-1].type == 'THEN':
+                                                tmptmpIndent = 0
+                                                for tmpii in range(tmpi, 0):
+                                                    if lex[tmpii - 1].type == 'TAB':
+                                                        tmptmpIndent = lex[tmpii - 1].value.count(' ')
+                                                        break
+                                                    elif lex[tmpii - 1].type == 'NEWLINE':
+                                                        tmptmpIndent = 0
+                                                        break
+                                            for tmpii in range(tmpi,len(lex)):
+                                                if lex[tmpii].type in typeNewline and lex[tmpii].type != 'THEN':
+                                                    if lex[tmpii].type == 'TAB':
+                                                        if lex[tmpii].value.count(' ') <= tmptmpIndent:
+                                                          break
+                                                    else: break
+                                                elif lex[tmpii].type == 'ID' and lex[tmpii].value == lex[token].value and lex[tmpii+1] in typeAssignables+('ASSIGN',):
+                                                    ignores.append(tmpi) ; break
+                                                elif lex[tmpii].type == 'INC' and lex[tmpii].value.replace('--','').replace('++','') == lex[token].value:
+                                                    ignores.append(tmpi) ; break
                                         elif lex[tmpi].type == 'FROM' and inDef:
                                             search=inFrom=True ; inDef=False
                                             ignores[-1].append(tmpi)
@@ -1154,7 +1179,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         # lookahead for loops in case it changes inside of it
                                                         inLoop=[True,tmpindent]
                                                         for tmpii in range(tmpi,len(lex)):
-                                                            #print(lex[tmpii].type)
                                                             if lex[tmpi].type=='INC' or \
                                                             (((lex[tmpii].type in ('ID','INC') and lex[tmpii].value.replace('++','').replace('--','')==lex[token].value \
                                                             and (lex[tmpii-1].type not in typeConditonals+('OR','AND') \
@@ -1520,8 +1544,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                         if optFuncTricks:# and lex[token].type!='COMMAGRP':
                             if optFuncTricksDict['randint']:
-                                # a trick to speed up random.randint
-                                check=randintOptimize=False
+                                # tricks to speed up random.randint
+                                check=randintOptimize=tmpGetRandBits=False
                                 randTooBig=18014398509481983 # above this it becomes non-random and is only even
                                 if compileTo == 'Cython': randTooBig=2147483647
                                 if 'randint' in lex[token].value \
@@ -1537,10 +1561,16 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 and lex[token+1].value.split(',')[1].isdigit() and int(lex[token+1].value.split(',')[1]) < randTooBig):
                                     # randint(0,12)  -->  int(random()*13)
                                     if 'randint(' == lex[token].value:
-                                        tmp=1 ; lex[token+1].type = 'IGNORE'
+                                        if lex[token+1].type == 'COMMAGRP' and [_.strip() for _ in lex[token+1].value.split(',')] == ['0','1']:
+                                            tmpGetRandBits=True
+                                            lex[token].value = 'getrandbits('
+                                            lex[token+1].value = '1' ; lex[token+1].type = 'NUMBER'
+                                        else:
+                                            tmp=1 ; lex[token+1].type = 'IGNORE'
                                     else:
                                         tmp=2 ; lex[token+1].type = lex[token+2].type = 'IGNORE'
-                                    lex[token].value=f'int(random()*({lex[token+tmp].value.split(",")[1]}+1)'
+                                    if not tmpGetRandBits:
+                                        lex[token].value=f'int(random()*({lex[token+tmp].value.split(",")[1]}+1)'
                                     randintOptimize = check = True
                                 elif 'randint' in lex[token].value \
                                 and token+2 < len(lex) and lex[token+2].type == 'RPAREN' and lex[token+1].type=='COMMAGRP' and lex[token+1].value.split(',')[0] in ('0','-0') and lex[token+1].value.split(',')[-1].startswith('0')==False:
@@ -1558,27 +1588,28 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             tmp=lex[token+1].value.split(',')
                                             if tmp[-1].isdigit() and tmp[-1] == '1':
                                                 lex[token].value='getrandbits(1'
-                                                randintOptimize = False ; newOptimization=True
-                                                if 'random.' in wasImported:
-                                                    if 'getrandbits' in wasImported['random.']: pass
-                                                    else: wasImported['random.'].append('getrandbits')
-                                                else: wasImported = {'random.': ['getrandbits']}
+                                                randintOptimize = False
+                                                tmpGetRandBits = True
                                             else:
                                                 lex[token].value='int(random()*%s'%(int(tmp[-1])+1 if tmp[-1].isdigit() else '('+tmp[-1]+'+1)')
                                         lex[token+1].type='IGNORE'
                                         check=True
-                                elif (('randint' == lex[token].value or 'random.randint' == lex[token].value) and (token+3 < len(lex) and lex[token+3].type == 'RPAREN' and lex[token+2].type=='COMMAGRP' and lex[token+2].value.split(',')[0] not in ('0','-0') and lex[token+2].value.split(',')[-1].startswith('0')==False)) \
-                                or ('randint(' == lex[token].value and lex[token+1].type in ('NUMBER','ID') and lex[token+2].type=='COMMA' and lex[token+3].type in ('NUMBER','ID') and lex[token+4].type=='RPAREN' ):
+                                elif (('randint' == lex[token].value or 'random.randint' == lex[token].value) and (token+3 < len(lex) and lex[token+3].type == 'RPAREN' and lex[token+2].type=='COMMAGRP' and lex[token+2].value.split(',')[0].strip() not in {'0','-0'} and lex[token+2].value.split(',')[-1].strip().startswith('0')==False)) \
+                                or ('randint(' == lex[token].value and ((lex[token+1].type in ('NUMBER','ID') and lex[token+2].type=='COMMA' and lex[token+3].type in ('NUMBER','ID') and lex[token+4].type=='RPAREN' ) or (lex[token+1].type=='COMMAGRP' and lex[token+2].type=='RPAREN') ) ):
                                     #x+int((random()*((y+1)-x)))
                                     #x+int((random()*(y-x)))
                                     # when randint minimum is above 1
                                     randintOptimize=True
                                     if lex[token + 2].type == 'COMMA':
-                                        tmpmax=lex[token+3].value
+                                        tmpmax = lex[token+3].value
                                         tmpmin = lex[token + 1].value
+                                    elif lex[token+1].type == 'COMMAGRP':
+                                        tmpmax = lex[token + 1].value.split(',')[-1]
+                                        tmpmin = lex[token + 1].value.split(',')[0]
                                     else:
                                         tmpmax = lex[token + 2].value.split(',')[-1]
                                         tmpmin = lex[token + 2].value.split(',')[0]
+                                    tmpmax = tmpmax.strip() ; tmpmin = tmpmin.strip()
                                     tmpcheck = True
                                     if (tmpmax.isdigit() and (int(tmpmax) < 10 or int(tmpmax) > randTooBig)) or (tmpmin.isdigit() and tmpmin in ('0','-0','0.0','-0.0')):
                                         check = tmpcheck = False
@@ -1589,24 +1620,32 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
 
                                             lex[token].value=f"((rand() % ({tmpmax} - {tmpmin} + 1)) + {tmpmin}"
-                                            #if lex[token].value[0] != '(': lex[token].value=f"<int>({lex[token].value}"
                                             lex[token].type=lex[token+1].type=lex[token+2].type='IGNORE'
                                             if lex[token + 3].type != 'RPAREN': lex[token + 3].type = 'IGNORE'
                                             check=True
                                         else:
-                                            lex[token].type = lex[token+1].type = lex[token+2].type = 'IGNORE'
-                                            if lex[token+3].type != 'RPAREN': lex[token+3].type = 'IGNORE'
+                                            lex[token].type = lex[token+1].type = 'IGNORE'
+                                            if lex[token + 2].type != 'RPAREN':
+                                                lex[token+2].type = 'IGNORE'
+                                                if lex[token + 3].type != 'RPAREN': lex[token+3].type = 'IGNORE'
                                             lex[token].value='%s+int((random()*(%s - %s))'%(tmpmin,int(tmpmax)+1 if tmpmax.isdigit() else '('+tmpmax+' + 1)',tmpmin)
                                             lex[token].value=f"({lex[token].value})"
                                             check=True
 
                                         if lex[token + 2].type == 'COMMA':
                                             lex[token+3].type = 'IGNORE'
-                                    elif tmpcheck == False and tmpmin in ('0','-0','0.0','-0.0'):
-                                        lex[token].value = f'int(random()*({tmpmax}+1)'
-                                        if lex[token + 2].type == 'COMMA': lex[token + 3].type = 'IGNORE'
-                                        lex[token + 1].type = lex[token + 2].type = 'IGNORE'
-                                        check = True
+                                    elif tmpcheck == False and tmpmin in {'0','-0','0.0','-0.0'}:
+                                        if tmpmax == '1':
+                                            tmpGetRandBits = True
+                                            lex[token].value = 'getrandbits('
+                                            lex[token+1].value = '1' ; lex[token+1].type = 'NUMBER'
+                                            if lex[token+2].type != 'RPAREN':
+                                                lex[token+2].type = lex[token + 3].type = 'IGNORE'
+                                        else:
+                                            lex[token].value = f'int(random()*({tmpmax}+1)'
+                                            if lex[token + 2].type == 'COMMA': lex[token + 3].type = 'IGNORE'
+                                            lex[token + 1].type = lex[token + 2].type = 'IGNORE'
+                                            check = True
                                 elif lex[token+1].type=='COMMAGRP' and 'randint' in lex[token+1].value:
                                     # splitting a randint(0,randint(0,23)) thing
                                     tmptmp=2
@@ -1649,6 +1688,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             wasImported['random.'].append('random')
                                     else:
                                         wasImported['random.']=['random']
+                                if tmpGetRandBits:
+                                    if 'random.' in wasImported:
+                                        if 'getrandbits' in wasImported['random.']:
+                                            pass
+                                        else:
+                                            wasImported['random.'].append('getrandbits')
+                                    else:
+                                        wasImported = {'random.': ['getrandbits']}
+                                    newOptimization = True
 
                                 if compileTo == 'Cython' and 'random(' == lex[token].value and lex[token+1].type == 'RPAREN':
                                     lex[token+1].type = 'IGNORE'
@@ -3226,7 +3274,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                         indent=storedIndents[-1]
 
-                        if indentSoon and lastIndent[2] and indent <= lastIndent[2][-1]:
+                        if indentSoon and lastIndent[2] and indent < lastIndent[2][-1]:
                             # after a conditional if the indent is lower, we can assume it was meant to be indented
                             indent+=prettyIndent
 
@@ -3354,7 +3402,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex.insert(lexIndex+1,makeToken(tok,'==','EQUAL'))
                             else:
                                 line.append('== ')
-                    elif lastType not in {'ID','INDEX','COMMAGRP','BUILTINF','RINDEX','LISTEND','RPAREN'} and findEndOfFunction(lexIndex-1,goBackwards=True)==False: # syntax error
+                    elif lastType not in {'ID','INDEX','COMMAGRP','BUILTINF','RINDEX','LISTEND','RPAREN','META'} and findEndOfFunction(lexIndex-1,goBackwards=True)==False: # syntax error
                         if lastType in typeConditonals:
                             return AS_SyntaxError(
                             f'Line {lineNumber} variable assigns to invalid type, conditional.',
@@ -3390,6 +3438,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             f'{"".join(tmpf)}{tmp}{fstrQuote}'
                             , lineNumber, data)
                     else:
+                        if lastType == 'META' and lex[lexIndex-1].value.replace("$","").split('=')[0].strip() not in inlineReplace:
+                            return AS_SyntaxError(
+                                'Assignment to meta not allowed when meta is not defined as inline.',
+                                f'$ def {lex[lexIndex-1].value.replace("$","")} = "something"'
+                                , lineNumber, data)
                         if '=' in tok.value:
                             line.append(tok.value+' ')
                         elif lastType == 'FSTR' and 'is' in tok.value:
@@ -3517,6 +3570,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if tenary:
                                     line.append(codeDict[tok.type])
                                 else:
+                                    if lastIndent[2] and indent > lastIndent[2][-1]:
+                                        indent=lastIndent[2][-1]
                                     line.append(f'\n{" "*indent}{codeDict[tok.type]} ')
                                     indentSoon=True
                             indent+=prettyIndent
@@ -4139,7 +4194,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             tmpval=deepcopy(lex[lexIndex+2])
                         else: tmpi=2
 
-                        #print(lex[lexIndex+tmpi].value) ; exit()
                         if lex[lexIndex+tmpi+1].type == 'LISTCOMP': pass
                         elif tmpi>3:
                             for tmptok in range(lexIndex,len(lex)-1):
@@ -4153,12 +4207,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 tmptok=deepcopy(tok)
                                 tmptok.type='ASSIGN' ; tmptok.value='='
                                 lex.insert(lexIndex+tmpi,tmptok) ; del tmptok
-                            #old method: lex[lexIndex+tmpi].value=f'({lex[lexIndex+tmpi].value}'
                         bigWrap=True ; constWrap=True ; miniLineNumber=lineNumber
                         tmpInFunction = False ; tmpParenScope = 0
                         while lexIndex+tmpi < len(lex)-1:
                             if lex[lexIndex+tmpi].type == 'ID' and lex[lexIndex+tmpi].value == tmpval.value:
-                                if (tmpParenScope == 0 and not tmpInFunction) or (lex[lexIndex+tmpi+1].type!='ASSIGN' and tmpInFunction):
+                                if (tmpParenScope <= 0 and not tmpInFunction) or (lex[lexIndex+tmpi+1].type!='ASSIGN' and tmpInFunction):
                                     lex[lexIndex+tmpi].value=f'{lex[lexIndex+tmpi].value}[0]'
                                 if lex[lexIndex+tmpi+1].type == 'ASSIGN' and not tmpInFunction:
                                     return AS_SyntaxError(f'Cannot reassign to constant variable {tmpval.value}',None,miniLineNumber,data,'Compile time error')
@@ -4180,7 +4233,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if lex[lexIndex+tmpi].type == 'FUNCTION':
                                     if lex[lexIndex+tmpi].value == 'globals(' and lex[lexIndex+tmpi+3].type == 'STRING' and lex[lexIndex+tmpi+3].value.replace('"','').replace("'","") == tmpval.value:
                                         return AS_SyntaxError(f'Cannot reassign to constant variable {tmpval.value}','Avoiding globals assignment. The compiler has trouble keeping track of it. It is also confusing for humans.', miniLineNumber, data, 'Compile time error')
-                                    tmpParenScope+=1
+                                    if lex[lexIndex+tmpi].value[-1] == '(': tmpParenScope+=1
                             elif lex[lexIndex + tmpi].type == 'LPAREN':
                                 tmpParenScope+=1
                             elif lex[lexIndex + tmpi].type == 'RPAREN':
@@ -4199,8 +4252,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             storeVar(tmpf,lex[lexIndex+4],lex[lexIndex+5],position=lexIndex+4)
                             lex[lexIndex+1].value+=' = ('
                             lex[lexIndex+2].type='IGNORE'
-                        #if lex[lexIndex+1].type == 'ID' and lex[lexIndex+2].type in ('FUNCTION','BUILTINF'):
-                        #    lex[lexIndex+1].value+=' ='
                     elif compileTo == 'Cython':
                         if lex[lexIndex+1].type == 'TYPE': lex[lexIndex+1].type='IGNORE'
                         line.append(decideIfIndentLine(indent,"DEF "))
@@ -4513,6 +4564,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if ttmp in storedVarsHistory and 'value' in storedVarsHistory[ttmp]:
                             del storedVarsHistory[ttmp]['value']
                             # if function changes variable, then the last value may not be valid
+                elif tok.type == 'MINUS':
+                    tok.value=codeDict[tok.type]
 
 
                 if tok.type == 'LBRACKET': bracketScope+=1
@@ -4902,7 +4955,7 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False):
             s=time()
         code=fix_code(code)
         if execTime:
-            print('autopep8 time:', time() - s)
+            print('# autopep8 time:', time() - s)
     if fancy:
         print(code.replace('\n\n','\n'))
         if run: print('\t____________\n\t~ Python Eval\n')
@@ -5023,7 +5076,7 @@ if __name__ == '__main__':
             os.rename("ASnake.py", "previous_ASnake.py")
             with open("ASnake.py", 'wb') as file:
                 file.write(ASnek.content)
-            print('Downloaded latest ASnake.')
+            print('# Downloaded latest ASnake.')
             if ASFile == False and not args.eval:
                 exit()
 
@@ -5031,7 +5084,7 @@ if __name__ == '__main__':
     if (compileTo == 'Cython' and justRun) == False:
         code=build(data,comment=comment,optimize=optimize,debug=debug,compileTo=compileTo,pythonVersion=pythonVersion,enforceTyping=enforceTyping)
     else: code=''
-    print('build time:',time()-s)
+    print('# build time:',time()-s)
     for i in range(2): # removes double newlines (ignores strings)
         code=re.sub(r"""\n\n(?=([^"'\\]*(\\.|("|')([^"'\\]*\\.)*[^"'\\]*("|')))*[^"']*$)""",'\n',code) 
     if compileAStoPy:
@@ -5111,4 +5164,4 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
             execPy(tmp,run=runCode,execTime=True,pep=False,headless=False,fancy=False)
         else:
             execPy(code,run=runCode,execTime=True,pep=pep,headless=headless,fancy=fancy)
-    #print(PyToAS(data))
+    
