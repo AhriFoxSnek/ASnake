@@ -104,7 +104,7 @@ class Lexer(Lexer):
     TAB     = r'\n([\t| ]+)'
     NEWLINE = r'\n'
     PYPASS  = r"p!(.|\n)+?!p"
-    META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n]*=)(?=[\n \]\)\$]))|([^+\-/*^~<>&\n]*((=.*)|(?=\n)|$)))'
+    META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n]*=)(?=[\n \]\)\$]))|([^+\-/*^~<>&\n()[\]]*((=.*)|(?=\n)|$|(?=,))))'
     FUNCMOD = r'@.*'
     PYDEF   = r'c?def +([\w.\[\d:,\] ]* )?\w+ *\(((?!: *return)[^)])*\)*( *((-> ?)?\w* *):?)'
     PYCLASS = r'class ([a-z]|[A-Z])\w*(\(.*\))?:'
@@ -137,7 +137,7 @@ class Lexer(Lexer):
     LESS    = r'<|((is )?less (than )?)|(lesser (than )?)'
     GREATEQ = r'(>=)|(=>)'
     ASSIGN  = r'''=|is( |(?=("|'|{|\[|\()))|(\+|-|\*\*?|\/\/?|:|%|>>|<<)='''
-    BITWISE = r'\$ *?((\w+(?![^+\-/*^~<>&]*=)(?=[\n \]\)\$]))|(.*((=.*)|(?=\n)|$)))'
+    BITWISE = r'\^|~|\||&|(<<)|(>>)'
     ENDIF   = r': *'
     DEFFUNCT= r'does(?= |\n|\t)'
     SCOPE   = r'(global|local|nonlocal) (\w* *,?)*'
@@ -768,8 +768,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         else:
             if reservedIsNowVar and tok.value in reservedIsNowVar: tok.type='ID'
             lex.append(tok)
-        if lex[lexIndex].type == 'TYPE' and tok.type != 'ID' and lex[lexIndex-1].type not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT'):
+        if lex[lexIndex].type == 'TYPE' and tok.type != 'ID' and lex[lexIndex-1].type not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT') and tok.type != 'CONSTANT':
             lex[lexIndex].type='ID' ; reservedIsNowVar.append(lex[lexIndex].value.strip())
+        elif tok.type == 'CONSTANT' and lex[lexIndex].type == 'TYPE':
+            tok.type='TYPE' ; tok.value = lex[lexIndex].value
+            lex[lexIndex].value = 'const' ; lex[lexIndex].type = 'CONSTANT'
         lexIndex+=1
     lex=[l for l in lex if l.type not in ('IGNORE','IGNORENL')]
 
