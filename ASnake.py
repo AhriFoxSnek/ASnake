@@ -17,7 +17,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.11.15'
+ASnakeVersion='v0.11.16'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -118,7 +118,7 @@ class Lexer(Lexer):
     ELSE    = r'(, *)?else(?= |\n|\t|:|\()'
     FUNCTION= r'\w+\('
     NRANGE  = r'(-?(\d+|\w+(\(.\))?)\.\.\.?(-?\d+|\w+(\(.\))?))|-?\d+ ?to ?-?\d+'
-    BUILTINF= """(([a-zA-Z_]+\d*|[^\s\d='";()+\-*]*|(f|u)?\"[^\"]*\"|(f|u)?\'[^\"\']*\')\.[a-zA-Z_]+\d*)+"""
+    BUILTINF= """(([a-zA-Z_]+\d*|[^\s\d='";()+\-*[\]]*|(f|u)?\"[^\"]*\"|(f|u)?\'[^\"\']*\')\.[a-zA-Z_]+\d*)+"""
     COMMAGRP= """(?!\[)(([\[\w\d\]=.-]|(((f|r)?\"[^\"]*\")|((f|r)?\'[^\']*\')))+ ?,)+([\[\]\w\d=.-]|((f|r)?\"[^\"]*\")|((f|r)?\'[^\']*\'))+"""
     TRY     = r'((try)|(except *[A-Z]\w*( as \w*)?)|(except)|(finally)) *:?'
     TYPEWRAP= fr'({defaultTypes})( ?\[\w*\])? *: *(#.*)?\n'
@@ -261,7 +261,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         return tmp
 
     def createFString(tok,token=-1):
-        nonlocal lex, lexIndex, debug
+        nonlocal lex, lexIndex
         # handle making FSTRING tokens for parsing inside of fstrings
         # turned out optStrFormatToFString needed this so its a function now
         tmpf = [] ; parts = []
@@ -285,7 +285,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         insideIndex += 1
                     elif tok.value[part] == ']':
                         insideIndex -= 1
-                    # elif tok.value[part] == '{': checkForEscape=False
                 if tok.value[part] == '}':
                     if isDict:
                         parts[-1] = (parts[-1][0], parts[-1][1] - 1)
@@ -313,7 +312,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif parts[part][0] == False:
                     tmpf.append(makeToken(tok, tok.value[parts[part - 1][1]:parts[part][1]], "FPARSE"))
             # FSTR is bare string, FPARSE is code inside string to be parsed
-        # [print(f.type,f.value) for f in tmpf]
         tok.type = 'IGNORE';
         miniLex = Lexer()
         adjust=1
@@ -325,7 +323,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     lex.insert(token+adjust, thing); adjust+=1
                 lexIndex += 1
             else:
-                pruneDict = False
+                pruneDict = tmpSkip = False
                 if ':=' in thing.value:
                     lex.append(makeToken(tok, '{', 'LBRACKET'))
                     pruneDict=True
@@ -340,7 +338,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             tmptok.value = tmptok.value[:tmptok.value.rfind("'")] + '"'
                     elif tmptok.type == 'ID' and tmptok.value.isascii() == False:
                         tmptok.value = convertEmojiToAscii(tmptok.value)
-                    if token == -1:
+                    elif tmptok.type == 'INDEX' and lex[-1].type != 'TYPE' and '[' in tmptok.value:
+                        indexTokenSplitter(tmptok,True) ; tmpSkip = True
+                    if tmpSkip: tmpSkip = False
+                    elif token == -1:
                         lex.append(tmptok)
                     else: lex.insert(token+adjust,tmptok) ; adjust+=1
                     lexIndex += 1
@@ -349,6 +350,50 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     lexIndex += 1
         del miniLex
         return tok
+
+    def indexTokenSplitter(tok,fstringMode=False):
+        nonlocal lex, lexIndex
+        miniLex = Lexer()
+        tmpf = tok.value.split('[', 1)
+        tmp = list(miniLex.tokenize(tmpf[0] + ' '))
+        if not tmp:
+            tmp = 'ID'
+        else:
+            tmp = tmp[-1].type
+        if len(tmpf[0]) > 0:
+            lex.append(makeToken(tok, tmpf[0], tmp));
+            lexIndex += 1
+        lex.append(makeToken(tok, '[', 'LINDEX'))
+        tmpscope = 1
+        for i in miniLex.tokenize(''.join(tmpf[1:]) + ' '):
+            if i.type not in typeNewline:
+                if i.type == 'LISTCOMP':
+                    miniminiLex = Lexer()
+                    lex.append(makeToken(tok, ':', 'COLON'))
+                    lex.append([ii for ii in miniminiLex.tokenize(i.value.split(':')[-1])][0])
+                    del miniminiLex
+                    lexIndex += 2
+                else:
+                    if i.type == 'ENDIF':
+                        i.type = 'COLON'
+                    elif i.type == 'LIST':
+                        if tmpscope == 0:
+                            i.type = 'LINDEX'
+                        else:
+                            tmpscope += 1
+                    elif i.type == 'LISTEND':
+                        if tmpscope == 0:
+                            i.type = 'RINDEX'
+                        else:
+                            tmpscope -= 1
+                    elif fstringMode and i.type == 'RBRACKET':
+                        return
+                    lex.append(i)
+                    lexIndex += 1
+                if debug: print('--', i)
+        if lex[-1].type == 'LISTEND': lex[-1].type = 'RINDEX'
+        del miniLex
+
 
     # v converts leading tabs to space v
     leadingTabs = REcompile(r"""(?<=\n)\t+(?![\w\s]*('|"){3})""")
@@ -530,36 +575,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lex.append(tmptok) ; del tmptok
             else:
                 if tok.type != 'TYPE' and '[' in tok.value:
-                    miniLex = Lexer()
-                    tmpf=tok.value.split('[',1)
-                    tmp=list(miniLex.tokenize(tmpf[0]+' '))
-                    if not tmp: tmp='ID'
-                    else: tmp=tmp[-1].type
-                    if len(tmpf[0]) > 0:
-                        lex.append(makeToken(tok,tmpf[0],tmp)) ; lexIndex += 1
-                    lex.append(makeToken(tok, '[', 'LINDEX'))
-                    tmpscope=1
-                    for i in miniLex.tokenize(''.join(tmpf[1:])+' '):
-                        if i.type not in typeNewline:
-                            if i.type == 'LISTCOMP':
-                                miniminiLex = Lexer()
-                                lex.append(makeToken(tok,':','COLON'))
-                                lex.append([ii for ii in miniminiLex.tokenize(i.value.split(':')[-1])][0])
-                                del miniminiLex
-                                lexIndex += 2
-                            else:
-                                if i.type == 'ENDIF': i.type = 'COLON'
-                                elif i.type == 'LIST':
-                                    if tmpscope == 0: i.type='LINDEX'
-                                    else: tmpscope+=1
-                                elif i.type == 'LISTEND':
-                                    if tmpscope == 0: i.type='RINDEX'
-                                    else: tmpscope-=1
-                                lex.append(i)
-                                lexIndex+=1
-                            if debug: print('--',i)
-                    if lex[-1].type == 'LISTEND': lex[-1].type='RINDEX'
-                    del miniLex
+                    indexTokenSplitter(tok)
                 else:
                     lex.append(tok)
         elif tok.type == 'FROM': inFrom=True ; lex.append(tok)
@@ -3991,9 +4007,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         lex[lexIndex+1].value=f'{line[-1]},{lex[lexIndex+1].value}'
                         line=line[:-1]
                         lex[lexIndex+1].type='COMMAGRP' ; tok.type='IGNORE' ; lex[lexIndex-1].type='IGNORE'
-                        if lex[lexIndex+1].value[-1]==')': parenScope-=1
-                        if lex[lexIndex+1].value[-1]=='}': bracketScope-=1
-                        if lex[lexIndex+1].value[-1]==']': listScope -= 1
+                        #if lex[lexIndex+1].value[-1]==')': parenScope-=1
+                        #if lex[lexIndex+1].value[-1]=='}': bracketScope-=1
+                        #if lex[lexIndex+1].value[-1]==']': listScope-=1
+                        #listScope -= lex[lexIndex + 1].value.count(']')
+                        #listScope += lex[lexIndex + 1].value.count('[')
+                        # jumpy
                     else: line.append(',')
                 else: line.append(',')
             elif tok.type == 'TYPE': # idTYPE
