@@ -2077,7 +2077,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             if doBreak: break
                                             del miniLex
                                         else:
-                                            tt=-1
+                                            if lex[t-1].type not in ('MODULO','IGNOREtmpMODULO'):
+                                                tt=-1
+                                            else: tt=0
                                             tmp=[]
                                             while True:
                                                 #print(lex[t + tt].type,preRparen,tmpRparen)
@@ -2626,7 +2628,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if lex[lexIndex + tmp].value.replace('(', '') == lex[lexIndex].value:
                     pass
                 else: impure = True ; break
-            elif lex[lexIndex + tmp].type == 'BUILTINF' and any(i for i in listMods + ('.open', lex[lexIndex].value + '.') if i in lex[lexIndex + tmp].value):
+            elif lex[lexIndex + tmp].type == 'BUILTINF' and any(i for i in listMods + ('.open', lex[lexIndex].value + '.', '.join') if i in lex[lexIndex + tmp].value):
                 impure = True ; break
             elif (lex[lexIndex + tmp].type == 'ID' and lex[lexIndex + tmp].value in storedVarsHistory and storedVarsHistory[lex[lexIndex + tmp].value]['type'] not in ('LIST','LISTCOMP') ) \
             or (lex[lexIndex + tmp].value in storedCustomFunctions and 'pure' in storedCustomFunctions[lex[lexIndex + tmp].value] and storedCustomFunctions[lex[lexIndex + tmp].value]['pure'] == False):
