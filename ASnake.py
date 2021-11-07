@@ -106,19 +106,19 @@ class Lexer(Lexer):
     PYPASS  = r"p!(.|\n)+?!p"
     META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n]*=)(?=[\n \]\)\$]))|([^+\-/*^~<>&\n()[\]]*((=.*)|(?=\n)|$|(?=,))))'
     FUNCMOD = r'@.*'
-    PYDEF   = r'c?def +([\w.\[\d:,\] ]* )?\w+ *\(((?!: *return)[^)])*\)*( *((-> ?)?\w* *):?)'
+    PYDEF   = r'c?def +([\w.\[\d:,\] ]* )?\w+ *\(((?!: *return).)*\)*( *((-> *)?\w* *):?)'
     PYCLASS = r'class ([a-z]|[A-Z])\w*(\(.*\))?:'
     STRLIT  = r'(r|f)?\"\"\"[\w\W]+?\"\"\"|(r|f)?\'\'\'[\w\W]+?\'\'\''
     INDEX   = r'''((((\w[\w\d_]*)|(\)( |\t)*)|(?!.*("|')))(\[(((.(?! \w))*?:[^#:\n\[]*?)|(([^,])*?)|.*\(.*\))[^\[,\n]*\])+(?= *[\.+)-\\*\n=\w]| *))|\[ *\])'''
     LIST    = r'\['
     LISTEND = r'\]'
-    DICT    = r'''(?!['"].*){([^{}]*:(.*?),?\n?)*}(?= then|do|[ +\-\/*\n\[\];])'''
+    DICT    = r'''(?!['"].*){([^{}]*:(.*?),?\n?)*}(?= then|do|[ +\-\/*\n\[\];)])'''
     IF      = r'if(?=[\W\d\n(])'
     ELIF    = r'(, )?elif(?= |\t|\()'
     ELSE    = r'(, *)?else(?= |\n|\t|:|\()'
     FUNCTION= r'\w+\('
     NRANGE  = r'(-?(\d+|\w+(\(.\))?)\.\.\.?(-?\d+|\w+(\(.\))?))|-?\d+ ?to ?-?\d+'
-    BUILTINF= """(([a-zA-Z_]+\d*|[^\s\d='";()+\-*[\]]*|(f|u)?\"[^\"]*\"|(f|u)?\'[^\"\']*\')\.[a-zA-Z_]+\d*)+"""
+    BUILTINF= """(([a-zA-Z_]+\d*|[^\s\d='";()+\-*[\]]*|(f|u)?\"[^\"]*\"|(f|u)?\'[^\"\']*\')\.([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])+\d*)+"""
     COMMAGRP= """(?!\[)(([\[\w\d\]=.-]|(((f|r)?\"[^\"]*\")|((f|r)?\'[^\']*\')))+ ?,)+([\[\]\w\d=.-]|((f|r)?\"[^\"]*\")|((f|r)?\'[^\']*\'))+"""
     TRY     = r'((try)|(except *[A-Z]\w*( as \w*)?)|(except)|(finally)) *:?'
     TYPEWRAP= fr'({defaultTypes})( ?\[\w*\])? *: *(#.*)?(?=\n)'
@@ -222,6 +222,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     typeLoop=('WHILE','LOOP','FOOR')
     # useful sets of strings
     listMods=('.pop','.append','.extend','.insert','.remove','.reverse','.sort','.copy','.clear')
+    setUpdateMethods=('.add','.clear','.discard','.difference_update','.intersection_update','.pop','.remove','.symmetric_difference_update','.update')
     pyBuiltinFunctions=('abs', 'delattr', 'hash', 'memoryview', 'set', 'all', 'dict', 'help', 'min', 'setattr', 'any', 'dir', 'hex', 'next', 'slice', 'ascii', 'divmod', 'id', 'object', 'sorted', 'bin', 'enumerate', 'input', 'oct', 'staticmethod', 'bool', 'int', 'open', 'str', 'breakpoint', 'isinstance', 'ord', 'sum', 'bytearray', 'filter', 'issubclass', 'pow', 'super', 'bytes', 'float', 'iter', 'print', 'tuple', 'callable', 'format', 'len', 'property', 'type', 'chr', 'frozenset', 'list', 'range', 'vars', 'classmethod', 'getattr', 'locals', 'repr', 'zip', 'compile', 'globals', 'map', 'reversed', 'complex', 'hasattr', 'max', 'round', 'exec', 'eval', '__import__', 'exit')
     pyReservedKeywords=('False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield')
     ASnakeKeywords=('nothing', 'minus', 'plus', 'times', 'greater', 'end', 'of', 'case', 'until', 'then', 'do', 'does', 'less', 'than', 'equals', 'power', 'remainder','loop')
@@ -292,15 +293,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         parts.append((False, part + 1))
                         isDict = found = False
                     else:
-                        parts.append((False, part));
+                        parts.append((False, part))
                         found = False
 
             elif found == False and tok.value[part] == '{':
                 tmp = 0
                 while part + tmp < len(tok.value) - 1 and tok.value[part + tmp] == '{':
-                    tmp += 1;
+                    tmp += 1
                     checkForEscape = True
-                found = True;
+                found = True
                 parts.append((True, part + tmp))
             elif part == len(tok.value) - 1:
                 parts.append((True, part + 1))
@@ -313,7 +314,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif parts[part][0] == False:
                     tmpf.append(makeToken(tok, tok.value[parts[part - 1][1]:parts[part][1]], "FPARSE"))
             # FSTR is bare string, FPARSE is code inside string to be parsed
-        tok.type = 'IGNORE';
+        tok.type = 'IGNORE'
         miniLex = Lexer()
         adjust=1
         for thing in tmpf:
@@ -341,6 +342,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmptok.value = convertEmojiToAscii(tmptok.value)
                     elif tmptok.type == 'INDEX' and lex[-1].type != 'TYPE' and '[' in tmptok.value:
                         indexTokenSplitter(tmptok,True) ; tmpSkip = True
+                    elif tmptok.type == 'SCINOTAT':
+                        tmptok.type='NUMBER'
                     if tmpSkip: tmpSkip = False
                     elif token == -1:
                         lex.append(tmptok)
@@ -1029,7 +1032,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 elif (lex[tt].type == 'ID' and lex[tt].value == lex[token].value) \
                                                 or (lex[tt].type == 'COMMAGRP' and lex[tt].value.split(',')[-1].strip() == lex[token].value):
                                                     ignores.append(tt) ; break
-                                        elif lex[tmpi].type == 'BUILTINF' and lex[tmpi].value.split('.')[0] == lex[token].value and '.'+lex[tmpi].value.split('.')[1] in listMods:
+                                        elif lex[tmpi].type == 'BUILTINF' and lex[tmpi].value.split('.')[0] == lex[token].value and '.'+lex[tmpi].value.split('.')[1] in listMods+setUpdateMethods:
                                             search=False ; linkType=False ; break # discards list mods like .append()
                                         elif lex[tmpi].type == 'SCOPE' and lex[token].value in lex[tmpi].value:
                                             search=False ; break # no global var pls
@@ -1427,11 +1430,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             else: tmpf=[l.value for l in tmpf if l.type != 'COMMA']
                             seen=set()
                             if not any(i in seen or seen.add(i) for i in tmpf) == True \
-                            and all(True if '[' not in i and ']' not in i else False for i in tmpf):
+                            and all(True if '[' not in i and ']' not in i else False for i in tmpf) \
+                            and ',' in tmpf:
                                 # if all are unique, and doesn't contain list
                                 lex[token].type='LBRACKET' ; lex[token].value='{'
                                 lex[tmp].type = 'RBRACKET' ; lex[tmp].value = '}'
-                                if debug: print(f"! converted to set: {{{', '.join(tmpf)}}}");exit()
+                                if debug: print(f"! converted to set: {{{', '.join(tmpf)}}}")
                                 newOptimization=True
 
                     elif lex[token].type in ('LIST','INDEX') and lex[token-1].type == 'INS' and lex[token-1].value.strip() == 'in':
@@ -2853,6 +2857,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     else:
                         storedCustomFunctions[tok.value]['type']=None
                     storedCustomFunctions[tok.value]['pure']=not impure
+                    storedCustomFunctions[tok.value]['args']=functionArgTypes
                     insideDef=tok.value
 
                     if scopey:
@@ -2925,6 +2930,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif (tok.type == 'NUMBER' or (tok.value in storedVarsHistory and storedVarsHistory[tok.value]['type']=='NUMBER')) and lastType == 'INS' and lexIndex-3>0 and lex[lexIndex-2].type=='ID' and lex[lexIndex-3].type=='FOR' \
                 and (lexIndex+2 < len(lex) and (lex[lexIndex+1].type != 'PIPE' and lex[lexIndex+2].value != 'range')):
                     line.append(f'range({tok.value})') # converts bare numbers into ranges when in for loop
+                elif tok.type == 'DICT' and lex[lexIndex+1].type == 'FSTR' and fstrQuote!='':
+                    line.append(tok.value)
                 else:
                     if lastType in typeAssignables+('BUILTINF',) and inFuncArg == False and tok.type!='LISTEND' and lastType!='LIST' \
                     and tok.type not in ('LBRACKET','RBRACKET') and lex[lexIndex-1].type not in ('LBRACKET','RBRACKET'):
@@ -3434,7 +3441,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex[lexIndex + 1].type = lex[lexIndex + 2].type = 'IGNORE'
                             tok.type='LPAREN' ; rParen+=1 ; bigWrap=True ; tok.value='('
                             lex[lexIndex-1].type = 'BUILTINF' ; lex[lexIndex-1].value = lastValue+'.extend'
-                            lastValue=lex[lexIndex-1].value ; lastType='BUILTINF'
+                            lastValue='(' ; lastType='LPAREN'
                             line[-1]=line[-1][:-1]+'.extend(' ; continue
 
                     if lastType == 'FUNCTION' and lex[lexIndex-1].value in storedCustomFunctions and '(' not in lex[lexIndex-1].value:
@@ -4722,6 +4729,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.type == 'IGNORE':
                 pass
             elif tok.type == 'PYDEF': # support for Python style function define
+                funcName = tok.value.split('def')[1].split('(')[0].replace(' ', '') # get function name
+                if funcName not in storedCustomFunctions:
+                    # create entry in storedCustomFunctions
+                    storedCustomFunctions[funcName]={}
+
                 tmpFuncArgs = REsearch(r'\((.*)\)(?=:|\n|$)',tok.value)
                 if tmpFuncArgs:
                     # extracts out function argument variables and types
@@ -4744,19 +4756,22 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 tmpFuncArgs[tmp[0].strip()]=tmp2.group().replace(',','').strip()
                         else:
                             tmpFuncArgs[t.split('=')[0].strip()]=None
+                    for arg in tmpFuncArgs:
+                        if arg in ASnakeKeywords: reservedIsNowVar.append(arg)
                 else: tmpFuncArgs={}
+                storedCustomFunctions[funcName]['args'] = tmpFuncArgs
 
                 if optimize and optFuncCache and checkIfImpureFunction(lex.index(tok),True, tmpFuncArgs ) == False:
                     optAddCache()
                 if tok.value.replace(' ','')[-1] != ':': tok.value+=':'
                 line.append(decideIfIndentLine(indent,f'{tok.value}\n'))
                 startOfLine=True ; indent+=prettyIndent
-                if ''.join(tok.value.split('(')[1:]).count(',') >= ''.join(tok.value.split('(')[1:]).count('=') and ''.join(tok.value.split('(')[1:]).count(',') > 0:
-                    pass # if it has required arguments, dont auto add () when called without it
-                else:
-                    tmp=tok.value.split('def')[1].split('(')[0].replace(' ','')
-                    if tmp not in storedCustomFunctions: storedCustomFunctions[tmp]={}
-                    storedCustomFunctions[tmp]['type']=None
+                #if ''.join(tok.value.split('(')[1:]).count(',') >= ''.join(tok.value.split('(')[1:]).count('=') and ''.join(tok.value.split('(')[1:]).count(',') > 0:
+                #    pass # if it has required arguments, dont auto add () when called without it
+                #else:
+                #    tmp=tok.value.split('def')[1].split('(')[0].replace(' ','')
+                #    if tmp not in storedCustomFunctions: storedCustomFunctions[tmp]={}
+                #    storedCustomFunctions[tmp]['type']=None
             elif tok.type == 'PYPASS':
                 line.append(tok.value[2:][:-2])
                 lineNumber+=tok.value.count('\n')
@@ -5004,10 +5019,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 line.append(decideIfIndentLine(indent, f'{expPrint[-1]}(')) ; rParen+=1 ; bigWrap=True
             elif tok.type in codeDict:
                 if tok.type == 'DEFFUNCT': notInDef=False
-
                 elif lastType == 'BUILTINF' and tok.type in ('AND','OR') and not startOfLine:
                     line.append(' ')
-                line.append(decideIfIndentLine(indent,f'{codeDict[tok.type]} '))
+                if tok.value in ASnakeKeywords and tok.value in reservedIsNowVar:
+                    line.append(decideIfIndentLine(indent,f'{tok.value} '))
+                else:
+                    line.append(decideIfIndentLine(indent,f'{codeDict[tok.type]} '))
 
             if lastType=='TRY': indentSoon=False
 
