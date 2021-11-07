@@ -837,7 +837,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         optListToTuple=True
         optInSet=True
         optWalrus=True
-        optLoopAttr=False
+        optLoopAttr=True
         optStrFormatToFString=True
         optCompilerEval=True
         optPow=True
