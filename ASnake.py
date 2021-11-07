@@ -5070,7 +5070,7 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False):
     if pep:
         if execTime:
             s=time()
-        code=fix_code(code,options={'ignore': ['E301','E302','E305','E4','E701','E702','E704','E722','E731','W3','W5','W6']})
+        code=fix_code(code,options={'ignore': ['E114','E115','E116','E261','E262','E265','E266','E301','E302','E305','E4','E701','E702','E704','E722','E731','W3','W5','W6']})
         if execTime:
             print('# autopep8 time:', round(time()-s, 4))
     if fancy:
@@ -5209,7 +5209,7 @@ if __name__ == '__main__':
         ASFile='.'.join(ASFile.rsplit('.')[:-1])
         ASFile = "".join(x for x in ASFile.split('/')[-1] if x.isalnum())
         fileName=f'{ASFile}.py{"x" if compileTo=="Cython" else ""}'
-        if pep: code=fix_code(code)
+        if pep: code=fix_code(code,options={'ignore': ['E265']})
         if filePath=='/': filePath=''
         if ASFileExt == 'py' and os.path.isfile(filePath+fileName):
             fileName="AS_"+fileName
@@ -5265,7 +5265,11 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                     execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=False)
                     if fancy:
                         print('\t____________')
-        if fancy: print(f'{ASFile}.asnake compiled to {fileName} {"and "+cythonsoFile if not error else ""}')
+        if fancy:
+            if compileTo == 'Cython':
+                print(f'{ASFile}.asnake compiled to {fileName} {"and "+cythonsoFile if not error else ""}')
+            else:
+                print(f'{ASFile}.asnake compiled to {fileName}')
     else:
         if ASFile:
             tmp='/'.join(ASFile.split('/')[:-1])+'/'
