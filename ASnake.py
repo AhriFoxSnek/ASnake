@@ -17,7 +17,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.11.18'
+ASnakeVersion='v0.12.0'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -101,7 +101,7 @@ class Lexer(Lexer):
     # Regular expression rules for tokens
     SHEBANG = r'#(!| *cython:) *.*'
     COMMENT = r'''(?=(\t| ))*?#.*?(!#|(?=\n|$))'''
-    TAB     = r'\n([\t| ]+)'
+    TAB     = r'\n(>>>)?([\t| ]+)'
     NEWLINE = r'\n'
     PYPASS  = r"p!(.|\n)+?!p"
     META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n]*=)(?=[\n \]\)\$]))|([^+\-/*^~<>&\n()[\]]*((=.*)|(?=\n)|$|(?=,))))'
@@ -118,7 +118,7 @@ class Lexer(Lexer):
     ELSE    = r'(, *)?else(?= |\n|\t|:|\()'
     FUNCTION= r'\w+\('
     NRANGE  = r'(-?(\d+|\w+(\(.\))?)\.\.\.?(-?\d+|\w+(\(.\))?))|-?\d+ ?to ?-?\d+'
-    BUILTINF= """(([a-zA-Z_]+\d*|[^\s\d='";()+\-*[\]]*|(f|u)?\"[^\"]*\"|(f|u)?\'[^\"\']*\')\.([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])+\d*)+"""
+    BUILTINF= """(([a-zA-Z_]+\d*|[^\s\d='";()+\-*[\]]*|(f|u)?\"[^\"]*\"|(f|u)?\'[^\"\']*\')\.([^\u0000-\u007F\s]|[a-zA-Z_])+([^\u0000-\u007F\s]|[a-zA-Z0-9_])*)+"""
     COMMAGRP= """(?!\[)(([\[\w\d\]=.-]|(((f|r)?\"[^\"]*\")|((f|r)?\'[^\']*\')))+ ?,)+([\[\]\w\d=.-]|((f|r)?\"[^\"]*\")|((f|r)?\'[^\']*\'))+"""
     TRY     = r'((try)|(except *[A-Z]\w*( as \w*)?)|(except)|(finally)) *:?'
     TYPEWRAP= fr'({defaultTypes})( ?\[\w*\])? *: *(#.*)?(?=\n)'
@@ -524,6 +524,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 
                     # ---- this section converts 2 spaces to 4 (prettyIndent). very important
                     if tok.type == 'TAB':
+                        if '>>> ' in tok.value: tok.value=tok.value.replace('>>> ','')
                         tabBackup=[currentTab,lastIndent[:]]
                         tabCount=tok.value.replace('\t',' ').count(' ')
                         if tabCount > lastIndent[-1]:
@@ -728,17 +729,21 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     currentTab=tabBackup[0]
                     lastIndent=tabBackup[1][:]
             if tok.type == 'COMMENT':
-                skip=False
-                if tok.value[-1]=='#':
-                    for tmpi in range(lexIndex,0,-1):
-                        if lex[tmpi].type in typeNewline:
-                            tmp=tmpi-1
-                            if len(comments) > 0 and comments[-1][1] == tmp:
-                                comments[-1][0]=comments[-1][0]+'\n'+tok.value
-                                skip=True ; lexIndex-=1
-                            break
-                else: tmp=lexIndex
-                if not skip: comments.append([tok.value,tmp]) ; lexIndex-=1
+                if len([_ for _ in keepAtTop if _.type == 'SHEBANG']) < 2 and REsearch(r'coding[=:]\s*([-\w.]+)',tok.value):
+                    tok.type='SHEBANG'
+                    keepAtTop.append(tok) ; lexIndex-=1
+                else:
+                    skip=False
+                    if tok.value[-1]=='#':
+                        for tmpi in range(lexIndex,0,-1):
+                            if lex[tmpi].type in typeNewline:
+                                tmp=tmpi-1
+                                if len(comments) > 0 and comments[-1][1] == tmp:
+                                    comments[-1][0]=comments[-1][0]+'\n'+tok.value
+                                    skip=True ; lexIndex-=1
+                                break
+                    else: tmp=lexIndex
+                    if not skip: comments.append([tok.value,tmp]) ; lexIndex-=1
             else:
                 if lexIndex>0 and lex[lexIndex].type == 'IGNORENL': lexIndex-=1 # newline is not real if IGNORENL \
                 else: inFrom=False ; lex.append(tok) # newline
@@ -813,7 +818,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     if optimize == True:
 
         for tok in lex: # removes wording for the compilerNumberEval function
-            if tok.type in ('TIMES', 'PLUS', 'DIVIDE', 'MINUS'):
+            if tok.type in {'TIMES', 'PLUS', 'DIVIDE', 'MINUS'}:
                 tok.value = codeDict[tok.type]
 
         def compilerNumberEval(toks):
@@ -845,6 +850,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         optCompilerEval=True
         optPow=True
         optDeadVariableElimination=True
+        optNestedLoopItertoolsProduct=True
         # v these are done in main phase v
         optIfTrue=True
         optSortedToSort=True
@@ -1889,19 +1895,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex.insert(tmpIndex, makeToken(lex[token], 'not ', 'INS'))
                                     lex.insert(tmpIndex, makeToken(lex[token], '( ', 'LPAREN'))
 
-                    elif lex[token].type in ('LOOP','WHILE','FOR'):
-                        if optLoopAttr and lex[token-1].type in typeNewline+('DEFFUNCT',):
+                    elif lex[token].type in {'LOOP','WHILE','FOR'} and lex[token-1].type in typeNewline+('DEFFUNCT',):
+                        # 2nd conditional is to make sure its not in a list comp or other odd situation
 
-                            # check to make sure we're not in tabbed list comp sorta deal
-                            tmpscope=0
-                            for tmpi in range(token-2,0,-1):
-                                if lex[tmpi].type=='RPAREN':
-                                    tmpscope-=1
-                                elif lex[tmpi].type in ('LPAREN','FUNCTION'):
-                                    tmpscope+=1
-                                elif lex[tmpi].type in typeNewline: break
-                            if tmpscope <= 0: # if paren scope negative (complete) or zero (nonexistent)
-
+                        # check to make sure we're not in tabbed list comp sorta deal
+                        tmpscope = 0
+                        for tmpi in range(token - 2, 0, -1):
+                            if lex[tmpi].type == 'RPAREN':
+                                tmpscope -= 1
+                            elif lex[tmpi].type in ('LPAREN', 'FUNCTION'):
+                                tmpscope += 1
+                            elif lex[tmpi].type in typeNewline:
+                                break
+                        if tmpscope <= 0:  # if paren scope negative (complete) or zero (nonexistent)
+                            if optLoopAttr:
                                 if lex[token-1].type == 'TAB':
                                     tmpindent=lex[token-1].value.count(' ')
                                 else: tmpindent=0
@@ -2036,9 +2043,133 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             if debug: print(f'! attrs: {t[0]} --> {tmp[-1]}')
                                             newOptimization = True
                                         lex[t[1]+lexAdd].value=f'AS{tmpname}'
-
                                     #[print(l.value,end=' ') for l in lex]
                                     #print()
+
+                                if optNestedLoopItertoolsProduct and lex[token].type in {'LOOP','FOR'}:
+                                    # converts nested loop to use itertool's product function.
+                                    # ? only safe in cases where loop is directly after the other ? (could be safe, but for now we're cautious)
+                                    # for y in 12 do for x in 24  -->  for y, x in ASproduct(range(12),range(24)):
+                                    # loop 12 y loop 24 x --> same as above
+                                    # auto convert to range for known int. otherwise just pass everything after in.
+
+                                    tmpIterables=[]
+                                    # list of lists. the lists first element should contain the iterator variable.
+                                    # the rest of the elements is the lex of the iterable.
+
+                                    # get indent
+                                    tmpIndent = 0
+                                    for tmpi in range(token,0,-1):
+                                        if lex[tmpi].type == 'NEWLINE':
+                                            tmpIndent=0 ; break
+                                        elif lex[tmpi].type == 'TAB':
+                                            tmpIndent=lex[tmpi].value.count(' ') ; break
+
+                                    # gather loop info
+                                    tmpEndPoint=token
+                                    safe=True ; tmpCurrent=None ; tmpAfterIn=False
+                                    # tmpCurrent is the type of loop
+                                    # tmpAfterIn is when iterable token gathering begins
+                                    for tmpi in range(token,len(lex)-1):
+                                        if lex[tmpi].type in {'FOR','LOOP'}:
+                                            tmpCurrent = lex[tmpi].type
+                                            tmpIterables.append([])
+                                            tmpAfterIn = False
+
+                                        if tmpCurrent == 'LOOP':
+                                            if lex[tmpi].type == 'ID' and lex[tmpi+1].type in typeNewline+('LOOP',):
+                                                tmpIterables[-1]=[lex[tmpi].value]+tmpIterables[-1]
+                                            else:
+                                                if lex[tmpi].type in typeNewline+('LOOP',):
+                                                    if lex[tmpi].type == 'NEWLINE':
+                                                        safe = False ; break
+                                                    elif lex[tmpi].type == 'TAB' and lex[tmpi].value.count(' ') <= tmpIndent:
+                                                        safe = False ; break
+                                                    elif lex[tmpi].type!='LOOP' and lex[tmpi + 1].type not in {'FOR', 'LOOP'}:
+                                                        tmpEndPoint = tmpi
+                                                        break
+                                                    elif tmpAfterIn and lex[tmpi].type == 'LOOP' and tmpIterables[-1] and isinstance(tmpIterables[-1][0], str) == False:
+                                                        safe = False ; break
+                                                    elif not tmpAfterIn and lex[tmpi].type == 'LOOP':
+                                                        tmpAfterIn = True
+                                                else:
+                                                    if lex[tmpi].type == 'NUMBER':
+                                                        tmpIterables[-1].append(makeToken(lex[tmpi], 'range(', 'FUNCTION'))
+                                                        tmpIterables[-1].append(deepcopy(lex[tmpi]))
+                                                        tmpIterables[-1].append(makeToken(lex[tmpi], ')', 'RPAREN'))
+                                                    else:
+                                                        tmpIterables[-1].append(deepcopy(lex[tmpi]))
+                                        elif tmpCurrent == 'FOR':
+                                            if not tmpAfterIn:
+                                                if lex[tmpi-1].type == 'FOR' and lex[tmpi].type == 'ID' and lex[tmpi+1].type == 'INS':
+                                                    tmpIterables[-1].append(lex[tmpi].value)
+                                                elif lex[tmpi].type == 'INS' and 'in' in lex[tmpi].value:
+                                                    tmpAfterIn = True
+                                            else:
+                                                if lex[tmpi].type in typeNewline:
+                                                    if lex[tmpi].type == 'NEWLINE':
+                                                        safe = False ; break
+                                                    elif lex[tmpi].type == 'TAB' and lex[tmpi].value.count(' ') <= tmpIndent:
+                                                        safe = False ; break
+                                                    elif lex[tmpi+1].type not in {'FOR','LOOP'}:
+                                                        tmpEndPoint = tmpi
+                                                        break
+                                                else:
+                                                    if lex[tmpi].type == 'NUMBER':
+                                                        tmpIterables[-1].append(makeToken(lex[tmpi],'range(','FUNCTION'))
+                                                        tmpIterables[-1].append(deepcopy(lex[tmpi]))
+                                                        tmpIterables[-1].append(makeToken(lex[tmpi], ')', 'RPAREN'))
+                                                    else:
+                                                        tmpIterables[-1].append(deepcopy(lex[tmpi]))
+
+                                    # safety checks
+                                    tmpIterables = [_ for _ in tmpIterables if _]
+                                    if len(tmpIterables) == 1 or not tmpIterables: safe=False
+                                    if safe:
+                                        for i in tmpIterables:
+                                            if isinstance(i[0], str) == False:
+                                                safe = False ; break
+                                        tmpIterVars = [x[0] for x in tmpIterables]
+                                        for i in tmpIterables:
+                                            del i[0]
+
+                                        # it is unsafe if one of the iterables calls a itervar
+                                        for iterVar in tmpIterVars:
+                                            for iterable in tmpIterables:
+                                                for t in iterable:
+                                                    if t.type == 'ID' and t.value == iterVar:
+                                                        safe = False ; break
+                                                    elif t.type == 'BUILTINF' and t.value.replace('.','') == iterVar:
+                                                        safe = False ; break
+                                                    elif t.type == 'COMMAGRP' and iterVar in [tt.strip() for tt in t.value.split(',')]:
+                                                        safe = False ; break
+
+                                    if safe: # perform the optimization
+                                        tmpf = 'ASoptProduct'
+                                        if 'itertools.' in wasImported and 'product' in wasImported['itertools.']:
+                                            tmpf = 'product'
+                                        else:
+                                            keepAtTop.append(makeToken(lex[tmpi],'from itertools import product as ASoptProduct','IMPORT'))
+                                        for tmpi in range(token,tmpEndPoint):
+                                            lex[tmpi].type = 'IGNORE'
+                                        tmptok=lex[tmpi]
+                                        lex.insert(token,makeToken(tmptok,'for','FOR'))
+                                        lex.insert(token+1,makeToken(tmptok,', '.join(tmpIterVars),'COMMAGRP'))
+                                        lex.insert(token+2, makeToken(tmptok, 'in', 'INS'))
+                                        lex.insert(token+3, makeToken(tmptok, tmpf+'(', 'FUNCTION'))
+                                        tt=token+4
+                                        for iterable in tmpIterables:
+                                            for t in iterable:
+                                                lex.insert(tt, t)
+                                                tt += 1
+                                            lex.insert(tt, makeToken(tmptok, ',', 'COMMA'))
+                                            tt += 1
+                                        lex[tt-1].type = 'RPAREN' ; lex[tt-1].value = ')'
+                                        lex.insert(tt, makeToken(tmptok, 'do', 'THEN'))
+                                        newOptimization=True
+                                        if debug: print(f'! nested loop with vars {tmpIterVars} replaced with itertools product')
+                                        #[print(l.value,end=' ') for l in lex if l.type != 'IGNORE'] ; exit()
+
 
                     elif lex[token].type == 'STRING':
                         if optStrFormatToFString and '%s' in lex[token].value and lex[token].value[0] != 'f' and all(True if i not in lex[token].value else False for i in {'%i','%d','%g','%G','%c','%r','%-','%x','%u','%o','%X','%E','%e','%f','%F','%+', '%0','%1','%2','%3','%4','%5','%6','%7','%8','%9'} ):
@@ -2287,7 +2418,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lex[tmpi].type == 'INDEX' and lex[tmpi].value.startswith(lex[token].value):
                                 check=False ; break
                             elif lex[tmpi].type == 'LISTCOMP' and lex[tmpi].value.split(':')[0] == lex[token].value: check=False ; break
-                            elif lex[tmpi].type == 'COMMAGRP' and any(True for x in lex[tmpi].value.split(',') if x.split('=')[-1].strip() == lex[token].value or lex[token].value+'.' in x.strip()): check=False ; break
+                            elif lex[tmpi].type == 'COMMAGRP' and any(True for x in lex[tmpi].value.split(',') if x.split('=')[-1].strip() == lex[token].value or lex[token].value+'.' in x.strip() or lex[token].value+'[' in x.strip()): check=False ; break
                             elif lex[tmpi].type == 'FROM':
                                 for tmpii in range(tmpi, 0, -1):
                                     if lex[tmpii].type == 'TAB':
@@ -2734,6 +2865,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     else:
         storedVarsHistory={} # {'ASVarExample':{'type':'STRING','value':'AS is cool! sometimes'}}
     switchCase={'case':False}
+    # idMAIN
     for tok in lex:
         if lexIndex+1 <= len(lex)-1:
             lexIndex+=1
@@ -3233,6 +3365,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         return AS_SyntaxError(
                             f'of keyword needs line end syntax (tab, newline, then) then expression, not another of',
                             f'of 12 do "my fav num"', lineNumber, data)
+                elif tok.type == 'THEN' and indentSoon and lastType not in typeNewline+('DEFFUNCT','ENDIF') and parenScope<=0 and bracketScope<=0 and listScope<=0 and (line and line[-1].endswith(':\n')==False):
+                    if line and line[-1] == '\n': line = line[:-1]
+                    line.append(':\n') ; indentSoon=False
+
 
                 if ignoreNewline and tok.type == 'NEWLINE':
                     ignoreNewline=False
