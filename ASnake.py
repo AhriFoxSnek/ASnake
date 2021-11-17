@@ -101,7 +101,7 @@ class Lexer(Lexer):
     # Regular expression rules for tokens
     SHEBANG = r'#(!| *cython:) *.*'
     COMMENT = r'''(?=(\t| ))*?#.*?(!#|(?=\n|$))'''
-    TAB     = r'\n(>>>)?([\t| ]+)'
+    TAB     = r'\n(>>>|\.\.\.)?([\t| ]+)'
     NEWLINE = r'\n'
     PYPASS  = r"p!(.|\n)+?!p"
     META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n]*=)(?=[\n \]\)\$]))|([^+\-/*^~<>&\n()[\]]*((=.*)|(?=\n)|$|(?=,))))'
@@ -525,6 +525,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     # ---- this section converts 2 spaces to 4 (prettyIndent). very important
                     if tok.type == 'TAB':
                         if '>>> ' in tok.value: tok.value=tok.value.replace('>>> ','')
+                        elif '... ' in tok.value: tok.value=tok.value.replace('... ','')
                         tabBackup=[currentTab,lastIndent[:]]
                         tabCount=tok.value.replace('\t',' ').count(' ')
                         if tabCount > lastIndent[-1]:
@@ -858,18 +859,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         optLoopToMap=True
         optFuncCache=True
 
-        # vv incompatible optimizations vv
+
         if compileTo == 'Cython':
+            # v incompatible optimizations v
             optWalrus=optStrFormatToFString=optLoopAttr=False
             # v compatible but slower v
             optFuncCache=False
         elif compileTo == 'PyPy3':
             # v seems to be slower for some reason on PyPy but faster on Python v
-            optFuncCache=optLoopToMap=optListPlusListToExtend=False
+            optNestedLoopItertoolsProduct=optFuncCache=optLoopToMap=optListPlusListToExtend=False
         elif compileTo == 'Pyston':
             # v slower v
             optFuncTricksDict['boolTonotnot']=False
 
+        # vv incompatible optimizations vv
         if pythonVersion < 3.6:
             optStrFormatToFString=False
         elif pythonVersion < 3.8:
@@ -2049,8 +2052,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if optNestedLoopItertoolsProduct and lex[token].type in {'LOOP','FOR'}:
                                     # converts nested loop to use itertool's product function.
                                     # ? only safe in cases where loop is directly after the other ? (could be safe, but for now we're cautious)
-                                    # for y in 12 do for x in 24  -->  for y, x in ASproduct(range(12),range(24)):
-                                    # loop 12 y loop 24 x --> same as above
+                                    # for y in 12 do for x in 24 do for z in '48'  -->  for y, x in ASproduct(range(12),range(24),'48'):
+                                    # loop 12 y loop 24 x loop '48' z --> same as above
                                     # auto convert to range for known int. otherwise just pass everything after in.
 
                                     tmpIterables=[]
@@ -2124,7 +2127,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                     # safety checks
                                     tmpIterables = [_ for _ in tmpIterables if _]
-                                    if len(tmpIterables) == 1 or not tmpIterables: safe=False
+                                    if len(tmpIterables) < 3: safe=False # is only always faster when there are more than two nested loops
                                     if safe:
                                         for i in tmpIterables:
                                             if isinstance(i[0], str) == False:
