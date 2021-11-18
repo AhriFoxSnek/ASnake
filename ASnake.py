@@ -7,7 +7,7 @@ from autopep8 import fix_code
 # standard library
 import os
 from copy import deepcopy
-from time import time
+from time import monotonic
 from re import sub as REsub
 from re import compile as REcompile
 from re import search as REsearch
@@ -17,7 +17,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.12.0'
+ASnakeVersion='v0.12.1'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -521,6 +521,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         lastIndent=tabBackup[1][:]
                         lexIndex-=1
                         lex.pop()
+                    elif lex[lexIndex].type == 'NEWLINE':
+                        lexIndex -= 1
+                        lex.pop()
                 
                     # ---- this section converts 2 spaces to 4 (prettyIndent). very important
                     if tok.type == 'TAB':
@@ -864,7 +867,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             # v incompatible optimizations v
             optWalrus=optStrFormatToFString=optLoopAttr=False
             # v compatible but slower v
-            optFuncCache=False
+            optNestedLoopItertoolsProduct=optFuncCache=False
         elif compileTo == 'PyPy3':
             # v seems to be slower for some reason on PyPy but faster on Python v
             optNestedLoopItertoolsProduct=optFuncCache=optLoopToMap=optListPlusListToExtend=False
@@ -885,7 +888,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         orderOfOps = {'RPAREN': 7, 'LPAREN': 6, 'EXPONENT': 5, 'MODULO': 4, 'TIMES': 4, 'DIVIDE': 4,
                       'RDIVIDE': 4, 'PLUS': 1, 'MINUS': 1} # Python operator precedence
 
-        definedFuncs=[]
+        definedFuncs=set()
         wasImported={}
         doNotModThisToken=[]
         newOptimization=True
@@ -896,6 +899,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 print('\t- optimization round =',optimizeRound,'-')
             optimizeRound+=1
             newOptimization=False
+            preAllocated = set()  # set[tuple[indent: int , name: str]] list of allocated attributes
             token=0
             for blah in range(0,(len(lex)-1)*2):
                 if token <= len(lex)-1:
@@ -1306,6 +1310,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     else: lex[token+1].value=mopConv[tmptype]
                                     lex.pop(token+2) ; lex.pop(token+2)
                                     newOptimization=True
+
                         if optWalrus and lex[token+1].type in typeAssignables+('ASSIGN','COMMAGRP') \
                         and lex[token-1].type in typeNewline+('TYPE',) and lex[token+2].type!='ID':
                             safe=True
@@ -1391,6 +1396,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmptok=deepcopy(lex[token]) ; tmptok.type='RPAREN' ; tmptok.value=')'
                                     lex.insert(token+6-2,tmptok) ; del tmptok
                                     newOptimization=True
+
                         if lex[token-1].type == 'PIPE':
                             if optFuncTricks:
                                 if optFuncTricksDict['EvalLen'] and optCompilerEval and 'len' not in reservedIsNowVar:
@@ -1402,6 +1408,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         lex[token].type='NUMBER'
                                         del lex[token - 1] ; del lex[token - 2]
                                         newOptimization=True
+
+                        if optLoopAttr and preAllocated and lex[token+1].type in typeAssignables+('ASSIGN',) \
+                        and True in (True if p[1].startswith('AS'+lex[token].value) else False for p in preAllocated):
+                            # if ID assigns to something new, remove it from preAllocated to prevent breaking behaviour.
+                            for p in tuple(_ for _ in preAllocated):
+                                if p[1].startswith('AS' + lex[token].value):
+                                    preAllocated.remove(p)
 
 
                     elif lex[token].type == 'META':
@@ -1855,6 +1868,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex[token].type = 'LBRACKET' ; lex[token].value = '{'
                                     lex[token + 1].type = 'RBRACKET' ; lex[token + 1].value = '}'
 
+                        if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
+                        and lex[token-1].type not in {'ID','ASSIGN'}:
+                            # if in preAllocated, replace it
+                            lex[token].value = 'AS' + lex[token].value.replace('.', '_')
+                            if lex[token].type == 'BUILTINF':
+                                lex[token].type  = 'ID'
+
 
                     elif lex[token].type == 'PIPE':
                         if optFuncTricks:
@@ -1987,15 +2007,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 del importcheck ; del assignCheck
 
                                 tmpASAlreadyAllocated=[]
+                                tmpSafe=False
                                 for tmpi in range(token,0,-1):
                                     # find ASvars that were already allocated -- fixes repeats from nested loops
                                     if lex[tmpi].type == 'ID' and lex[tmpi].value.startswith('AS'):
-                                        tmpASAlreadyAllocated.append(lex[tmpi].value)
-                                    elif lex[tmpi].type in typeNewline:
-                                        if lex[tmpi].type == 'TAB' and lex[tmpi].value.count(' ') != tmpindent:
-                                            break
-                                        elif lex[tmpi].type == 'NEWLINE':
-                                            break
+                                        if lex[tmpi-1].type == 'TAB':
+                                            tmp = lex[tmpi-1].value.count(' ')
+                                            if tmp < tmpindent: break
+                                            elif tmp > tmpindent: tmpSafe=False
+                                            elif tmp == tmpindent: tmpSafe=True
+                                        if tmpSafe:
+                                            tmpASAlreadyAllocated.append(lex[tmpi].value)
+                                    elif lex[tmpi].type == 'NEWLINE':
+                                        break
+
                                 if len(tmpf) > 0:
                                     lexAdd=0
                                     tmp=[]
@@ -2013,7 +2038,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if '.' in t[0]: tmpname=t[0].split('.')[0]+'_'+t[0].split('.')[1]
                                         else: tmpname=t[0]
                                         subBy=1
-                                        if f'AS{tmpname}' not in tmp+tmpASAlreadyAllocated:
+                                        tmpASname = f'AS{tmpname}'
+                                        if tmpASname not in tmp+tmpASAlreadyAllocated and (tmpindent,tmpASname) not in preAllocated \
+                                        and (not preAllocated or all(True if pa[1] != tmpASname or pa[0] > tmpindent else False for pa in preAllocated) ):
+                                            preAllocated.add((tmpindent,tmpASname))
                                             if lex[token - 1].type == 'DEFFUNCT': subBy = 0
                                             #
                                             tmptok=deepcopy(lex[token])
@@ -2027,7 +2055,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             lex.insert(token-subBy,tmptok)
                                             #
                                             tmptok=deepcopy(lex[token])
-                                            tmptok.value=f'AS{tmpname}'
+                                            tmptok.value=tmpASname
                                             tmptok.type='ID'
                                             lex.insert(token-subBy,tmptok)
                                             #
@@ -2042,10 +2070,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             #
                                             lexIndex+=4
                                             lexAdd+=4
-                                            tmp.append(f'AS{tmpname}')
+                                            tmp.append(tmpASname)
                                             if debug: print(f'! attrs: {t[0]} --> {tmp[-1]}')
                                             newOptimization = True
-                                        lex[t[1]+lexAdd].value=f'AS{tmpname}'
+                                        lex[t[1]+lexAdd].value=tmpASname
                                     #[print(l.value,end=' ') for l in lex]
                                     #print()
 
@@ -2118,16 +2146,39 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         tmpEndPoint = tmpi
                                                         break
                                                 else:
-                                                    if lex[tmpi].type == 'NUMBER':
+                                                    if lex[tmpi].type == 'NUMBER' and lex[tmpi+1].type in typeNewline+('FOR','LOOP','ENDIF') and not tmpIterables[-1]:
                                                         tmpIterables[-1].append(makeToken(lex[tmpi],'range(','FUNCTION'))
                                                         tmpIterables[-1].append(deepcopy(lex[tmpi]))
                                                         tmpIterables[-1].append(makeToken(lex[tmpi], ')', 'RPAREN'))
+                                                    elif lex[tmpi].type == 'ENDIF':
+                                                        pass
                                                     else:
                                                         tmpIterables[-1].append(deepcopy(lex[tmpi]))
 
                                     # safety checks
                                     tmpIterables = [_ for _ in tmpIterables if _]
                                     if len(tmpIterables) < 3: safe=False # is only always faster when there are more than two nested loops
+
+                                    if safe:
+                                        tmpIndents = [tmpIndent+(prettyIndent*i) for i in range(len(tmpIterables))]
+                                        #print('~~~~_____________________________________________')
+                                        for tmpi in range(tmpEndPoint+1,len(lex)-1):
+                                            # if there is a expression one indent above baseline after the loop(s), it is not safe.
+                                            if lex[tmpi].type == 'NEWLINE' and lex[tmpi+1].type != 'TAB': break
+                                            elif lex[tmpi].type == 'TAB':
+                                                tmp = lex[tmpi].value.count(' ')
+                                                if tmp <= tmpIndent: break
+                                                if tmp < tmpIndents[-1]:
+                                                    tmpIndents.pop()
+                                                if tmp == tmpIndents[-1]:
+                                                    #print(lex[tmpi-3].value,lex[tmpi-2].value,lex[tmpi-1].value)
+                                                    #print("FOK");
+                                                    safe = False ; break
+                                                #print(tmp,tmpIndents)
+                                            #else:
+                                                #print('\t',lex[tmpi].value)
+                                    #print('!!!!!!',safe)
+
                                     if safe:
                                         for i in tmpIterables:
                                             if isinstance(i[0], str) == False:
@@ -2281,9 +2332,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex[token] = deepcopy(createFString(lex[token],token))
 
                     elif lex[token].type == 'DEFFUNCT':
-                        definedFuncs.append(lex[token-1].value)
+                        definedFuncs.add(lex[token-1].value)
                     elif lex[token].type == 'PYDEF':
-                        definedFuncs.append(lex[token].value.split('(')[0])
+                        definedFuncs.add(lex[token].value.split('(')[0][3:].strip())
+                    elif optLoopAttr and preAllocated and lex[token].type in {'TAB','NEWLINE'}:
+                        if lex[token].type == 'NEWLINE' and token+1 < len(lex)-1 and lex[token+1].type!='TAB':
+                            for p in tuple(_ for _ in preAllocated):
+                                if p[0] > 0:
+                                    preAllocated.remove(p)
+                        else:
+                            if min(_[0] for _ in preAllocated) > lex[token].value.count(' '): preAllocated=set()
+
                     if token > len(lex)-1: break
                     if lex[token].type == 'IGNORE':
                         del lex[token] ; token-=2
@@ -5208,10 +5267,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False):
     if pep:
         if execTime:
-            s=time()
+            s=monotonic()
         code=fix_code(code,options={'ignore': ['E114','E115','E116','E261','E262','E265','E266','E301','E302','E305','E4','E701','E702','E704','E722','E731','W3','W5','W6']})
         if execTime:
-            print('# autopep8 time:', round(time()-s, 4))
+            print('# autopep8 time:', round(monotonic()-s, 4))
     if fancy:
         print(code)
         if run: print('\t____________\n\t~ Python Eval\n')
@@ -5228,19 +5287,19 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False):
             with open('ahrscriptExec.py','w') as f:
                 f.write(code)
             if execTime:
-                s = time()
+                s = monotonic()
             child = sp.Popen(f'{pyCall} ahrscriptExec.py', stdout=sp.PIPE, cwd=os.getcwd(), shell=True)
             child.communicate()
         else:
             if execTime:
-                s = time()
+                s = monotonic()
             sp.run([pyCall, "-c", code])
 
 
         if fancy:
             print('\t____________')
         if execTime:
-            print('exec time:',time()-s)
+            print('exec time:',monotonic()-s)
     try: os.remove('ahrscriptExec.py')
     except: pass
 
@@ -5333,22 +5392,25 @@ if __name__ == '__main__':
             if ASFile == False and not args.eval:
                 exit()
 
-    s=time()
+    s=monotonic()
     if (compileTo == 'Cython' and justRun) == False:
         code=build(data,comment=comment,optimize=optimize,debug=debug,compileTo=compileTo,pythonVersion=pythonVersion,enforceTyping=enforceTyping)
     else: code=''
-    print('# build time:',round(time()-s,4))
+    print('# build time:',round(monotonic()-s,4))
     if pep or headless:
-        s=time()
+        s=monotonic()
         code=REsub(r"""\n\n+(?=([^"'\\]*?(\\.|("|')([^"'\\]*?\\.)*?[^"'\\]*?("|')))*?[^"']*?$)""",'\n',code)
-        print('# newline cleanup time:',round(time()-s,4))
+        print('# newline cleanup time:',round(monotonic()-s,4))
     if compileAStoPy:
         filePath='/'.join(ASFile.split('/')[:-1])+'/'
         ASFileExt=ASFile.rsplit('.')[-1]
         ASFile='.'.join(ASFile.rsplit('.')[:-1])
         ASFile = "".join(x for x in ASFile.split('/')[-1] if x.isalnum())
         fileName=f'{ASFile}.py{"x" if compileTo=="Cython" else ""}'
-        if pep: code=fix_code(code,options={'ignore': ['E265']})
+        if pep:
+            s = monotonic()
+            code=fix_code(code,options={'ignore': ['E265']})
+            print('# autopep8 time:', round(monotonic() - s, 4))
         if filePath=='/': filePath=''
         if ASFileExt == 'py' and os.path.isfile(filePath+fileName):
             fileName="AS_"+fileName
@@ -5377,10 +5439,10 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
 {'include_dirs=[numpy.get_include(),"."]' if 'import numpy' in data else 'include_dirs=["."]'})""")
             #os.system(f'{py3Command} ASsetup.py build_ext --inplace')
             try:
-                s = time()
+                s = monotonic()
                 cythonCompileText = check_output(f'{py3Command} ASsetup.py build_ext --inplace', shell=True).decode()
                 error=False
-                print('# C compile time:',time()-s)
+                print('# C compile time:',monotonic()-s)
             except CalledProcessError as e:
                 cythonCompileText = e.output.decode()
                 error=True
@@ -5406,9 +5468,9 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                         print('\t____________')
         if fancy:
             if compileTo == 'Cython':
-                print(f'{ASFile}.asnake compiled to {fileName} {"and "+cythonsoFile if not error else ""}')
+                print(f'{ASFile}.{ASFileExt} compiled to {fileName} {"and "+cythonsoFile if not error else ""}')
             else:
-                print(f'{ASFile}.asnake compiled to {fileName}')
+                print(f'{ASFile}.{ASFileExt} compiled to {fileName}')
     else:
         if ASFile:
             tmp='/'.join(ASFile.split('/')[:-1])+'/'
