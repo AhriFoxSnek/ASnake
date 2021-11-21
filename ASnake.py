@@ -200,6 +200,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     # outputInternals changes its output from the compiled code string, to a tuple with (code, lex, storedVarsHistory)
     # metaInformation will override various meta variables, allowing metas to be overriden before code is ran.
 
+    miniLex = Lexer()
+
     codeDict={'RDIVIDE':'//','DIVIDE':'/','PLUS':'+','MINUS':'-','TIMES':'*','LPAREN':'(','RPAREN':')',
     'ELIF':'elif','ELSE':'else','IF':'if','WHILE':'while','GREATEQ':'>=','GREATER':'>','LESS':'<',
     'LESSEQ':'<=','EQUAL':'==','ASSIGN':'=','NOTHING':'pass','NOTEQ':'!=','BUILTINF':'.','OF':'elif',
@@ -315,7 +317,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     tmpf.append(makeToken(tok, tok.value[parts[part - 1][1]:parts[part][1]], "FPARSE"))
             # FSTR is bare string, FPARSE is code inside string to be parsed
         tok.type = 'IGNORE'
-        miniLex = Lexer()
         adjust=1
         for thing in tmpf:
             if thing.type == 'FSTR':
@@ -352,12 +353,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if pruneDict:
                     lex.append(makeToken(tok, '}', 'RBRACKET'))
                     lexIndex += 1
-        del miniLex
+
         return tok
 
     def indexTokenSplitter(tok,fstringMode=False):
         nonlocal lex, lexIndex
-        miniLex = Lexer()
         tmpf = tok.value.split('[', 1)
         tmp = list(miniLex.tokenize(tmpf[0] + ' '))
         if not tmp:
@@ -372,10 +372,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         for i in miniLex.tokenize(''.join(tmpf[1:]) + ' '):
             if i.type not in typeNewline:
                 if i.type == 'LISTCOMP':
-                    miniminiLex = Lexer()
                     lex.append(makeToken(tok, ':', 'COLON'))
                     lex.append([ii for ii in miniminiLex.tokenize(i.value.split(':')[-1])][0])
-                    del miniminiLex
                     lexIndex += 2
                 else:
                     if i.type == 'ENDIF':
@@ -396,7 +394,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     lexIndex += 1
                 if debug: print('--', i)
         if lex[-1].type == 'LISTEND': lex[-1].type = 'RINDEX'
-        del miniLex
+
 
 
     prettyIndent = 4
@@ -583,7 +581,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         lex.append(i)
                         lexIndex+=1
                         if debug: print('--',i)
-                del miniLex
                 tmptok=deepcopy(tok) ; tmptok.value=']' ; tmptok.type='LISTEND'
                 lex.append(tmptok) ; del tmptok
             else:
@@ -607,7 +604,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if t is not tmp[-1]:
                             tmptok=deepcopy(tok) ; tmptok.type='COMMA' ; tmptok.value=','
                             lex.append(tmptok) ; lexIndex+=1
-                    del miniLex ; del tmptok
+                    del tmptok
                     lexIndex-=1
                     
                 else: lex.append(tok)
@@ -618,7 +615,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         lex.append(i)
                         lexIndex+=1
                         if debug: print('--',i)
-                    del miniLex
                     lexIndex-=1 # i dont know why butff i think this works
                     inFrom=False
                 else: lex.append(tok)
@@ -631,13 +627,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 # when a index is mistaken for commagrp
                 if lex[lexIndex].type == 'TYPE':
                     lex[lexIndex].type = 'ID' ; reservedIsNowVar.append(lex[lexIndex].value.strip())
-                miniLex = Lexer()
                 tmp=tok.value.split('[')[0]+' ['+'['.join(tok.value.split('[')[1:])
                 for i in miniLex.tokenize(tmp+' '):
                     lex.append(i)
                     lexIndex += 1
                     if debug: print('--', i)
-                del miniLex
                 tok.type='IGNORE'
         elif tok.type in {'STRAW','STRLIT','STRING'}:
             if tok.type in ('STRRAW','STRLIT'): tok.type='STRING'
@@ -688,7 +682,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         lex.append(t) ; lexIndex+=1
                         if debug: print('---',t)
                 lexIndex-=1 # i dont know why but i think this works
-                del miniLex
             else: lex.append(tok)
         elif tok.type == 'LISTCOMP':
             check=False # checks for    if thing > 4: doStuff
@@ -706,10 +699,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tmptok.value=''.join(tok.value.split(':')[1:])
                 miniLex=Lexer()
                 tmptok.type=[i for i in miniLex.tokenize(tmptok.value+' ')][0].type
-                lex.append(tmptok) ; lexIndex+=1 ; del miniLex
+                lex.append(tmptok) ; lexIndex+=1
             elif lex[lexIndex].type == 'IF' or check:
                 tmptok=deepcopy(tok)
-                miniLex = Lexer()
                 for t in miniLex.tokenize(''.join(tmptok.value.split(':')[:1])):
                     lex.append(t) ; lexIndex += 1
                     if debug: print('--', t)
@@ -722,8 +714,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tmptok.value=''.join(tok.value.split(':')[1:]).strip()
                 if tmptok.value not in ('',' '):
                     tmptok.type=[i for i in miniLex.tokenize(tmptok.value+' ')][0].type
-                    lex.append(tmptok) 
-                del miniLex
+                    lex.append(tmptok)
             else: lex.append(tok)
         elif tok.type in ('NEWLINE','COMMENT'):
             if lex[lexIndex].type == 'TAB':
@@ -778,7 +769,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             # loop/while can act as new expression indicators
             lex.append(makeToken(tok,'then','THEN')) ; lex.append(tok) ; lexIndex+=1
         elif tok.type == 'FUNCTION' and lex[lexIndex].type == 'ID' and lex[lexIndex].value.strip() == 'def' and 'def' not in reservedIsNowVar:
-            miniLex = Lexer()
             lex[lexIndex].type='IGNORE'
             for t in miniLex.tokenize(lex[lexIndex].value + ' ' + tok.value):
                 lex.append(t)
@@ -786,13 +776,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             lexIndex -= 1
             crunch = True
         elif tok.type == 'FUNCTION' and tok.value[-1]=='(' and tok.value[:-1].strip() in pyReservedKeywords and tok.value[:-1].strip() not in reservedIsNowVar:
-            miniLex = Lexer()
             for t in miniLex.tokenize(tok.value.replace('(',' (')+' '):
                 if debug: print('---',t)
                 lex.append(t)
                 lexIndex+=1
             lexIndex -= 1
-            del miniLex
         elif tok.type == 'LBRACKET':
             bracketScope+=1 ; lex.append(tok)
         elif tok.type == 'RBRACKET':
@@ -1720,7 +1708,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex.insert(token+1,tmptok) ; del tmptok
                                     for tt in miniLex.tokenize(tmp[0]+' '):
                                         lex.insert(token+1,tt) ; tmptmp+=1
-                                    del miniLex
                                     #tmptmp=4
                                     #print(tmptmp,lex[token+tmptmp].type,lex[token+tmptmp].value)
                                     lex[token + tmptmp].type='BUILTINF'
@@ -1730,12 +1717,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if check:
                                     # turn token into many tokens for further parsing/optimizing
                                     lex[token].type = 'IGNORE'
-                                    miniLex = Lexer()
                                     tmpf = []
                                     for tt in miniLex.tokenize(lex[token].value + ' '):
                                         tmpf.append(tt)
                                     for tt in reversed(tmpf): lex.insert(token + 1, tt)
-                                    del miniLex
                                 else:
                                     randintOptimize = False
 
@@ -2270,7 +2255,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 else: tmpf.append([tt])
                                             lex[t].type = 'IGNORE'
                                             if doBreak: break
-                                            del miniLex
                                         else:
                                             if lex[t-1].type not in ('MODULO','IGNOREtmpMODULO'):
                                                 tt=-1
@@ -3631,6 +3615,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 f'equal number of ( and ) like:\n{("".join(line)+")"*tmp) if len(line) > 0 else "this( thing )"}'
                                 ,lineNumber,data)
                 else:
+                    safe=True
                     if optimize and optListPlusListToExtend and lastValue in storedVarsHistory and (
                             storedVarsHistory[lastValue]['type'] in ('LIST', 'LISTCOMP') or (
                             'staticType' in storedVarsHistory[lastValue] and storedVarsHistory[lastValue]['staticType'] == 'list' )):
@@ -3701,26 +3686,37 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 'Assignment to meta not allowed when meta is not defined as inline.',
                                 f'$ def {lex[lexIndex-1].value.replace("$","")} = "something"'
                                 , lineNumber, data)
-                        if '=' in tok.value:
-                            line.append(tok.value+' ')
-                        elif lastType == 'FSTR' and 'is' in tok.value:
-                            line.append('== ')
-                        else:
-                            line.append('= ')
-                        try:
-                            storedVars[lex[lexIndex-1].value]=lex[lexIndex+1]
-                        except :
-                            return AS_SyntaxError(f'Line {lineNumber} does not assign to anything.',
-                            '%s is 12'%(lex[lexIndex-1].value if lex[lexIndex-1].type == "ID" else "variable")
-                            ,lineNumber,data)
-                        if ':' not in tok.value and not combineLines: # walrus := is fine to not seperate into another line
-                            code.append(''.join(line)) ; line=[] ; combineLines=True
-                    if inIf == False and tok.value in ('=','is ') and lexIndex+2 < len(lex) \
+
+                        if lastType == 'COMMAGRP':
+                            for t in miniLex.tokenize(lex[lexIndex-1].value.replace(',',' , ')):
+                                if t.type in {'NUMBER','STRING'}:
+                                    # not a variable assign
+                                    safe=False ; break
+
+                        if safe:
+                            if '=' in tok.value:
+                                line.append(tok.value+' ')
+                            elif lastType == 'FSTR' and 'is' in tok.value:
+                                line.append('== ')
+                            else:
+                                line.append('= ')
+                            try:
+                                storedVars[lex[lexIndex-1].value]=lex[lexIndex+1]
+                            except :
+                                return AS_SyntaxError(f'Line {lineNumber} does not assign to anything.',
+                                '%s is 12'%(lex[lexIndex-1].value if lex[lexIndex-1].type == "ID" else "variable")
+                                ,lineNumber,data)
+                            if ':' not in tok.value and not combineLines: # walrus := is fine to not seperate into another line
+                                code.append(''.join(line)) ; line=[] ; combineLines=True
+                        else: # function arg?
+                            line.append('=')
+
+                    if safe and inIf == False and tok.value in ('=','is ') and lexIndex+2 < len(lex) \
                     and (lex[lexIndex-1].value not in storedVarsHistory or 'staticType' not in storedVarsHistory[lex[lexIndex-1].value]) :
                         if lexIndex+3 < len(lex) and lex[lexIndex+2].type == 'LISTCOMP':
                             storeVar(lex[lexIndex-1],lex[lexIndex+2],lex[lexIndex+3],position=lexIndex+2)
                         else: storeVar(lex[lexIndex-1],lex[lexIndex+1],lex[lexIndex+2],position=lexIndex+1)
-                    if (tok.value[0] in {'+','-','**','*','/','//'} or lex[lexIndex+1].type in {'FUNCTION','BUILTINF'} )and lastType == 'ID' \
+                    if safe and (tok.value[0] in {'+','-','**','*','/','//'} or lex[lexIndex+1].type in {'FUNCTION','BUILTINF'} )and lastType == 'ID' \
                     and lex[lexIndex-1].value in storedVarsHistory and 'value' in storedVarsHistory[lex[lexIndex-1].value]:
                         del storedVarsHistory[lex[lexIndex-1].value]['value'] # if value is modified, then we dont know the true value anymore unless its a static value
             elif tok.type in typeConditonals: # idCONDITIONIAL
@@ -5074,14 +5070,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif tmpf in {'Python','python'}:
                     compileTo='Python'
                 elif tmpf in inlineReplace:
-                    miniLex = Lexer()
                     tmp=[]
                     for t in miniLex.tokenize(inlineReplace[tmpf] + ' '):
                         tmp.append(t) # need to reverse it, so append to temporary list we then reverse
                     for t in reversed(tmp):
                         lex.insert(lexIndex+1,t)
                         if debug: print('--', t)
-                    del miniLex
                 elif tmpf in metaPyVersion:
                     pythonVersion = float(tok.value.split('=')[-1].strip()) # in pre-phase it already checked if it was float
 
