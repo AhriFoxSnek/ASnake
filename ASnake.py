@@ -17,7 +17,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.12.1'
+ASnakeVersion='v0.12.2'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -159,7 +159,7 @@ class Lexer(Lexer):
     LOOP    = r'loop(?= |\n)'
     ASYNC   = r'(async|await)(?= |\t)'
     CONSTANT= r'const(ant)?'
-    ANYOF   = r'(any|all) of'
+    ANYOF   = r'(any|all) (of )?'
     INS     = r'(not|in)( |(?=\n))'
     ARE     = r"(arent|aren\'t|are)(?= |\n|\t)"
     BOOL    = r'True|False|None'
@@ -340,6 +340,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             tmptok.value = tmptok.value.replace("'", '"', 1)
                             tmptok.value = tmptok.value[:tmptok.value.rfind("'")] + '"'
                     elif tmptok.type == 'ID' and tmptok.value.isascii() == False:
+                        if any(True for c in tmptok.value if unicodeCategory(c) in {'Zs', 'Cf', 'Cc'}):
+                            return AS_SyntaxError(f'Whitespace character in {tmptok.value} is not permitted.', None, None, data)
                         tmptok.value = convertEmojiToAscii(tmptok.value)
                     elif tmptok.type == 'INDEX' and lex[-1].type != 'TYPE' and '[' in tmptok.value:
                         indexTokenSplitter(tmptok,True) ; tmpSkip = True
@@ -480,6 +482,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             if any(i for i in defaultTypes.split('|') if i == tok.value) and tok.value.strip() not in reservedIsNowVar:
                 tok.type='TYPE' # dumb fix for it not detecting types
             elif tok.value.isascii() == False:
+                if any(True for c in tok.value if unicodeCategory(c) in {'Zs', 'Cf', 'Cc'}):
+                    return AS_SyntaxError(f'Whitespace character in {tok.value} is not permitted.', None, tok.lineno, data)
                 tok.value=convertEmojiToAscii(tok.value)
             lex.append(tok)
         elif tok.type == 'TYPEWRAP':
@@ -2856,7 +2860,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
 
     line=[]
-    anyCheck='all' # for any of syntax
+    anyCheck='none' # for any of syntax
     fstrQuote='' # keeping track of last quote-type for f-strings
     ignoreNewline=False
     indent=0
@@ -3687,11 +3691,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 f'$ def {lex[lexIndex-1].value.replace("$","")} = "something"'
                                 , lineNumber, data)
 
-                        if lastType == 'COMMAGRP':
-                            for t in miniLex.tokenize(lex[lexIndex-1].value.replace(',',' , ')):
-                                if t.type in {'NUMBER','STRING'}:
-                                    # not a variable assign
-                                    safe=False ; break
+                        for tt in range(lexIndex-1,0,-1):
+                            if lex[tt].type == 'COMMAGRP':
+                                for t in miniLex.tokenize(lex[lexIndex-1].value.replace(',',' , ')):
+                                    if t.type in {'NUMBER','STRING','PIPE'}:
+                                        # not a variable assign
+                                        safe=False ; break
+                                if not safe: break
+                            elif lex[tt].type in {'NUMBER','STRING','PIPE'}:
+                                safe=False ; break
+                            elif lex[tt].type in typeNewline+('TYPE','CONSTANT'):
+                                break
 
                         if safe:
                             if '=' in tok.value:
@@ -4116,8 +4126,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if lexIndex-1 > 0:
                     if lexIndex+1 < len(lex)-1 :
                         if lex[lexIndex-1].type in ('NUMBER','BOOL'): # error if non iterable
-                            return AS_SyntaxError('your value seems to be non-iterable',
+                            return AS_SyntaxError('Your value seems to be non-iterable.',
                             'myList are equal',lineNumber,data)
+                        elif anyCheck == 'none':
+                            return AS_SyntaxError('You did not supply a all/any.',
+                            f'any of {" ".join(line)} are False', lineNumber, data)
 
                         if tok.value == 'are': tmpcheck=True
                         else: tmpcheck=False
@@ -4177,7 +4190,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             else:
                                 line.append(f"{anyCheck}(True for _ in {tmpfirst} if _ {check} {tmpcheck})")
                         lex[lexIndex+1].type = 'IGNORE' ; lex[lexIndex-1].type = 'IGNORE'
-                        anyCheck='all'
+                        anyCheck='none'
                     else:
                         return AS_SyntaxError('"are" needs comparison or function in order to check',
                             'are equal\n# or\nmyFunction()',lineNumber,data)
@@ -4185,22 +4198,25 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     return AS_SyntaxError('"are" needs either a variable, data-type, or function to check!',
                             'if yourVar, "hotdog" are equal then',lineNumber,data)
             elif tok.type == 'ANYOF':
-                if lexIndex+1 < len(lex)-1 :
-                    if 'any' in tok.value: anyCheck = 'any'
-                    elif 'all' in tok.value: anyCheck = 'all'
-                    for tmpi in range(lexIndex,len(lex)-1):
-                        # if any of vowels is letter
-                        # ^ the above used to fail, couldn't remember the ARE reserved word. is should be fine too!
-                        if lex[tmpi].type == 'ARE': break
-                        elif lex[tmpi].type == 'ASSIGN' and lex[tmpi].value.strip() == 'is':
-                            # is / =  -->  are
-                            lex[tmpi].type='ARE' ; lex[tmpi].value='are' ; break
-                        elif lex[tmpi].type == "NOTEQ":
-                            # isnt / !=  -->  are not
-                            lex[tmpi].type = 'ARE';lex[tmpi].value = "are"
-                            lex.insert(tmpi+1,makeToken(tok,"INS",'not'))
-                            break
-                else: return AS_SyntaxError('"any of" needs something after it','any of (1,2,3)',lineNumber,data)
+                if 'of ' not in tok.value and (lex[lexIndex+1].type == 'LPAREN' or lastType == 'PIPE'):
+                    tok.type='ID' ; line.append('any')
+                else:
+                    if lexIndex+1 < len(lex)-1 and lex[lexIndex+1].type not in typeNewline:
+                        if 'any' in tok.value: anyCheck = 'any'
+                        elif 'all' in tok.value: anyCheck = 'all'
+                        for tmpi in range(lexIndex,len(lex)-1):
+                            # if any of vowels is letter
+                            # ^ the above used to fail, couldn't remember the ARE reserved word. is should be fine too!
+                            if lex[tmpi].type == 'ARE': break
+                            elif lex[tmpi].type == 'ASSIGN' and lex[tmpi].value.strip() == 'is':
+                                # is / =  -->  are
+                                lex[tmpi].type='ARE' ; lex[tmpi].value='are' ; break
+                            elif lex[tmpi].type == "NOTEQ":
+                                # isnt / !=  -->  are not
+                                lex[tmpi].type = 'ARE';lex[tmpi].value = "are"
+                                lex.insert(tmpi+1,makeToken(tok,"INS",'not'))
+                                break
+                    else: return AS_SyntaxError('"any of" needs something after it','any of (1,2,3)',lineNumber,data)
             elif tok.type == 'END': # idEND
                 tmpi=1 ; skipIf=False
                 while -1 < lexIndex-tmpi < len(lex)-1:
