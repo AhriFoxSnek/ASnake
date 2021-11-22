@@ -104,7 +104,7 @@ class Lexer(Lexer):
     TAB     = r'\n(>>>|\.\.\.)?([\t| ]+)'
     NEWLINE = r'\n'
     PYPASS  = r"p!(.|\n)+?!p"
-    META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n]*=)(?=[\n \]\)\$]))|([^+\-/*^~<>&\n()[\]]*((=.*)|(?=\n)|$|(?=,))))'
+    META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n]*=)(?=[\n \]\)\$]))|([^+\-/*^~<>&\n()[\],=]*((=.*)|(?=\n)|$|(?=,))))'
     FUNCMOD = r'@.*'
     PYDEF   = r'c?def +([\w.\[\d:,\] ]* )?\w+ *\(((?!: *return).)*\)*( *((-> *)?\w* *):?)'
     PYCLASS = r'class ([a-z]|[A-Z])\w*(\(.*\))?:'
@@ -665,7 +665,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lexIndex -= 1
             elif tok.value.split('=')[0].replace(' ','').replace('$','') in inlineReplace or any(i for i in inlineReplace if f'${i}' in tok.value):
                 if debug: print('inlineReplace',inlineReplace)
-                miniLex=Lexer()
                 while '$ ' in tok.value: tok.value = tok.value.replace('$ ', '$')
                 while tok.value!='' and len([i for i in inlineReplace if f'${i}' in tok.value]) > 0:
                     tmp=tok.value.split()[0]
@@ -1722,9 +1721,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     # turn token into many tokens for further parsing/optimizing
                                     lex[token].type = 'IGNORE'
                                     tmpf = []
+                                    tmpParen=0
                                     for tt in miniLex.tokenize(lex[token].value + ' '):
+                                        if tt.type in {'LPAREN','FUNCTION'}: tmpParen+=1
+                                        elif tt.type == 'RPAREN': tmpParen-=1
                                         tmpf.append(tt)
-                                    for tt in reversed(tmpf): lex.insert(token + 1, tt)
+                                    if tmpParen > 0 and tmpf[0].type == 'LPAREN':
+                                        tmpf=tmpf[1:]
+                                    for tt in reversed(tmpf):
+                                        lex.insert(token + 1, tt)
                                 else:
                                     randintOptimize = False
 
@@ -2360,11 +2365,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if len(tmpf) == 0 : break
                                 if fail == False:
                                     try:
-                                        lex[token].value=compilerNumberEval(tmpf)
+                                        tmp=compilerNumberEval(tmpf)
+                                        if debug: print(f"! compile-time-eval: {' '.join([lex[die].value for die in range(token, token + len(tmpf))])} --> {tmp}")
+                                        lex[token].value=tmp
                                         for die in range(token+1,token+len(tmpf)):
                                             lex[die].type='IGNORE'
                                         newOptimization=True
-                                        if debug: print(f"compile-time-eval: {' '.join([lex[die].value for die in range(token,token+len(tmpf))])} --> {lex[token].value}")
                                     except (TypeError, ZeroDivisionError): pass
                             while lex[token].type == 'STRING' and lex[token+1].type == 'PLUS' and lex[token+2].type == 'STRING' \
                             and lex[token].value.startswith("'''")==False and lex[token].value.startswith('"""')==False and lex[token+2].value.startswith("'''")==False and lex[token+2].value.startswith('"""')==False:
@@ -5430,6 +5436,11 @@ if __name__ == '__main__':
         with open(filePath+fileName,'w',encoding='utf-8') as f:
             f.write(code)
         if compileTo == 'Cython':
+
+            if code.startswith(f'# ASnake {ASnakeVersion} ERROR'):
+                execPy(code,run=True,execTime=False,pep=False,headless=False,fancy=False)
+                exit()
+
             if "'" in fileName:
                 fileName=fileName.replace("'","\\'")
             from platform import system as OSName
