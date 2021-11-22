@@ -4250,7 +4250,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
             elif tok.type == 'COMMA': # idCOMMA
                 if lexIndex-1 > 0 and lexIndex+1 < len(lex)-1 and len(line)>0:
-                    if lex[lexIndex+1].type not in typeNewline+('IGNORE','INC','FSTR','PIPEGO') and lex[lexIndex-1].type != 'IGNORE':
+                    if lex[lexIndex+1].type not in typeNewline+('IGNORE','INC','FSTR','PIPEGO','PIPE') and lex[lexIndex-1].type != 'IGNORE':
                         lex[lexIndex+1].value=f'{line[-1]},{lex[lexIndex+1].value}'
                         line=line[:-1]
                         lex[lexIndex+1].type='COMMAGRP' ; tok.type='IGNORE' ; lex[lexIndex-1].type='IGNORE'
