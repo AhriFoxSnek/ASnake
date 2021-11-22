@@ -4555,7 +4555,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         lex[lexIndex + 1].type = 'INTOED'
                     else:
                         if line==[]: line.append(lex[lexIndex-1].value)
-                        if line[0] == '(' and line[-1] == ')': line=line[1:-1]
+                        if line[0].strip() == '(' and line[-1] == ')': line=line[1:-1]
                         line.insert(0,decideIfIndentLine(indent,f"{lex[lexIndex+1].value}("))
                         line.append(')')
                         lex[lexIndex+1].type='INTOED'
