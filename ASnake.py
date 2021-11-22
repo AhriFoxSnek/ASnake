@@ -3691,17 +3691,19 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 f'$ def {lex[lexIndex-1].value.replace("$","")} = "something"'
                                 , lineNumber, data)
 
-                        for tt in range(lexIndex-1,0,-1):
-                            if lex[tt].type == 'COMMAGRP':
-                                for t in miniLex.tokenize(lex[lexIndex-1].value.replace(',',' , ')):
-                                    if t.type in {'NUMBER','STRING','PIPE'}:
-                                        # not a variable assign
-                                        safe=False ; break
-                                if not safe: break
-                            elif lex[tt].type in {'NUMBER','STRING','PIPE'}:
-                                safe=False ; break
-                            elif lex[tt].type in typeNewline+('TYPE','CONSTANT'):
-                                break
+                        if ':' not in tok.value:
+                            for tt in range(lexIndex-1,0,-1):
+                                if lex[tt].type == 'COMMAGRP':
+                                    for t in miniLex.tokenize(lex[lexIndex-1].value.replace(',',' , ')):
+                                        if t.type in {'NUMBER','STRING','PIPE','FUNCTION','LPAREN','LPAREN'}:
+                                            # not a variable assign
+                                            safe=False ; break
+                                    if not safe: break
+                                elif lex[tt].type in {'NUMBER','STRING','PIPE','FUNCTION','PIPEGO','LPAREN'}:
+                                    safe=False ; break
+                                elif lex[tt].type in typeNewline+('TYPE','CONSTANT')+typeConditonals:
+                                    break
+                        else: safe=True
 
                         if safe:
                             if '=' in tok.value:
@@ -4553,6 +4555,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         lex[lexIndex + 1].type = 'INTOED'
                     else:
                         if line==[]: line.append(lex[lexIndex-1].value)
+                        if line[0] == '(' and line[-1] == ')': line=line[1:-1]
                         line.insert(0,decideIfIndentLine(indent,f"{lex[lexIndex+1].value}("))
                         line.append(')')
                         lex[lexIndex+1].type='INTOED'
