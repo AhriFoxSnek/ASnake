@@ -746,14 +746,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if lexIndex>0 and lex[lexIndex].type == 'IGNORENL': lexIndex-=1 # newline is not real if IGNORENL \
                 else: inFrom=False ; lex.append(tok) # newline
         elif tok.type == 'ASSIGN':
-            if ':' in tok.value:
-                for tmpi in range(lexIndex,0,-1):
-                    if lex[tmpi].type in typeNewline: tok.value='=' ; break
-                    elif lex[tmpi].type in typeConditonals+('LPAREN',):
-                        if lex[tmpi].type != 'ELSE': break
-                        else: tok.value='=' ; break
-                lex.append(tok)
-            elif lex[lexIndex].type == 'LISTCOMP':
+            if lex[lexIndex].type == 'LISTCOMP':
                 tmp=lex[lexIndex].value.split(':') ; tmp[-1]=tmp[-1].replace(' ','')
                 if tmp[-1] in convertType:
                     lex[lexIndex].type='TYPE' ; lex[lexIndex].value=tmp[-1]
@@ -4062,19 +4055,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmpf=[]
                         # for when a iterable is supplied and not an ID
                         if forthingin == '_' and lex[lexIndex+1].type in ('LPAREN','LBRACKET','LIST'):
-                            endtmpi=0
+                            endtmpi=0 ; tmpscope=0
                             start=lex[lexIndex+1].type
                             convert={'LPAREN':'RPAREN','LBRACKET':'RBRACKET','LIST':'LISTEND'}
                             for tmpii in range(lexIndex+1,len(lex)):
                                 tmpf.append(lex[tmpii].value)
-                                if lex[tmpii].type == convert[start]:
+                                if lex[tmpii].type == start: tmpscope+=1
+                                elif lex[tmpii].type == convert[start]: tmpscope-=1
+                                if lex[tmpii].type == convert[start]  and tmpscope == 0:
                                     if lex[tmpii+1].type == 'ID' and lex[tmpii+1].type not in typeOperators+typeCheckers:
                                         forthingin=lex[tmpii+1].value ; lex[tmpii+1].type='IGNORE'
                                     lex[tmpii].type = 'IGNORE'
                                     endtmpi=tmpii ; noRange=True ; search=False ; break
                                 lex[tmpii].type = 'IGNORE'
                         # end
-                        if debug: print(lex[lexIndex].type,lex[lexIndex+1].type,lex[lexIndex+1].value,lex[lexIndex+2].type)
                         while tmpi < len(lex)-1 and search:
                             if lex[lexIndex+tmpi].type in ('NUMBER','INDEX','ID')+typeOperators:
                                 if lex[lexIndex+tmpi].type == 'ID':
