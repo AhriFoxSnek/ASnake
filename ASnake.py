@@ -1669,10 +1669,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             if all(False if i == "from libc.stdlib cimport rand, RAND_MAX, srand\nfrom libc.time cimport time as Ctime\nsrand(Ctime(NULL))\nrand()" else True for i in code ):
                                                 code.insert(1,"from libc.stdlib cimport rand, RAND_MAX, srand\nfrom libc.time cimport time as Ctime\nsrand(Ctime(NULL))\nrand()")
 
-
-                                            lex[token].value=f"((rand() % ({tmpmax} - {tmpmin} + 1)) + {tmpmin}"
+                                            lex[token].value=f"((rand() % ({tmpmax} - {tmpmin} + 1)) + {tmpmin})"
                                             lex[token].type=lex[token+1].type=lex[token+2].type='IGNORE'
-                                            if lex[token + 3].type != 'RPAREN': lex[token + 3].type = 'IGNORE'
                                             check=True
                                         else:
                                             lex[token].type = lex[token+1].type = 'IGNORE'
@@ -1701,7 +1699,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     # splitting a randint(0,randint(0,23)) thing
                                     tmptmp=2
                                     tmp=lex[token+1].value.split(',')
-                                    #print(tmp,lex[token+1].type)
                                     miniLex=Lexer()
                                     for tt in miniLex.tokenize(tmp[1]+' '):
                                         if 'randint' in tt.value: tt.type='IGNORE'
@@ -1711,8 +1708,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex.insert(token+1,tmptok) ; del tmptok
                                     for tt in miniLex.tokenize(tmp[0]+' '):
                                         lex.insert(token+1,tt) ; tmptmp+=1
-                                    #tmptmp=4
-                                    #print(tmptmp,lex[token+tmptmp].type,lex[token+tmptmp].value)
                                     lex[token + tmptmp].type='BUILTINF'
                                     lex[token + tmptmp].value = 'random.randint'
                                     token+=3
@@ -1721,13 +1716,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     # turn token into many tokens for further parsing/optimizing
                                     lex[token].type = 'IGNORE'
                                     tmpf = []
-                                    tmpParen=0
                                     for tt in miniLex.tokenize(lex[token].value + ' '):
-                                        if tt.type in {'LPAREN','FUNCTION'}: tmpParen+=1
-                                        elif tt.type == 'RPAREN': tmpParen-=1
                                         tmpf.append(tt)
-                                    if tmpParen > 0 and tmpf[0].type == 'LPAREN':
-                                        tmpf=tmpf[1:]
                                     for tt in reversed(tmpf):
                                         lex.insert(token + 1, tt)
                                 else:
@@ -2400,7 +2390,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex[token+1].type=lex[token+2].type='IGNORE'
                                 newOptimization=True
                     if optCompilerEval and newOptimization and lex[token-1].type == 'LPAREN' and lex[token+1].type == 'RPAREN' and lex[token-2].type in ('LPAREN','ASSIGN')+typeNewline+typeOperators and lex[token].type not in ('FUNCTION','COMMAGRP'):
-                        #print(lex[token-2].type,lex[token-1].type,lex[token].type,lex[token+1].type,888888888888)
+                        #print(lex[token-2].type,lex[token-1].type,lex[token].type,lex[token].value,lex[token+1].type,888888888888)
                         lex[token+1].type=lex[token-1].type='IGNORE' ; token-=2
 
                     token+=1
@@ -4846,7 +4836,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             # if function changes variable, then the last value may not be valid
                 elif tok.type == 'MINUS':
                     tok.value=codeDict[tok.type]
-
+                    if startOfLine and not inIf:
+                        doPrint = True
+                        for tmpi in range(lexIndex + 1, len(lex) - 1):
+                            if lex[tmpi].type in typeNewline:
+                                break
+                            elif lex[tmpi].type not in typePrintable:
+                                doPrint = False
+                        if doPrint: line.append(
+                            decideIfIndentLine(indent, f'{expPrint[-1]}(')); bigWrap = True; rParen += 1
 
                 if tok.type == 'LBRACKET': bracketScope+=1
                 elif tok.type == 'RBRACKET':
