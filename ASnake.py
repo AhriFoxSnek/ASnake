@@ -5051,30 +5051,30 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif tmpf in {'ignoreIndentation','ignoreIndent','noindent','noIndent','noIndentation'}:
                     tmp=tok.value.split('=')
                     if len(tmp) > 1:
-                        tmp=tmp[1]
-                        if tmp.lower() in ('true','yes','on'):
+                        tmp=tmp[1].lower().strip()
+                        if tmp in ('true','yes','on'):
                             ignoreIndentation=True
-                        elif tmp.lower() in ('no','false','off'):
+                        elif tmp in ('no','false','off'):
                             ignoreIndentation=False
                         else: ignoreIndentation=True
                     else: ignoreIndentation=True
                 elif tmpf in {'funcPass','funcpass','passFunction','functionPass','pyfunc','pyFunc'}:
                     tmp=tok.value.split('=')
                     if len(tmp) > 1:
-                        tmp=tmp[1]
-                        if tmp.lower() in ('true','yes','on'):
+                        tmp=tmp[1].lower().strip()
+                        if tmp.lower().strip() in ('true','yes','on'):
                             functionPassing=True
-                        elif tmp.lower() in ('no','false','off'):
+                        elif tmp.lower().strip() in ('no','false','off'):
                             functionPassing=False
                         else: functionPassing=True
                     else: functionPassing=True
                 elif tmpf in {'pyis','pythonIs','pyIs','isPython','pythonis','isIdentity'}:
                     tmp=tok.value.split('=')
                     if len(tmp) > 1:
-                        tmp=tmp[1]
-                        if tmp.lower() in ('true','yes','on'):
+                        tmp=tmp[1].lower().strip()
+                        if tmp in ('true','yes','on'):
                             pyIs=True
-                        elif tmp.lower() in ('no','false','off'):
+                        elif tmp in ('no','false','off'):
                             pyIs=False
                         else: pyIs=True
                     else: pyIs=True
