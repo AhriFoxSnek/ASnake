@@ -17,7 +17,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.12.2'
+ASnakeVersion='v0.12.3'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -37,8 +37,7 @@ def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syn
 
     return f'# ASnake {ASnakeVersion} ERROR\nprint("""\n{showError}\n""")'
     
-defaultTypes='bool|int|float|complex|str|list|tuple|set|dict|bytearray|bytes|enumerate|filter|frozenset|map|memoryview|object|property|range|reversed|slice|staticmethod|super|type|zip'
-
+defaultTypes=set('bool|int|float|complex|str|list|tuple|set|dict|bytearray|bytes|enumerate|filter|frozenset|map|memoryview|object|property|range|reversed|slice|staticmethod|super|type|zip'.split('|'))
 
 import ast
 import operator
@@ -121,8 +120,8 @@ class Lexer(Lexer):
     BUILTINF= """(([a-zA-Z_]+\d*|[^\s\d='";()+\-*[\]]*|(f|u)?\"[^\"]*\"|(f|u)?\'[^\"\']*\')\.([^\u0000-\u007F\s]|[a-zA-Z_])+([^\u0000-\u007F\s]|[a-zA-Z0-9_])*)+"""
     COMMAGRP= """(?!\[)(([\[\w\d\]=.-]|(((f|r)?\"[^\"]*\")|((f|r)?\'[^\']*\')))+ ?,)+([\[\]\w\d=.-]|((f|r)?\"[^\"]*\")|((f|r)?\'[^\']*\'))+"""
     TRY     = r'((try)|(except *[A-Z]\w*( as \w*)?)|(except)|(finally)) *:?'
-    TYPEWRAP= fr'({defaultTypes})( ?\[\w*\])? *: *(#.*)?(?=\n)'
-    TYPE    = '\\s%s\\s'%f'({defaultTypes})'
+    TYPEWRAP= fr'({"|".join(defaultTypes)})( ?\[\w*\])? *: *(#.*)?(?=\n)'
+    TYPE    = '\\s%s\\s'%f'({"|".join(defaultTypes)})'
     LAMBDA  = r'lambda ?(\w* *,?)*:'
     LISTCOMP= r'\-?\w*: \w+'
     STRING  = r'((f|u|b)?\"(?:\\\\|\\\"|[^\"])*\")|((f|u|b)?\'(?:\\\\|\\\'|[^\'])*\')'
@@ -479,7 +478,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             else:
                 lex.append(tok)
         elif tok.type == 'ID':
-            if any(i for i in defaultTypes.split('|') if i == tok.value) and tok.value.strip() not in reservedIsNowVar:
+            if tok.value in defaultTypes and tok.value not in reservedIsNowVar:
                 tok.type='TYPE' # dumb fix for it not detecting types
             elif tok.value.isascii() == False:
                 if any(True for c in tok.value if unicodeCategory(c) in {'Zs', 'Cf', 'Cc'}):
@@ -565,7 +564,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif lex[lexIndex].type=='INDEX' and tok.value.startswith('['):
                 tok.value=f'{lex[lexIndex].value}{tok.value}'
                 lex[lexIndex].type='IGNORE'
-            elif tok.value.split('[')[0] in {'list','tuple','dict','set'} and tok.value.split('[')[1].split(']')[0] in defaultTypes.split('|'):
+            elif tok.value.split('[')[0] in {'list','tuple','dict','set'} and tok.value.split('[')[1].split(']')[0] in defaultTypes:
                 # typing inside elements like dict[int, str]
                 tok.type='TYPE'
             if tok.type != 'TYPE' and len(REfindall('''(?!('|").*)for (?!.*('|"))''',tok.value)) > 0:
@@ -757,7 +756,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif lex[lexIndex].type == 'PIPEGO':
                 lex[lexIndex].type='ID' ; lex.append(tok) ; reservedIsNowVar.append('pipe')
             elif lex[lexIndex].type != 'ID' and (any(True for x in ASnakeKeywords if x == lex[lexIndex].value) \
-            or any(True for x in [i for i in convertType]+defaultTypes.split('|') if x == lex[lexIndex].value)):
+            or any(True for x in [i for i in convertType]+list(defaultTypes) if x == lex[lexIndex].value)):
                 # !! allows reassignment of reserved keywords !!                    add any new ones here ^
                 lex[lexIndex].type = 'ID' ; lex.append(tok) ; reservedIsNowVar.append(lex[lexIndex].value)
             else: lex.append(tok)
@@ -787,7 +786,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         else:
             if reservedIsNowVar and tok.value in reservedIsNowVar: tok.type='ID'
             lex.append(tok)
-        if lex[lexIndex].type == 'TYPE' and tok.type != 'ID' and lex[lexIndex-1].type not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT') and tok.type != 'CONSTANT':
+        if lex[lexIndex].type == 'TYPE' and tok.type != 'ID' and lex[lexIndex-1].type not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT')+typeNewline and tok.type != 'CONSTANT':
             lex[lexIndex].type='ID' ; reservedIsNowVar.append(lex[lexIndex].value.strip())
         elif tok.type == 'CONSTANT' and lex[lexIndex].type == 'TYPE':
             tok.type='TYPE' ; tok.value = lex[lexIndex].value
@@ -2817,6 +2816,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             or (lex[lexIndex + tmp].value in storedCustomFunctions and 'pure' in storedCustomFunctions[lex[lexIndex + tmp].value] and storedCustomFunctions[lex[lexIndex + tmp].value]['pure'] == False):
                 if lex[lexIndex + tmp].value not in functionArgNames:
                     impure = True ; break  # ^ TODO check if ID is const, if it is then its not impure. sorta does this when constants put a [0] on the var name
+            elif lex[lexIndex + tmp].type == 'ID' and lex[lexIndex + tmp].value.strip() == 'print':
+                impure = True ; break
             elif not pyDef and lex[lexIndex + tmp].type == 'FROM':
                 withoutFromSafe = False ; break
             elif lex[lexIndex + tmp].type == 'TAB' and lex[lexIndex + tmp].value.count(' ') < tmpIndent:
@@ -2988,6 +2989,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if kwargs!=None:
                                     if kwargs=='TIMES':
                                         i.value='*'+i.value
+                                    elif kwargs=='MINUS':
+                                        i.value='-'+i.value
                                     else: i.value='**'+i.value
                                     kwargs=None
 
@@ -2998,7 +3001,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if any(True for i in code if i == tmpfirst)==False:
                                             code.insert(1,tmpfirst)
                                 elif i.type == 'ASSIGN': assign=True
-                                elif i.type in ('TIMES','EXPONENT'): kwargs=i.type ; continue
+                                elif i.type in ('TIMES','EXPONENT','MINUS'): kwargs=i.type ; continue
                                 elif assign:
                                     newtmp[-1]+=f' = {i.value}'
                                     assign=False
