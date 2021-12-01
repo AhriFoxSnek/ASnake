@@ -103,7 +103,7 @@ class Lexer(Lexer):
     TAB     = r'\n(>>>|\.\.\.)?([\t| ]+)'
     NEWLINE = r'\n'
     PYPASS  = r"p!(.|\n)+?!p"
-    META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n]*=)(?=[\n \]\)\$]))|([^+\-/*^~<>&\n()[\],=]*((=.*)|(?=\n)|$|(?=,))))'
+    META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n]*=)(?=[\n \]\)\$\[]))|([^+\-/*^~<>&\n()[\],=]*((=.*)|(?=\n)|$|(?=,))))'
     FUNCMOD = r'@.*'
     PYDEF   = r'c?def +([\w.\[\d:,\] ]* )?\w+ *\(((?!: *return).)*\)*( *((-> *)?\w* *):?)'
     PYCLASS = r'class ([a-z]|[A-Z])\w*(\(.*\))?:'
@@ -1847,9 +1847,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
                         and lex[token-1].type not in {'ID','ASSIGN'}:
                             # if in preAllocated, replace it
+                            if debug: print(f"! attrs: {lex[token].value} --> {'AS' + lex[token].value.replace('.', '_')}")
                             lex[token].value = 'AS' + lex[token].value.replace('.', '_')
                             if lex[token].type == 'BUILTINF':
                                 lex[token].type  = 'ID'
+                            newOptimization=True
 
 
                     elif lex[token].type == 'PIPE':
@@ -1982,20 +1984,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         lex.insert(tmpi+1,makeToken(tok,'(','LPAREN'))
                                 del importcheck ; del assignCheck
 
-                                tmpASAlreadyAllocated=[]
-                                tmpSafe=False
-                                for tmpi in range(token,0,-1):
-                                    # find ASvars that were already allocated -- fixes repeats from nested loops
-                                    if lex[tmpi].type == 'ID' and lex[tmpi].value.startswith('AS'):
-                                        if lex[tmpi-1].type == 'TAB':
-                                            tmp = lex[tmpi-1].value.count(' ')
-                                            if tmp < tmpindent: break
-                                            elif tmp > tmpindent: tmpSafe=False
-                                            elif tmp == tmpindent: tmpSafe=True
-                                        if tmpSafe:
-                                            tmpASAlreadyAllocated.append(lex[tmpi].value)
-                                    elif lex[tmpi].type == 'NEWLINE':
-                                        break
 
                                 if len(tmpf) > 0:
                                     lexAdd=0
@@ -2015,7 +2003,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         else: tmpname=t[0]
                                         subBy=1
                                         tmpASname = f'AS{tmpname}'
-                                        if tmpASname not in tmp+tmpASAlreadyAllocated and (tmpindent,tmpASname) not in preAllocated \
+                                        if tmpASname not in tmp and (tmpindent,tmpASname) not in preAllocated \
                                         and (not preAllocated or all(True if pa[1] != tmpASname or pa[0] > tmpindent else False for pa in preAllocated) ):
                                             preAllocated.add((tmpindent,tmpASname))
                                             if lex[token - 1].type == 'DEFFUNCT': subBy = 0
@@ -2317,6 +2305,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     preAllocated.remove(p)
                         else:
                             if min(_[0] for _ in preAllocated) > lex[token].value.count(' '): preAllocated=set()
+
 
                     if token > len(lex)-1: break
                     if lex[token].type == 'IGNORE':
@@ -3039,7 +3028,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if optimize and optFuncCache and not impure and 'list' not in tmpf:
                         optAddCache()
                     if compileTo == 'Cython' and optimize: # append cy function mods
-                        if cyWrapAround:
+                        if False and cyWrapAround:
+                            # disabled until better detection of when it is safe
                             if any(i for i in code if 'cimport cython\n' in i)==False:
                                 code.insert(1,'cimport cython\n')
                             line.append(decideIfIndentLine(indent,'@cython.wraparound(False)\n',False))
@@ -3102,7 +3092,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif lexIndex-2 > 0 and lex[lexIndex-1].type in ('ID','INTOED') and lex[lexIndex-2].type == 'PIPE' and (lexIndex-4 < 0 or lex[lexIndex-4].type != 'LOOP'):
                     return AS_SyntaxError(f'{tok.value} after function pipe makes no sense. Pipes start with a datatype and then chain onto functions.',f'{tok.value} to str to print', lineNumber, data)
                 elif (tok.type == 'NUMBER' or (tok.value in storedVarsHistory and storedVarsHistory[tok.value]['type']=='NUMBER')) and lastType == 'INS' and lexIndex-3>0 and lex[lexIndex-2].type=='ID' and lex[lexIndex-3].type=='FOR' \
-                and (lexIndex+2 < len(lex) and (lex[lexIndex+1].type != 'PIPE' and lex[lexIndex+2].value != 'range')):
+                and (lexIndex+2 < len(lex) and (lex[lexIndex+1].type not in {'PIPE','LINDEX','INDEX'} and lex[lexIndex+2].value != 'range')):
                     line.append(f'range({tok.value})') # converts bare numbers into ranges when in for loop
                 elif tok.type == 'DICT' and lex[lexIndex+1].type == 'FSTR' and fstrQuote!='':
                     line.append(tok.value)
@@ -4765,9 +4755,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         parenScope-=tok.value.count(')') ; parenScope+=tok.value.count('(')
                         listScope -= tok.value.count(']'); listScope += tok.value.count('[')
                     if tok.value[-1] == '(': parenScope+=1
+                    
                     if tok.type=='BUILTINF' and tok.value.split('.')[0] in storedVarsHistory \
-                    and storedVarsHistory[tok.value.split('.')[0]]['type']=='LIST' and '.'+tok.value.split('.')[1] in listMods and 'value' in storedVarsHistory[tok.value.split('.')[0]]: del storedVarsHistory[tok.value.split('.')[0]]['value']
-                    # ^ if list is being modified, we dont know the value anymore, so forget it
+                    and storedVarsHistory[tok.value.split('.')[0]]['type']=='LIST' and len(tok.value.split('.')) > 1 and '.'+tok.value.split('.')[1] in listMods and 'value' in storedVarsHistory[tok.value.split('.')[0]]:
+                        del storedVarsHistory[tok.value.split('.')[0]]['value']
+                    # ^ if list is being modified, we don't know the value anymore, so forget it
                     elif tok.type=='INDEX' and lexIndex-1>0 and lex[lexIndex-1].type in ('ASSIGN','ID'):
                         # just storing var in history if it assigns to index without an assignment token
                         if lex[lexIndex-1].type in ('ID','INDEX','COMMAGRP'): tmpi=1
