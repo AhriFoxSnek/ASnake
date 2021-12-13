@@ -17,7 +17,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.12.3'
+ASnakeVersion='v0.12.4'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -571,7 +571,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 # the dumb INDEX regex will match list comps.
                 # this will detect 'for' inside of it (if not surrounded by quotes)
                 # it will parse the inside as ASnake, meanwhile surrounded by [ ]
-                miniLex=Lexer()
                 tmpval=tok.value.lstrip('[').rsplit(']',1)[0]
                 tmpCount=0
                 while tok.value[tmpCount] == '[':
@@ -598,7 +597,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if ('=' in tmp[-1] or tmp[-1].startswith('is') or tmp[-1].startswith(' is') )\
                 and (len(REfindall(r'\b[^\'"\d]',','.join(tmp[:-1])))==tok.value.count(',')+1) \
                 and len([i for i in tmp if (i[0] in ("'",'"') and i[-1] in ("'",'"'))])==0:
-                    miniLex=Lexer()
                     for t in tmp:
                         for i in miniLex.tokenize(t+' '):
                                 lex.append(i)
@@ -611,31 +609,35 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     lexIndex-=1
                     
                 else: lex.append(tok)
-            else: 
-                if inFrom:
-                    miniLex=Lexer()
+            else:
+                if inFrom or True:
                     for i in miniLex.tokenize(REsub(r"""(,(?=[^']*(?:'[^']*'[^']*)*$))|,(?=[^"]*(?:"[^"]*"[^"]*)*$)""",' , ',tok.value)):
-                        lex.append(i)
-                        lexIndex+=1
+                        if i.type == 'STRING' and i.value[0] == 'f': # jumpy
+                            createFString(tok)
+                        else:
+                            lex.append(i)
+                            lexIndex+=1
                         if debug: print('--',i)
                     lexIndex-=1 # i dont know why butff i think this works
                     inFrom=False
-                else: lex.append(tok)
-            if tok.value[-1] == ']' and (lex[lexIndex].type == 'LIST' or '[' not in tok.value):
-                tok.value=tok.value[:-1]
-                tmptok=deepcopy(tok)
-                tmptok.type='LISTEND' ; tmptok.value=']'
-                lex.append(tmptok) ; del tmptok ; lexIndex+=1
-            elif REmatch(r'([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*\[', tok.value):
-                # when a index is mistaken for commagrp
-                if lex[lexIndex].type == 'TYPE':
-                    lex[lexIndex].type = 'ID' ; reservedIsNowVar.append(lex[lexIndex].value.strip())
-                tmp=tok.value.split('[')[0]+' ['+'['.join(tok.value.split('[')[1:])
-                for i in miniLex.tokenize(tmp+' '):
-                    lex.append(i)
-                    lexIndex += 1
-                    if debug: print('--', i)
-                tok.type='IGNORE'
+                else:
+                    lex.append(tok)
+            if False: # jumpy
+                if tok.value[-1] == ']' and (lex[lexIndex].type == 'LIST' or '[' not in tok.value):
+                    tok.value=tok.value[:-1]
+                    tmptok=deepcopy(tok)
+                    tmptok.type='LISTEND' ; tmptok.value=']'
+                    lex.append(tmptok) ; del tmptok ; lexIndex+=1
+                elif REmatch(r'([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*\[', tok.value):
+                    # when a index is mistaken for commagrp
+                    if lex[lexIndex].type == 'TYPE':
+                        lex[lexIndex].type = 'ID' ; reservedIsNowVar.append(lex[lexIndex].value.strip())
+                    tmp=tok.value.split('[')[0]+' ['+'['.join(tok.value.split('[')[1:])
+                    for i in miniLex.tokenize(tmp+' '):
+                        lex.append(i)
+                        lexIndex += 1
+                        if debug: print('--', i)
+                    tok.type='IGNORE'
         elif tok.type in {'STRAW','STRLIT','STRING'}:
             if tok.type in ('STRRAW','STRLIT'): tok.type='STRING'
             if tok.value[0]=='f':
@@ -943,11 +945,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 else:
                                     tmpNoEqualsAssign=True if tmpi == 1 else False
                                     for t in range(token+tmpi,len(lex)-1):
-                                        #print(tmpParenScope,lex[t].type,lex[t].value)
+                                        #print(tmpParenScope,lex[t].type,lex[t].value,[tt.value for tt in tmpf])
                                         if tmpNoEqualsAssign:
                                             # fixes  x y 12 ; x ; y
-                                            # it captures y 12 for x, it shouldnt
-                                            if lex[t].type not in ('ID','ASSIGN'):
+                                            # it captures y 12 for x, it shouldn't
+                                            if lex[t].type not in ('ID','ASSIGN') or lex[t+1].type in typeOperators+('PIPE',):
                                                 tmpNoEqualsAssign=False
                                         if not tmpNoEqualsAssign:
                                             if lex[t].type in typeNewline and listScope==0 and tmpBracketScope==0 and tmpParenScope==0:
@@ -3205,10 +3207,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             listcomp['list']=f'range(0,{tval},{lex[lexIndex+1].value.split(":")[0]})'
                                     else:
                                         listcomp['list']=f'range({tval})'
-                        elif tok.value in storedVarsHistory and storedVarsHistory[tok.value]['type'] in ('LIST','DICT','LISTCOMP') and autoEnumerate \
+                        elif autoEnumerate and ((tok.value in storedVarsHistory and 'type' in storedVarsHistory[tok.value] and storedVarsHistory[tok.value]['type'] in ('LIST','DICT','LISTCOMP')) or tok.type == 'DICT')  \
                         and lexIndex-3 >= 0 and lex[lexIndex-1].type == 'INS' and lex[lexIndex-2].type == 'COMMAGRP' and inLoop[0]==True:
                             # enumerate in for loop like  for index,value in myList
-                            if storedVarsHistory[tok.value]['type'] == 'DICT':
+                            if tok.type == 'DICT' or ('type' in storedVarsHistory[tok.value] and storedVarsHistory[tok.value]['type'] == 'DICT'):
                                 if lex[lexIndex-2].value.count(',') > 1:
                                     line.append(f'enumerate({tok.value}.items())')
                                 else:
@@ -4599,6 +4601,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     else:
                                         tmpfunc.append(f'({"".join(line[tmp:])})')
                                         line=line[:tmp]
+                                        if '(' not in line:
+                                            while tmpfunc[-1].startswith('((') and tmpfunc[-1].endswith('))'):
+                                                tmpfunc[-1]=tmpfunc[-1][1:-1]
                             else:
                                 return AS_SyntaxError('closing ) is missing opening (',
                                 f'(1,2,3) to {lex[lexIndex+1].value}',lineNumber,data)
@@ -4755,7 +4760,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         parenScope-=tok.value.count(')') ; parenScope+=tok.value.count('(')
                         listScope -= tok.value.count(']'); listScope += tok.value.count('[')
                     if tok.value[-1] == '(': parenScope+=1
-                    
+
                     if tok.type=='BUILTINF' and tok.value.split('.')[0] in storedVarsHistory \
                     and storedVarsHistory[tok.value.split('.')[0]]['type']=='LIST' and len(tok.value.split('.')) > 1 and '.'+tok.value.split('.')[1] in listMods and 'value' in storedVarsHistory[tok.value.split('.')[0]]:
                         del storedVarsHistory[tok.value.split('.')[0]]['value']
