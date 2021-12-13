@@ -610,34 +610,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     
                 else: lex.append(tok)
             else:
-                if inFrom or True:
-                    for i in miniLex.tokenize(REsub(r"""(,(?=[^']*(?:'[^']*'[^']*)*$))|,(?=[^"]*(?:"[^"]*"[^"]*)*$)""",' , ',tok.value)):
-                        if i.type == 'STRING' and i.value[0] == 'f': # jumpy
-                            createFString(tok)
-                        else:
-                            lex.append(i)
-                            lexIndex+=1
-                        if debug: print('--',i)
-                    lexIndex-=1 # i dont know why butff i think this works
-                    inFrom=False
-                else:
-                    lex.append(tok)
-            if False: # jumpy
-                if tok.value[-1] == ']' and (lex[lexIndex].type == 'LIST' or '[' not in tok.value):
-                    tok.value=tok.value[:-1]
-                    tmptok=deepcopy(tok)
-                    tmptok.type='LISTEND' ; tmptok.value=']'
-                    lex.append(tmptok) ; del tmptok ; lexIndex+=1
-                elif REmatch(r'([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*\[', tok.value):
-                    # when a index is mistaken for commagrp
-                    if lex[lexIndex].type == 'TYPE':
-                        lex[lexIndex].type = 'ID' ; reservedIsNowVar.append(lex[lexIndex].value.strip())
-                    tmp=tok.value.split('[')[0]+' ['+'['.join(tok.value.split('[')[1:])
-                    for i in miniLex.tokenize(tmp+' '):
+                for i in miniLex.tokenize(REsub(r"""(,(?=[^']*(?:'[^']*'[^']*)*$))|,(?=[^"]*(?:"[^"]*"[^"]*)*$)""",' , ',tok.value)):
+                    if i.type == 'STRING' and i.value[0] == 'f':
+                        createFString(tok)
+                    else:
                         lex.append(i)
-                        lexIndex += 1
-                        if debug: print('--', i)
-                    tok.type='IGNORE'
+                        lexIndex+=1
+                    if debug: print('--',i)
+                lexIndex-=1 # i dont know why butff i think this works
+                inFrom=False
         elif tok.type in {'STRAW','STRLIT','STRING'}:
             if tok.type in ('STRRAW','STRLIT'): tok.type='STRING'
             if tok.value[0]=='f':
