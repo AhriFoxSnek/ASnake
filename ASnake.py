@@ -5367,7 +5367,10 @@ if __name__ == '__main__':
         except: pass
     if args.python_compatibility:
         data = "$ pythonCompatibility\n" + data
-    if args.cython: compileTo='Cython' ; enforceTyping = True
+    if args.cython:
+        compileTo='Cython' ; enforceTyping = True
+        if compileAStoPy and not args.annotate:
+            pep = False
     elif args.pyston: compileTo='Pyston'
     elif args.pypy: compileTo='PyPy3'
     else: compileTo='Python'
