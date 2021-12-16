@@ -4792,18 +4792,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if check: line.append(decideIfIndentLine(indent,expPrint[-1]+'(')) ; bigWrap=True ; rParen+=1
 
                     if fstrQuote in tok.value and ',' in tok.value and fstrQuote in tok.value.split(',')[0]:
-                        tmpFName=tmpCName=''
+                        # splitting it from COMMAGRP
                         for splitIndex in range(len(tok.value)-1,0,-1):
                             if tok.value[splitIndex] == fstrQuote:
-                                tmpFName=tok.value[:splitIndex+1] # fstring
-                                tmpCName=tok.value[splitIndex+1:] # commagrp
-                        tok.value = tmpFName
-                        tmpf = []
-                        for t in miniLex(tmpCName.replace(',',' , ')+' '):
-                            tmpf.append(t)
-                        for t in reversed(tmpf):
-                            if debug: print('--', t)
-                            lex.insert(lexIndex+1, t)
+                                tok.value = tok.value[:splitIndex+1] # fstring
 
                     if tok.value[-1] == fstrQuote:
                         fstrQuote=''
