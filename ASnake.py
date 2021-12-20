@@ -17,7 +17,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.12.4'
+ASnakeVersion='v0.12.5'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -83,7 +83,7 @@ class Lexer(Lexer):
                DIVIDE, RDIVIDE, ASSIGN, LPAREN, RPAREN, STRING, NEWLINE,
                GREATER, GREATEQ, LESS, LESSEQ, EQUAL, ELIF, IF, ELSE, THEN,
                LISTCOMP, WHILE, IGNORENL, NOTHING, FUNCTION, NOTEQ,
-               LIST, BUILTINF, INS, IMPORT, TAB, CASE, OF, PIPE, INDEX,
+               LIST, BUILTINF, INS, IMPORT, TAB, MATCH, OF, PIPE, INDEX,
                PYPASS, AND, OR, DEFFUNCT, FROM, RETURN, TYPE, COMMAGRP, FOR,
                END, ARE, ANYOF, BOOL, COMMA, CONSTANT, TRY, LOOP, STRLIT, 
                STRRAW, SET, DICT, MODULO, ASYNC, NRANGE, EXPONENT, PYDEF,
@@ -144,8 +144,8 @@ class Lexer(Lexer):
     WITHAS  = r'(with|(?![^\w\d])as) '
     WHILE   = r'while|until'
     NOTHING = r'(pass|nothing,?)(?= |$|\n)'
-    CASE    = r'case +'
-    OF      = r'of( |(?=[\W\d]))'
+    MATCH   = r'match +'
+    OF      = r'((case)|(of))( |(?=[\W\d]))'
     END     = r'end(?=\s|;)'
     PIPE    = r'(into|to)(?!\S)'
     PIPEGO  = r'pipe(?= |\t)'
@@ -187,7 +187,7 @@ class Lexer(Lexer):
     RPAREN  = r'\)|]'
     
 
-def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonVersion=3.9,enforceTyping=False,variableInformation={},outputInternals=False,metaInformation=False):
+def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonVersion='3.10',enforceTyping=False,variableInformation={},outputInternals=False,metaInformation=False):
     # data is the string version of code for parsing
     # optimize when True will enable optimization phase ahd optimizations, False will disable any optimizations.
     # comment when True will output comments in the final file, False will attempt to have minimal comments.
@@ -226,19 +226,30 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     setUpdateMethods=('.add','.clear','.discard','.difference_update','.intersection_update','.pop','.remove','.symmetric_difference_update','.update')
     pyBuiltinFunctions=('abs', 'delattr', 'hash', 'memoryview', 'set', 'all', 'dict', 'help', 'min', 'setattr', 'any', 'dir', 'hex', 'next', 'slice', 'ascii', 'divmod', 'id', 'object', 'sorted', 'bin', 'enumerate', 'input', 'oct', 'staticmethod', 'bool', 'int', 'open', 'str', 'breakpoint', 'isinstance', 'ord', 'sum', 'bytearray', 'filter', 'issubclass', 'pow', 'super', 'bytes', 'float', 'iter', 'print', 'tuple', 'callable', 'format', 'len', 'property', 'type', 'chr', 'frozenset', 'list', 'range', 'vars', 'classmethod', 'getattr', 'locals', 'repr', 'zip', 'compile', 'globals', 'map', 'reversed', 'complex', 'hasattr', 'max', 'round', 'exec', 'eval', '__import__', 'exit')
     pyReservedKeywords=('False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield')
-    ASnakeKeywords=('nothing', 'minus', 'plus', 'times', 'greater', 'end', 'of', 'case', 'until', 'then', 'do', 'does', 'less', 'than', 'equals', 'power', 'remainder','loop')
+    ASnakeKeywords=('nothing', 'minus', 'plus', 'times', 'greater', 'end', 'of', 'until', 'then', 'do', 'does', 'less', 'than', 'equals', 'power', 'remainder', 'loop', 'case', 'match')
+    # ^ match and case are not ASnake keywords, however can be reassigned in Python, so better to leave it in ASnakeKeywords
     metaPyCompat = {'pythonCompatibility','pycompat','pyCompatibility','pyCompat','pythonCompat'}
     metaPyVersion = {'version','pythonVersion','pyver','PythonVersion','pyVersion'}
 
-    if compileTo == 'PyPy3': pythonVersion=3.7
-    elif compileTo == 'Cython': pythonVersion=3.6
-    elif compileTo == 'Pyston': pythonVersion=3.8
 
-    if isinstance(pythonVersion, str) and pythonVersion.isdigit():
-        pythonVersion=int(pythonVersion)
+    if compileTo == 'PyPy3': pythonVersion='3.7'
+    elif compileTo == 'Cython': pythonVersion='3.6'
+    elif compileTo == 'Pyston': pythonVersion='3.8'
 
     if compileTo == 'Cython': code=['#cython: language_level=3\n# Cython compiled by ASnake '+ASnakeVersion]
     else: code=[f'# Python{pythonVersion} compiled by ASnake '+ASnakeVersion]
+
+    tmp = str(pythonVersion).split('.')
+    if len(tmp[-1]) == 1:
+        # convert sub .10 versions to have a 0
+        # like 3.7 -> 3.07
+        pythonVersion=float(tmp[0]+'.0'+tmp[1])
+
+    if isinstance(pythonVersion, str):
+        pythonVersion=float(pythonVersion)
+
+    if pythonVersion >= 3.10:
+        codeDict['OF']='case'
 
 
     def makeToken(clone,value=None,type=None):
@@ -453,7 +464,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lexIndex+=1
                 del tmptok
             else:
-                if tok.type == 'NUMBER' and pythonVersion < 3.6 and '_' in tok.value: tok.value = tok.value.replace('_', '')
+                if tok.type == 'NUMBER' and pythonVersion < 3.06 and '_' in tok.value: tok.value = tok.value.replace('_', '')
                 lex.append(tok)
         elif tok.type in {'HEXDEC','SCINOTAT'}:
             tok.type = 'NUMBER' ; lex.append(tok)
@@ -737,9 +748,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lex.append(tok)
             elif lex[lexIndex].type == 'PIPEGO':
                 lex[lexIndex].type='ID' ; lex.append(tok) ; reservedIsNowVar.append('pipe')
-            elif lex[lexIndex].type != 'ID' and (any(True for x in ASnakeKeywords if x == lex[lexIndex].value) \
+            elif lex[lexIndex].type != 'ID' and (any(True for x in ASnakeKeywords if x == lex[lexIndex].value.strip()) \
             or any(True for x in [i for i in convertType]+list(defaultTypes) if x == lex[lexIndex].value)):
-                # !! allows reassignment of reserved keywords !!                    add any new ones here ^
+                # !! allows reassignment of reserved keywords !!
                 lex[lexIndex].type = 'ID' ; lex.append(tok) ; reservedIsNowVar.append(lex[lexIndex].value)
             else: lex.append(tok)
         elif lex[lexIndex].type not in typeNewline and tok.type in ('LOOP','WHILE'):
@@ -765,6 +776,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif tok.type == 'ENDIF' and bracketScope > 0: tok.type='COLON' ; lex.append(tok)
         elif tok.type == 'SHEBANG':
             keepAtTop.append(tok) ; lexIndex-=1
+        elif tok.type == 'IF' and lex[lexIndex].type in {"OR","AND"}:
+            lexIndex-=1
         else:
             if reservedIsNowVar and tok.value in reservedIsNowVar: tok.type='ID'
             lex.append(tok)
@@ -841,9 +854,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             optFuncTricksDict['boolTonotnot']=False
 
         # vv incompatible optimizations vv
-        if pythonVersion < 3.6:
+        if pythonVersion < 3.06:
             optStrFormatToFString=False
-        elif pythonVersion < 3.8:
+        elif pythonVersion < 3.08:
             optWalrus = False
 
 
@@ -983,7 +996,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             tmptok=deepcopy(lex[token]) ; tmptok.type='RPAREN' ; tmptok.value=')' ; tmpf.insert(0,tmptok) ; del tmptok
                                     else: tmpf=[l for l in tmpf if tmpf.type != 'IGNORE']
 
-                                    search=True ; linkType=True ; ignores=[] ; inDef=False ; wasInDefs=False ; inFrom=False
+                                    search=True ; linkType=True ; ignores=[] ; inDef=False ; wasInDefs=False ; inFrom=False ; inCase=False
                                     # wasInDefs is for determining if a later define could break behaviour inside of functions
                                     tmpIDshow=0 ; tmpAddToIgnoresWhenNL = 0
                                     for tmpi in range(valueStop+1,len(lex)): # check if we can determine its a constant
@@ -1062,13 +1075,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         elif lex[tmpi].type == 'TRY': ignores.append(tmpi) ; break
                                         elif lex[tmpi-1].type == 'INS' and lex[tmpi-2].type == 'COMMAGRP' and lex[tmpi].type == 'ID' and lex[tmpi].value == lex[token].value and vartype == 'DICT':
                                             search=False # dicts don't seem to play well with stuff like enumerate
-                                        elif lex[tmpi].type == 'ID' and lex[tmpi].value == lex[token].value:
+                                        elif (not inFrom and not inCase ) and lex[tmpi].type == 'ID' and lex[tmpi].value == lex[token].value:
                                             tmpIDshow+=1
                                         elif lex[tmpi].type in typeNewline:
                                             if tmpAddToIgnoresWhenNL > 0:
                                                 ignores.append(tmpAddToIgnoresWhenNL)
                                                 tmpAddToIgnoresWhenNL = 0
                                             if inFrom: inFrom=False
+                                            inCase=False
+                                        elif lex[tmpi].type == 'IF':
+                                            inCase=False
+                                        elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value:
+                                            inCase=True
                                     if len([True for tmpi in range(token,0,-1) if lex[tmpi].type in ('SCOPE','META',) and lex[token].value in lex[tmpi].value])>0: search=False
                                     # ^^ no global var pls
                                     if len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TRY' and 'try' in lex[tmpi].value])>len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TRY' and 'except' in lex[tmpi].value]): search=False
@@ -1081,6 +1099,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         tmpindent=0 # keeping track if constant is in indented block
                                         ignore=False # ignoring function blocks
                                         inLoop=[False,0]
+                                        inCase=False # similar to inFrom ; do not replace constants in OF case statements
                                         for tmpi in range(token-1,0,-1):
                                             if lex[tmpi].type == 'TAB':
                                                 tmpindent=lex[tmpi].value.replace('\t',' ').count(' ')
@@ -1101,8 +1120,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             else: print('str',lex[token].value,'=',''.join([f for f in tmpf]))
 
                                         for tmpi in range(valueStop,len(lex)):
-                                            if inFrom:
-                                                if lex[tmpi].type in typeNewline: inFrom=False
+                                            if inFrom or inCase:
+                                                if lex[tmpi].type in typeNewline: inFrom=inCase=False
+                                                elif inCase and lex[tmpi].type == 'IF': inCase=False # its fine on a conditional guard
                                             else:
                                                 if search and ignores!=[]:
                                                     if isinstance(ignores[0], int) and ignores[0] == tmpi:
@@ -1185,6 +1205,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         lex[tmpi].value=','.join(tmp)
 
                                                     elif lex[tmpi].type == 'FROM': inFrom=True
+                                                    elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value: inCase=True
                                                     elif (lex[tmpi].type=='TAB' and lex[tmpi].value.replace('\t',' ').count(' ') < tmpindent) \
                                                     or (lex[tmpi].type == 'NEWLINE' and lex[tmpi].type!='TAB' and tmpindent>0) or (lex[tmpi].type=='THEN' and '\n' in lex[tmpi].value and lex[tmpi].value.replace('\t',' ').count(' ') < tmpindent):
                                                         break # if inside a indented block, try and stay local to that, do not escape it
@@ -1285,6 +1306,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 tmpi=2
                             else: tmpi=1
 
+                            if safe: # check behind
+                                tmpFirstTNewline=False
+                                for tmpii in range(token-1,0,-1):
+                                    if tmp:
+                                        if lex[tmpii].type in typeNewline:
+                                            if tmpFirstTNewline: break
+                                            else: tmpFirstTNewline = True
+                                        elif lex[tmpii].type == 'OF': safe = False
+
                             if safe:
                                 tmpIndent = 0 ; tmp = 1
                                 if lex[token - 1].type == 'TYPE': tmp = 2
@@ -1327,6 +1357,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if token-3>0 and lex[token-3].type == 'CONSTANT':
                                             lex[token-3].type='IGNORE'
                                         newOptimization=True
+
                         if optPow:
                             # x ** e % y turns into pow(x , e , y)
                             # this optimization should only occur if one of the values is not known,
@@ -2380,7 +2411,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
             elif optDeadVariableElimination and lex[token].type == 'ID' and lex[token].value != 'print':
                 if ((lex[token + 1].type in typeAssignables and lex[token+1].type!='LIST') or (lex[token + 1].type=='ASSIGN' and lex[token + 1].value in ('=','is','is '))) and lex[token - 1].type in typeNewline + ('CONSTANT', 'TYPE'):
-                    delPoint = tmpIndent = None ; check = True ; tmpReplaceWithPass = False
+                    delPoint = tmpIndent = None ; check = True ; tmpReplaceWithPass = inCase = False
                     tmpCurrentIndent = 0
                     # tmpIndent is var's indent, tmpCurrentIndent is iterations indent
                     for tmpi in range(token-1, 0, -1):
@@ -2389,23 +2420,27 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if tmpIndent==None: tmpIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
                             if delPoint==None: delPoint=tmpi
                             tmpCurrentIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
+                            inCase=False
                         elif lex[tmpi].type == 'NEWLINE':
                             if tmpIndent==None: tmpIndent = 0
                             if delPoint==None: delPoint=tmpi
                             tmpCurrentIndent = 0
+                            inCase=False
                         elif lex[tmpi].type == 'THEN':
                             if delPoint==None: delPoint=tmpi
+                            inCase=False
                         elif lex[tmpi].type == 'SCOPE' and lex[token].value in lex[tmpi].value :
                             check=False ; break
                         elif lex[tmpi].type == 'FROM': break
-                        elif lex[tmpi].type in ('ID', 'INC', 'BUILTINF','FUNCTION') and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value):
-                            #if tmpIndent != None and tmpCurrentIndent >= tmpIndent and lex[tmpi+1].type not in ('ASSIGN',):
+                        elif not inCase and lex[tmpi].type in ('ID', 'INC', 'BUILTINF','FUNCTION') and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value):
                             check = False
                         elif lex[tmpi].type == 'PYDEF' and lex[token].value in lex[tmpi].value.split('(')[-1]:
                             check = False ; break
                         elif lex[tmpi].type in typeConditonals and delPoint:
                             # prevents dead variables defined in conditionals from breaking syntax
                             tmpReplaceWithPass = True
+                            if lex[tmpi].type == 'IF':
+                                inCase = False
                         elif lex[tmpi].type == 'PYCLASS' and delPoint:
                             check=False
                         elif lex[tmpi].type == 'TYPEWRAP':
@@ -2415,17 +2450,19 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             else: tmpIndent=None
                             if delPoint: break
                             else: delPoint=tmpi
+                        elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value:
+                            inCase=True
                     if delPoint == None or tmpIndent == None: check=False
                     if check:
-                        breakOnNextNL=False ; ttenary=False
+                        breakOnNextNL=False ; ttenary=inCase=False
                         for tmpi in range(token + 1, len(lex) - 1):
                             #print(lex[token].value,'+!',lex[tmpi].value,lex[tmpi].type,ttenary,tmpIndent)
-                            if lex[tmpi].type in ('ID', 'INC', 'BUILTINF','FUNCTION') and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value):
+                            if not inCase and lex[tmpi].type in ('ID', 'INC', 'BUILTINF','FUNCTION') and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value):
                                 check=False ; break
                             elif lex[tmpi].type == 'INDEX' and lex[tmpi].value.startswith(lex[token].value):
                                 check=False ; break
                             elif lex[tmpi].type == 'LISTCOMP' and lex[tmpi].value.split(':')[0] == lex[token].value: check=False ; break
-                            elif lex[tmpi].type == 'COMMAGRP' and any(True for x in lex[tmpi].value.split(',') if x.split('=')[-1].strip() == lex[token].value or lex[token].value+'.' in x.strip() or lex[token].value+'[' in x.strip()): check=False ; break
+                            elif not inCase and lex[tmpi].type == 'COMMAGRP' and any(True for x in lex[tmpi].value.split(',') if x.split('=')[-1].strip() == lex[token].value or lex[token].value+'.' in x.strip() or lex[token].value+'[' in x.strip()): check=False ; break
                             elif lex[tmpi].type == 'FROM':
                                 for tmpii in range(tmpi, 0, -1):
                                     if lex[tmpii].type == 'TAB':
@@ -2437,9 +2474,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lex[tmpi].type == 'ASSIGN' and ':' not in lex[tmpi].value and lex[tmpi+1].type == 'IF':
                                 ttenary=True
                             elif lex[tmpi].type == 'ELSE' and ttenary: ttenary=False
-                            elif breakOnNextNL and not ttenary and lex[tmpi].type in typeNewline: break
+                            elif breakOnNextNL and not ttenary and lex[tmpi].type in typeNewline: inCase=False ; break
                             elif lex[tmpi].type == 'INDEX' and f" {lex[token].value} " in lex[tmpi].value:
                                 check = False ; break
+                            elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value:
+                                inCase = True
+                            elif lex[tmpi].type == 'IF':
+                                inCase = False
 
                     if check:  # remove the var
                         ttenary = tmpPass = False ; tmpEnd = tmpParenScope = 0
@@ -2808,7 +2849,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         return impure
     def optAddCache():
         nonlocal code, line, lastType, pythonVersion, startOfLine
-        tmpCache = 'cache' if pythonVersion >= 3.9 else 'lru_cache'
+        tmpCache = 'cache' if pythonVersion >= 3.09 else 'lru_cache'
         if any(i for i in code if f'from functools import {tmpCache}\n' in i) == False:
             code.insert(1, f'from functools import {tmpCache}\n')
         startOfLine = True
@@ -2882,7 +2923,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif hasPiped==None: hasPiped=False
         # ^ delays hasPiped settings to false by one instruction, for multiple pipes per line. hasPiped is to prevent pipe overrides
         if switchCase['case'] and 'indent' in switchCase and indent<switchCase['indent'] and tok.type != 'OF':
-            #print(indent,switchCase['indent']);exit()
             if lex[lexIndex].type == 'ELSE': pass  # ELSE is an exception where switch-case doesn't end yet
             else: switchCase={'case':False}
         # ^ resets switch-case if it detects indentation is smaller or equal, as this means the switch is over
@@ -3321,24 +3361,46 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if debug: print('listcomp pizza',listcomp)
                     if startOfLine: line.append(f'{" "*indent}[') ; startOfLine=False
                     else: line.append('[')
-            elif tok.type == 'CASE':
+            elif tok.type == 'MATCH': # idMATCH
                 if fstrQuote!='':
-                    return AS_SyntaxError(f'case is not allowed inside f-string',None, lineNumber, data)
+                    return AS_SyntaxError(f'match is not allowed inside f-string',None, lineNumber, data)
                 if lexIndex+2 <= len(lex)-1 and lex[lexIndex+1].type in typeAssignables+('INDEX','BUILTINF','LPAREN'):
-                    if lex[lexIndex+2].type == 'INDEX':
-                        lex[lexIndex+1].value=lex[lexIndex+1].value+lex[lexIndex+2].value
-                        lex[lexIndex+1].type='IGNORE'
+                    tmpHideMatch = True
+                    if pythonVersion >= 3.10:
+                        for tmpi in range(lexIndex+1,len(lex)-1):
+                            # find out if of or case
+                            if lex[tmpi].type == 'OF':
+                                if 'case' in lex[tmpi].value:
+                                    tmpHideMatch = False
+                                else: break
+                    if tmpHideMatch:
+                        if lex[lexIndex+2].type == 'INDEX':
+                            lex[lexIndex+1].value=lex[lexIndex+1].value+lex[lexIndex+2].value
+                            lex[lexIndex+1].type='IGNORE'
+                    else:
+                        line.append(decideIfIndentLine(indent, 'match '))
+                        indentSoon = True ; indent += prettyIndent
                     tmpf=[]
-                    for tmpi in range(lexIndex+1,len(lex)):
-                        if lex[tmpi].type in typeNewline: break
-                        else: tmpf.append(deepcopy(lex[tmpi])) ; lex[tmpi].type='IGNORE'
+                    for tmpi in range(lexIndex+1,len(lex)-1):
+                        if lex[tmpi].type in typeNewline:
+                            if not tmpHideMatch and lex[tmpi].type == 'NEWLINE':
+                                lex[tmpi].type = 'THEN'
+                            break
+                        else:
+                            tmpf.append(deepcopy(lex[tmpi]))
+                            if tmpHideMatch:
+                                lex[tmpi].type='IGNORE'
+                    if tmpf[-1].type == 'ENDIF':
+                        # ENDIF screws up OFs by making a TAB after, thus remove ENDIF if it exists
+                        tmpf=tmpf[:-1]
                     if len(tmpf)==0:
-                        return AS_SyntaxError(f'case is not provided a statement.','case variable', lineNumber, data)
-                    switchCase={'case':True,'var':tmpf,'firstIf':True}
+                        return AS_SyntaxError(f'match is not provided a statement.','match variable', lineNumber, data)
+                    switchCase={'case':True,'var':tmpf,'firstIf':True,'type':'of'}
+                    if not tmpHideMatch:
+                        switchCase['type']='case'
+                        switchCase['indent']=indent # jumpy
                 else:
-                    return AS_SyntaxError(f'case is not provided a statement.',
-                        'case variable'
-                        ,lineNumber,data)
+                    return AS_SyntaxError(f'match is not provided a statement.','match variable',lineNumber,data)
             elif tok.type == 'IGNORENL':
                 ignoreNewline=True
                 lineNumber+=1
@@ -3625,17 +3687,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmp=f'Line {lineNumber} assigns to reserved Python keyword: {lastValue.strip()}'
                                 else: tmp=f'Line {lineNumber} assigns with invalid type: \"{lastType}\".'
                                 return AS_SyntaxError(tmp,'variableName %s %s'%(tok.value.replace(' ',''),lex[lexIndex+1].value),lineNumber,data)
-                        elif lex[lexIndex+1].type == 'FSTR' and fstrQuote != '' and pythonVersion >= 3.8:
+                        elif lex[lexIndex+1].type == 'FSTR' and fstrQuote != '' and pythonVersion >= 3.08:
                             line.append('= ')
                         else:
                             return AS_SyntaxError(f'Line {lineNumber} does not assign to anything.',
                             'variableName is 12'
                             ,lineNumber,data)
-                    elif pythonVersion < 3.8 and ':' in tok.value:
+                    elif pythonVersion < 3.08 and ':' in tok.value:
                         return AS_SyntaxError(f'Walrus assignment not allowed when compiling to {compileTo if compileTo != "Python" else "Python"+str(pythonVersion)}',
                             'a is 12'
                             ,lineNumber,data)
-                    elif pythonVersion < 3.8 and fstrQuote != '' and ':' not in tok.value:
+                    elif pythonVersion < 3.08 and fstrQuote != '' and ':' not in tok.value:
                         tmp='}' ; tmpf=[]
                         for i in range(lexIndex,0,-1):
                             if lex[i].type in typeNewline: break
@@ -3761,27 +3823,43 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 combineLines=False
                             if inIf==False: code.append(''.join(line)) ; line=[]
                             else: indentSoon=startOfLine=False ; line[-1]+=' ' ; inIf=True
-                        elif tok.type == 'OF' and switchCase['case'] == True:
-                            if comment: line.append(f'{" "*indent}# of\n')
-                            if switchCase['firstIf'] == True:
-                                line.append(decideIfIndentLine(indent,'if '))
-                                switchCase['firstIf']=False
-                                switchCase['indent']=indent
+                        elif tok.type == 'OF' and switchCase['case'] == True: # idOF
+                            if pythonVersion >= 3.10 and 'case' in tok.value:
+                                indent = switchCase['indent'] + prettyIndent
+                                line.append(decideIfIndentLine(indent,codeDict[tok.type]+' '))
+                                indentSoon=True
+                            elif 'case' in tok.value:
+                                tmp=[]
+                                for tmpi in range(lexIndex+1,len(lex)-1):
+                                    if lex[tmpi].type in typeNewline:
+                                        break
+                                    else:
+                                        tmp.append(lex[tmpi].value)
+                                tmp=' '.join(tmp)
+                                return AS_SyntaxError("'case' statement only allowed in Python version 3.10 and up.\n\tUse 'of' statement instead.",
+                                                      f"match {' '.join([i.value for i in switchCase['var']])}\n\t\tof {tmp}\n\t\t\t'something'",
+                                                      lineNumber, data)
                             else:
-                                indent=switchCase['indent']
-                                line.append(decideIfIndentLine(indent,'elif '))
-                            [lex.insert(lexIndex+1,tmptok) for tmptok in reversed(switchCase["var"])]
-                            if lex[lexIndex+len(switchCase["var"])+1].type in typeAssignables:
-                                lex.insert(lexIndex+len(switchCase["var"])+1,makeToken(tok,'==','EQUAL'))
-                            indentSoon=True
-                            startOfLine=False
-                            if lastIndent[2] and lastIndent[2][-1] < indent:
-                                lastIndent[2].append(indent)
-                            elif lastIndent[2] and lastIndent[2][-1] > indent:
-                                # if last conditional is greater indent than current of, we can remove it
-                                lastIndent[2].pop()
-                            if debug: print('>',indent,switchCase['indent'],line)
-                        elif tok.type == 'OF' and switchCase['case'] == False: return AS_SyntaxError('switch case needs case statement','case myVar\n\tof "some" do 1\n\tof "thing" do 2',lineNumber,data)
+                                if comment: line.append(f'{" "*indent}# of\n')
+                                if switchCase['firstIf'] == True:
+                                    line.append(decideIfIndentLine(indent,'if '))
+                                    switchCase['firstIf']=False
+                                    switchCase['indent'] = indent
+                                else:
+                                    switchCase['indent'] = indent
+                                    line.append(decideIfIndentLine(indent,'elif '))
+                                [lex.insert(lexIndex+1,tmptok) for tmptok in reversed(switchCase["var"])]
+                                if lex[lexIndex+len(switchCase["var"])+1].type in typeAssignables:
+                                    lex.insert(lexIndex+len(switchCase["var"])+1,makeToken(tok,'==','EQUAL'))
+                                indentSoon=True
+                                startOfLine=False
+                                if lastIndent[2] and lastIndent[2][-1] < indent:
+                                    lastIndent[2].append(indent)
+                                elif lastIndent[2] and lastIndent[2][-1] > indent:
+                                    # if last conditional is greater indent than current of, we can remove it
+                                    lastIndent[2].pop()
+                                if debug: print('>',indent,switchCase['indent'],line)
+                        elif tok.type == 'OF' and switchCase['case'] == False: return AS_SyntaxError('match case needs match statement','match myVar\n\tof "some" do 1\n\tof "thing" do 2',lineNumber,data)
                         else:
                             if tok.type == 'ELIF' and lastType not in typeNewline:
                                 tmpi=1
@@ -4288,7 +4366,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if compileTo == 'Cython' and inLoop[0]==False and lex[lexIndex+1].value not in storedVarsHistory:
                                     line.append(decideIfIndentLine(indent,f"cdef {tok.value} "))
                             else:# compileTo == 'Python':
-                                if pythonVersion >= 3.6: lex[lexIndex+1].value=f"{lex[lexIndex+1].value}: {tok.value}"
+                                if pythonVersion >= 3.06: lex[lexIndex+1].value=f"{lex[lexIndex+1].value}: {tok.value}"
                                 elif lex[lexIndex+2].type in typeNewline:
                                     if tok.value == 'str': tmp=('""','STRING')
                                     elif tok.value == 'int': tmp=('0','NUMBER')
@@ -4297,6 +4375,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     elif tok.value == 'dict': tmp=('{}','DICT')
                                     else: tmp=('None','BOOL')
                                     lex.insert(lexIndex+2,makeToken(tok,value=tmp[0],type=tmp[1]))
+                                    lex.insert(lexIndex+2,makeToken(tok, value='=', type='ASSIGN'))
                                 if lexIndex+2 < len(lex) and lex[lexIndex+2].type in typeAssignables:
                                     lex[lexIndex+1].value=f"{lex[lexIndex+1].value}"
 
@@ -5094,7 +5173,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 doPrint=False
                 else: doPrint=False
                 if tok.value.startswith('++') or tok.value.startswith('--'):
-                    if lastType in ('IF','ELIF') and pythonVersion >= 3.8:
+                    if lastType in ('IF','ELIF') and pythonVersion >= 3.08:
                         tmp=tok.value[2:]
                         line.append(f'({tmp} := {tmp} {tok.value[0]} 1)')
                     else:
@@ -5186,9 +5265,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif intVsStrDoLen and (lastType in ('NUMBER','INC') or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type']=='NUMBER')) \
                 and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in ('STRING','LIST','LISTCOMP','DICT','TUPLE') or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type'] in ('STRING','LIST','LISTCOMP','DICT','TUPLE')))):
                     tmp=False
-                    for tmpi in range(lexIndex,len(lex)):
+                    for tmpi in range(lexIndex+1,len(lex)-1):
                         if lex[tmpi].type in typeNewline: break
-                        elif lex[tmpi].type == 'RINDEX':
+                        elif lex[tmpi].type in {'RINDEX','LISTEND'}:
                             lex[tmpi].value+=')' ; tmp=(True,tmpi) ; break
                     line.append(f"{codeDict[tok.type]} len(")
                     if tmp == False: line[-1]+=f'{lex[lexIndex+1].value})'; lex[lexIndex+1].type = 'IGNORE'
@@ -5321,7 +5400,7 @@ if __name__ == '__main__':
     argParser.add_argument('--update', action='store_true', help="Updates ASnake to the latest version. Temporary until ASnake is installable by pip.")
     argParser.add_argument("file", type=FileType("r"), nargs='?', const='notGiven', help="Your ASnake file to compile.")
 
-    pythonVersion=3.9
+    pythonVersion='3.10'
     enforceTyping=compileAStoPy=runCode=headless=debug=justRun=False
     comment=optimize=pep=fancy=True
 
