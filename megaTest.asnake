@@ -1,3 +1,5 @@
+$ pythonVersion = 3.10
+
 result None
 getResult does
 	global result 
@@ -49,7 +51,7 @@ else 'Divmod' $failed
 $start
 12///3
 if result is (4,0) $worked
-else 'DefualtExpression on Divmod' $failed
+else 'DefaultExpression on Divmod' $failed
 
 
 $start
@@ -208,7 +210,7 @@ else 'default print for fstring on asnake function' $failed
 
 $start
 x = 3
-case x
+match x
 of 1 do result is False
 of 2 do result is False
 of 3 do result is True
@@ -216,6 +218,17 @@ of 4 do result is False
 else result is False
 if result is True $worked
 else 'basic asnake case switch' $failed
+
+$start
+x = 3
+match x
+case 1 do result is False
+case 2 do result is False
+case 3 do result is True
+case 4 do result is False
+case _ do result is False
+if result is True $worked
+else 'basic python case switch' $failed
 
 
 $start
