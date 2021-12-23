@@ -3487,7 +3487,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             rParen-=1 ; break
                                         elif tmpi-1 == lexIndex and lex[lexIndex].type == 'ID' and lex[tmpi].type in typeAssignables+('INDEX','LPAREN'):
                                             rParen-=1 ; break
-                                    if rParen == tmp: # normal
+                                    if rParen == tmp or listScope > 0: # normal
                                         line.append(f'{" "*(indent)}{tok.value} ')
                                     else: # expression which can be print (no functions or assignment)
                                         line.append(decideIfIndentLine(indent,f'{expPrint[-1]}('))
@@ -4523,7 +4523,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if lexIndex-1 > 0 and lexIndex+1 < len(lex)-1 and len(line)>0:
                     if lex[lexIndex+1].type not in typeNewline+('IGNORE','INC','FSTR','PIPEGO','PIPE') and lex[lexIndex-1].type != 'IGNORE':
                         if lex[lexIndex+1].type == 'RBRACKET': bracketScope-=1
-
                         lex[lexIndex+1].value=f'{line[-1]},{lex[lexIndex+1].value}'
                         line=line[:-1]
                         lex[lexIndex+1].type='COMMAGRP' ; tok.type='IGNORE' ; lex[lexIndex-1].type='IGNORE'
@@ -5493,7 +5492,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 line.append(decideIfIndentLine(indent,tok.value))
                 indent+=prettyIndent
             elif tok.type in typeCheckers:
-                # jumpy
                 if intVsStrDoLen and (lastType in ('STRING','LIST','LISTCOMP','DICT','TUPLE') or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] in ('STRING','LIST','LISTCOMP','DICT','TUPLE'))) \
                 and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in ('NUMBER','INC') or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type']=='NUMBER'))):
                     line[-1]=line[-1].replace(lex[lexIndex-1].value,f"len({lex[lexIndex-1].value})")
