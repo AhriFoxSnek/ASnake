@@ -216,7 +216,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     typeAssignables=('STRING','NUMBER','ID','LIST','LISTEND','DICT','BINARY','LBRACKET')
     typeOperators=('PLUS','MINUS','TIMES','DIVIDE','RDIVIDE','EXPONENT','BITWISE','MODULO')
     typeCheckers=('LESS','LESSEQ','GREATEQ','GREATER', 'EQUAL', 'PYIS','NOTEQ')
-    typePrintable=typeAssignables+typeOperators+typeCheckers+('LINDEX','RINDEX','INDEX','LPAREN','RPAREN','MODULO','IGNORE','INC','INS','DIVMOD')
+    typePrintable=typeAssignables+typeOperators+typeCheckers+('LINDEX','RINDEX','INDEX','LPAREN','RPAREN','MODULO','IGNORE','INC','INS','DIVMOD','COMMA')
     mopConv={'TIMES':'*=','PLUS':'+=','DIVIDE':'/=','RDIVIDE':'//=','MINUS':'-='}
     typeMops=tuple(i for i in mopConv)
     typeConditonals=('IF','ELIF','ELSE','OF','WHILE')
@@ -2408,7 +2408,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                 t+=1
 
-                            for i in tmpf: # jumpy
+                            for i in tmpf:
                                 for ii in i:
                                     if ii.type == 'STRING' and '\\' in ii.value:
                                         # cancel optimization if there is backslash in a string
@@ -2597,6 +2597,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             #print(lex[token].value,'+!',lex[tmpi].value,lex[tmpi].type,ttenary,tmpIndent)
                             if not inCase and lex[tmpi].type in ('ID', 'INC', 'BUILTINF','FUNCTION') and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value):
                                 check=False ; break
+                            elif not inCase and lex[tmpi].type == 'NRANGE':
+                                tmp=False
+                                if '...' in lex[tmpi].value:
+                                    tmp=lex[tmpi].value.split('...')
+                                elif '..' in lex[tmpi].value:
+                                    tmp=lex[tmpi].value.split('..')
+                                elif 'to' in lex[tmpi].value:
+                                    tmp=lex[tmpi].value.split('to',1)
+                                if tmp:
+                                    tmp=[i.strip() for i in tmp]
+                                    if lex[token].value in tmp:
+                                        check=False ; break
                             elif lex[tmpi].type == 'INDEX' and lex[tmpi].value.startswith(lex[token].value):
                                 check=False ; break
                             elif lex[tmpi].type == 'LISTCOMP' and lex[tmpi].value.split(':')[0] == lex[token].value: check=False ; break
