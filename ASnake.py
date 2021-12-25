@@ -5634,7 +5634,6 @@ if __name__ == '__main__':
     argParser.add_argument('--update', action='store_true', help="Updates ASnake to the latest version. Temporary until ASnake is installable by pip.")
     argParser.add_argument("file", type=FileType("r"), nargs='?', const='notGiven', help="Your ASnake file to compile.")
 
-    pythonVersion='3.10'
     enforceTyping=compileAStoPy=runCode=headless=debug=justRun=False
     comment=optimize=pep=fancy=True
 
@@ -5702,6 +5701,12 @@ if __name__ == '__main__':
             print('# Downloaded latest ASnake.')
             if ASFile == False and not args.eval:
                 exit()
+
+    pythonVersion = '3.10'
+    if not args.pypy and not args.pyston and not args.version:
+        from platform import python_version_tuple
+        pv = python_version_tuple()
+        pythonVersion = pv[0] + '.' + pv[1]
 
     s=monotonic()
     if (compileTo == 'Cython' and justRun) == False:
