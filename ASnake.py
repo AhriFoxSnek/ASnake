@@ -3161,6 +3161,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     scopey=[]
                     if compileTo == 'Cython': # @ modifers
                         cyWrapAround=None
+                        tmpIndexScope=0
+                        tmpSafeVars=[]
                     while lexIndex+tmp < len(lex)-1:
                         if lex[lexIndex+tmp].type == 'FROM':
                             search=True
@@ -3171,12 +3173,23 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             scopey=' '.join(lex[lexIndex+tmp].value.split()[1:]).split(',')
                             impure = True
                         elif lex[lexIndex+tmp].type == 'DEFFUNCT' and lex[lexIndex+tmp]!=lex[lexIndex+1]: tmp=len(lex)+1
-                        if compileTo=='Cython' and optimize and lexIndex+tmp < len(lex)-1:
-                            if lex[lexIndex+tmp-1].type == 'LINDEX' and lex[lexIndex+tmp].type == 'MINUS': cyWrapAround=False
-                            elif lex[lexIndex+tmp-2].type == 'LINDEX' and (lex[lexIndex+tmp-1].type == 'NUMBER' or (lex[lexIndex+tmp-1].type == 'ID' and lex[lexIndex+tmp-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+tmp-1].value]['type'] == 'NUMBER'  and 'line' in storedVarsHistory[lex[lexIndex+tmp-1].value] and any(True for i in storedVarsHistory[lex[lexIndex+tmp-1].value]['line'] if i.type == 'MINUS')==False)) \
-                            and lex[lexIndex+tmp].type == 'RINDEX': cyWrapAround=True
-
+                        if compileTo=='Cython' and optimize and cyWrapAround in {True,None} and lexIndex+tmp < len(lex)-1:
+                            if lex[lexIndex+tmp].type == 'LINDEX': tmpIndexScope+=1
+                            elif lex[lexIndex+tmp].type == 'RINDEX': tmpIndexScope-=1
+                            elif lex[lexIndex+tmp].type == 'FOR' and ( lex[lexIndex+tmp+3].type in {'NUMBER','STRING','LIST','LBRACKET'} \
+                            or (lex[lexIndex+tmp+3].type == 'FUNCTION' and lex[lexIndex+tmp+3].value == 'range(' and lex[lexIndex+tmp+4].type == 'NUMBER' and (lex[lexIndex+tmp+5].type=='RPAREN' or (lex[lexIndex+tmp+6].type == 'NUMBER' and lex[lexIndex+tmp+7].type=='RPAREN'))) \
+                            or (lex[lexIndex+tmp+3].type == 'NUMBER' and lex[lexIndex+tmp+4].type=='PIPE' and lex[lexIndex+tmp+5].type == 'ID' and lex[lexIndex+tmp+5].value == 'range') ) :
+                                # check if for loop iterator var is safe
+                                tmpSafeVars.append(lex[lexIndex+tmp+1].value.strip())
+                            elif tmpIndexScope == 1:
+                                if (lex[lexIndex+tmp].type == 'ID' and lex[lexIndex+tmp].value in tmpSafeVars) or lex[lexIndex+tmp].type == 'NUMBER':
+                                    if cyWrapAround == None: cyWrapAround = True
+                                elif lex[lexIndex+tmp].type in {'TIMES','PLUS'}:
+                                    pass
+                                else: cyWrapAround = False # only safe-vars,numbers,plus,times are obviously safe
+                            elif tmpIndexScope > 1: cyWrapAround == False
                         tmp+=1
+                    if debug and optimize and compileTo == 'Cython': print('cyWrapAround =',cyWrapAround)
                     functionArgNames = []
                     functionArgTypes = {}
                     if all(True if i.type == 'COMMAGRP' else False for i in tmpf):
@@ -3249,7 +3262,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if optimize and optFuncCache and not impure and 'list' not in tmpf:
                         optAddCache()
                     if compileTo == 'Cython' and optimize: # append cy function mods
-                        if False and cyWrapAround:
+                        if cyWrapAround:
                             # disabled until better detection of when it is safe
                             if any(i for i in code if 'cimport cython\n' in i)==False:
                                 code.insert(1,'cimport cython\n')
