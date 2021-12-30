@@ -2532,7 +2532,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         else:
                             if min(_[0] for _ in preAllocated) > lex[token].value.count(' '): preAllocated=set()
                     elif optCompilerEval and ((lex[token].type in typeCheckers and lex[token].type != 'PYIS') or (lex[token].type == 'ASSIGN' and 'is' in lex[token].value and determineIfAssignOrEqual(token))) \
-                    and ( (lex[token-1].type in {'STRING','NUMBER'} and (lex[token+1].type in {'STRING','NUMBER'} or isANegativeNumberTokens(token+1)) and lex[token-2].type in typeConditionals+typeNewline+('AND','OR','LPAREN')) or (isANegativeNumberTokens(token-2) and (lex[token+1].type in {'STRING','NUMBER'} or isANegativeNumberTokens(token+1)) and lex[token-3].type in typeConditionals+typeNewline+('AND','OR','LPAREN') ) ):
+                    and ( (lex[token-1].type in {'STRING','NUMBER','BOOL'} and (lex[token+1].type in {'STRING','NUMBER','BOOL'} or isANegativeNumberTokens(token+1)) and lex[token-2].type in typeConditionals+typeNewline+('AND','OR','LPAREN')) or (isANegativeNumberTokens(token-2) and (lex[token+1].type in {'STRING','NUMBER'} or isANegativeNumberTokens(token+1)) and lex[token-3].type in typeConditionals+typeNewline+('AND','OR','LPAREN') ) ):
                         # eval bool conditionals when STRING and/or NUMBER
                         # jumpy BOOL
                         if lex[token].type == 'ASSIGN' and not pyCompatibility: lex[token].type = 'EQUAL'
@@ -2553,6 +2553,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmpValue1 = int(lex[token-1].value)
                             if lex[token-2].type == 'MINUS':
                                 tmpValue1 = -tmpValue1
+                        elif tmpType1 == 'BOOL':
+                            if lex[token-1].value == 'True': tmpValue1 = 1
+                            else: tmpValue2 = 0
                         if tmpType2 == 'STRING':
                             if lex[token+tmp2].value.startswith("'''") or lex[token+tmp2].value.startswith('"""'):
                                 tmpQuoteAmount = 6
@@ -2565,12 +2568,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmpValue2 = int(lex[token + tmp2].value)
                             if tmp2 == 2:
                                 tmpValue2 = -tmpValue2
+                        elif tmpType2 == 'BOOL':
+                            if lex[token + tmp2].value == 'True': tmpValue2 = 1
+                            else: tmpValue2 = 0
 
                         # check if True/False
                         safe = False
                         if not pyCompatibility and ((tmpType1 == 'STRING' and tmpType2 in {'STRING', 'NUMBER'}) or (tmpType1 == 'NUMBER' and tmpType2 == 'STRING')):
                             safe = True
-                        elif tmpType1 == 'NUMBER' and tmpType2 == 'NUMBER':
+                        elif tmpType1 in {'BOOL','NUMBER'} and tmpType2 in {'BOOL','NUMBER'}:
                             safe = True
 
                         if lex[token].type == 'LESS':
