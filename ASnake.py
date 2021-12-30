@@ -18,7 +18,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.12.6'
+ASnakeVersion='v0.12.7'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -190,7 +190,7 @@ class Lexer(Lexer):
 
 def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonVersion='3.10',enforceTyping=False,variableInformation={},outputInternals=False,metaInformation=False):
     # data is the string version of code for parsing
-    # optimize when True will enable optimization phase ahd optimizations, False will disable any optimizations.
+    # optimize when True will enable optimization phase and optimizations, False will disable any optimizations.
     # comment when True will output comments in the final file, False will attempt to have minimal comments.
     # debug when True will print out information to aid in debugging, False should minimize prints.
     # compileTo string will be the compile target.
@@ -198,7 +198,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     # enforceTyping will make the compiler complain more about variable types.
     # variableInformation will override storedVarsHistory, allowing prior information to be gained that wasn't in the string code.
     # outputInternals changes its output from the compiled code string, to a tuple with (code, lex, storedVarsHistory)
-    # metaInformation will override various meta variables, allowing metas to be overriden before code is ran.
+    # metaInformation will override various meta variables, allowing metas to be overridden before code is ran.
 
     miniLex = Lexer().tokenize
 
@@ -213,7 +213,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     typeTypes=tuple([t for t in convertType])
 
     # useful types of sets of tokens or other things
-    typeAssignables=('STRING','NUMBER','ID','LIST','LISTEND','DICT','BINARY','LBRACKET')
+    typeAssignables=('STRING','NUMBER','ID','LIST','LISTEND','DICT','BINARY','LBRACKET','BOOL')
     typeOperators=('PLUS','MINUS','TIMES','DIVIDE','RDIVIDE','EXPONENT','BITWISE','MODULO')
     typeCheckers=('LESS','LESSEQ','GREATEQ','GREATER', 'EQUAL', 'PYIS','NOTEQ')
     typePrintable=typeAssignables+typeOperators+typeCheckers+('LINDEX','RINDEX','INDEX','LPAREN','RPAREN','MODULO','IGNORE','INC','INS','DIVMOD','COMMA')
@@ -412,6 +412,35 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     lexIndex += 1
                 if debug: print('--', i)
         if lex[-1].type == 'LISTEND': lex[-1].type = 'RINDEX'
+
+    def stripStringQuotes(string: str):
+        newString=''
+        quoteType=None
+        stringStart=False
+        escapeChar=False
+        for char in string:
+            if not stringStart:
+                if quoteType == None and char in {'"',"'"}:
+                    quoteType = char
+                elif quoteType and char != quoteType:
+                    stringStart = True
+            else:
+                if escapeChar:
+                    escapeChar = False
+                    newString+=char
+                else:
+                    if char == quoteType:
+                        return newString
+                    elif char == '\\':
+                        escapeChar = True
+                    else:
+                        newString+=char
+
+    def isANegativeNumberTokens(lexIndex):
+        if lex[lexIndex].type == 'MINUS' and lex[lexIndex+1].type == 'NUMBER' \
+        and lex[lexIndex-1].type not in {'ID','RPAREN','BUILTINF','NUMBER','STRING','RINDEX','LISTEND','RBRACKET'}:
+            return True
+        return False
 
 
 
@@ -1073,7 +1102,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         #print(lex[token].value,search,lex[tmpi].type)
                                         if not search and (enforceTyping and not linkType): break
                                         if lex[tmpi].type=='INC' or (tmpi+1 < len(lex) and lex[tmpi+1].type=='LINDEX' and lex[tmpi].value == lex[token].value) \
-                                        or ((lex[tmpi].type in ('ID','INC') and lex[tmpi].value.replace('++','').replace('--','')==lex[token].value and (lex[tmpi-1].type not in ('ELIF','OF','IF','OR','AND','FSTR'))  ) and lex[tmpi+1].type in typeAssignables+('ASSIGN',) ):
+                                        or ((lex[tmpi].type in ('ID','INC') and lex[tmpi].value.replace('++','').replace('--','')==lex[token].value and (lex[tmpi-1].type not in {'ELIF','OF','IF','OR','AND','FSTR'})  ) and lex[tmpi+1].type in typeAssignables+('ASSIGN',) ):
                                             if (lex[tmpi+1].type == 'ASSIGN' and lex[tmpi+2].type == vartype) or lex[tmpi+1].type == vartype or (vartype=='NUMBER' and lex[tmpi].type=='INC'):
                                                 pass
                                             else: linkType=False
@@ -1084,7 +1113,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             if wasInDefs and lex[tmpi+1].type in typeAssignables+('ASSIGN',):
                                                 tmpSafe=False
                                                 if lex[tmpi+1].type == 'ASSIGN' and 'is' in lex[tmpi+1].value and determineIfAssignOrEqual(tmpi+1):
-                                                    tmpSafe=True
+                                                    tmpSafe=True ; tmpAddToIgnoresWhenNL=0
                                                 if not tmpSafe:
                                                     search = False
                                         elif inFrom and lex[tmpi].type == 'ID' and lex[token].value == lex[tmpi].value:
@@ -1208,7 +1237,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     #if debug: print(tmpi,lex[tmpi].type,f'ignore={ignore}',f'skip/end={ignores}')
 
                                                 if search and ignore == False:
-                                                    #print(lex[token].value,lex[tmpi].type)
+                                                    #print(lex[token].value,lex[tmpi].type,search,ignores,tmpi)
                                                     if lex[tmpi].type == 'ID' and lex[tmpi].value==lex[token].value and (lex[tmpi+1].type not in typeAssignables+('ASSIGN',) or (lex[tmpi-1].type in typeConditionals+('OR','AND') and lex[tmpi-1].type!='ELSE') or (lex[tmpi+1].type == 'ASSIGN' and 'is' in lex[tmpi+1].value and determineIfAssignOrEqual(tmpi+1)) ) and lex[tmpi-1].type not in ('FOR','LOOP'):
                                                         if lex[tmpi-1].type in typeConditionals and lex[tmpi+1].type == 'ASSIGN' and ':' in lex[tmpi+1].value: continue
                                                         tmpsafe=True
@@ -1289,8 +1318,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         inLoop=[True,tmpindent]
                                                         for tmpii in range(tmpi,len(lex)):
                                                             if lex[tmpi].type=='INC' or \
-                                                            (((lex[tmpii].type in ('ID','INC') and lex[tmpii].value.replace('++','').replace('--','')==lex[token].value \
-                                                            and (lex[tmpii-1].type not in typeConditionals+('OR','AND') \
+                                                            (((lex[tmpii].type in ('ID','INC') and lex[tmpii].value.replace('++','').replace('--','').strip()==lex[token].value \
+                                                            and ((lex[tmpii-1].type not in typeConditionals+('OR','AND') or lex[tmpii-1].type == 'ELSE') \
                                                             and lex[tmpi-1].type!='ELSE') ) or (lex[tmpii].value.startswith('locals[') \
                                                             and lex[token].value in ''.join(lex[tmpii].value.split('locals[')[1:])))):
                                                                 if lex[tmpii].type == 'INC' or (lex[tmpii].type=='ID' and lex[tmpii+1].type in typeAssignables+('ASSIGN',)):
@@ -1302,7 +1331,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             elif (lex[tmpii].type=='TAB' and lex[tmpii].value.replace('\t',' ').count(' ') < inLoop[1]) \
                                                             or (lex[tmpii].type == 'NEWLINE' and lex[tmpii].type!='TAB' and inLoop[1]>0) or (lex[tmpii].type=='THEN' and '\n' in lex[tmpii].value and lex[tmpii].value.replace('\t',' ').count(' ') < inLoop[1]):
                                                                 inLoop=[False,0] ; break
-                                                        if lex[tmpi].type == 'LOOP' and (lex[tmpi+1].type=='ID' and lex[tmpi+1].value==lex[token].value) or (tmpi+2 < len(lex)-1 and lex[tmpi+2].type=='ID' and lex[tmpi+2].value==lex[token].value) \
+                                                        if lex[tmpi].type == 'LOOP' and ((lex[tmpi+1].type=='ID' and lex[tmpi+1].value==lex[token].value) or (tmpi+2 < len(lex)-1 and lex[tmpi+2].type=='ID' and lex[tmpi+2].value==lex[token].value)) \
                                                         and isinstance(tmpf[0],str) == False and tmpf[0].type != 'RPAREN':
                                                             if (lex[tmpi+1].type=='ID' and lex[tmpi+1].value==lex[token].value): tmp=1
                                                             else: tmp=2
@@ -2502,6 +2531,102 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     preAllocated.remove(p)
                         else:
                             if min(_[0] for _ in preAllocated) > lex[token].value.count(' '): preAllocated=set()
+                    elif optCompilerEval and ((lex[token].type in typeCheckers and lex[token].type != 'PYIS') or (lex[token].type == 'ASSIGN' and 'is' in lex[token].value and determineIfAssignOrEqual(token))) \
+                    and ( (lex[token-1].type in {'STRING','NUMBER'} and (lex[token+1].type in {'STRING','NUMBER'} or isANegativeNumberTokens(token+1)) and lex[token-2].type in typeConditionals+typeNewline+('AND','OR','LPAREN')) or (isANegativeNumberTokens(token-2) and (lex[token+1].type in {'STRING','NUMBER'} or isANegativeNumberTokens(token+1)) and lex[token-3].type in typeConditionals+typeNewline+('AND','OR','LPAREN') ) ):
+                        # eval bool conditionals when STRING and/or NUMBER
+                        # jumpy BOOL
+                        if lex[token].type == 'ASSIGN' and not pyCompatibility: lex[token].type = 'EQUAL'
+                        tmpEndResult = None
+                        if lex[token+1].type == 'MINUS':
+                              tmp2=2
+                        else: tmp2=1
+                        tmpType1 = lex[token-1].type ; tmpType2 = lex[token+tmp2].type
+                        if tmpType1 == 'STRING':
+                            tmpQuoteAmount = 2
+                            if lex[token-1].value.startswith("'''") or lex[token-1].value.startswith('"""'):
+                                tmpQuoteAmount = 6
+                            tmpValue1 = len(lex[token-1].value)-tmpQuoteAmount
+                        elif tmpType1 == 'NUMBER':
+                            try: tmpValue1 = float(lex[token-1].value)
+                            except ValueError:
+                                if lex[token-1].value.isdigit():
+                                    tmpValue1 = int(lex[token-1].value)
+                            if lex[token-2].type == 'MINUS':
+                                tmpValue1 = -tmpValue1
+                        if tmpType2 == 'STRING':
+                            if lex[token+tmp2].value.startswith("'''") or lex[token+tmp2].value.startswith('"""'):
+                                tmpQuoteAmount = 6
+                            tmpValue2 = len(lex[token + tmp2].value)-tmpQuoteAmount
+                        elif tmpType2 == 'NUMBER':
+                            try:
+                                tmpValue2 = float(lex[token + tmp2].value)
+                            except ValueError:
+                                if lex[token + 1].value.isdigit():
+                                    tmpValue2 = int(lex[token + tmp2].value)
+                            if tmp2 == 2:
+                                tmpValue2 = -tmpValue2
+
+                        # check if True/False
+                        safe = False
+                        if not pyCompatibility and ((tmpType1 == 'STRING' and tmpType2 in {'STRING', 'NUMBER'}) or (tmpType1 == 'NUMBER' and tmpType2 == 'STRING')):
+                            safe = True
+                        elif tmpType1 == 'NUMBER' and tmpType2 == 'NUMBER':
+                            safe = True
+
+                        if lex[token].type == 'LESS':
+                            if safe:
+                                if tmpValue1 < tmpValue2:
+                                      tmpEndResult=True
+                                else: tmpEndResult=False
+                        elif lex[token].type == 'LESSEQ':
+                            if safe:
+                                if tmpValue1 <= tmpValue2:
+                                      tmpEndResult=True
+                                else: tmpEndResult=False
+                        elif lex[token].type == 'GREATEQ':
+                            if safe:
+                                if tmpValue1 >= tmpValue2:
+                                      tmpEndResult=True
+                                else: tmpEndResult=False
+                        elif lex[token].type == 'GREATER':
+                            if safe:
+                                if tmpValue1 > tmpValue2:
+                                      tmpEndResult=True
+                                else: tmpEndResult=False
+                        elif lex[token].type == 'EQUAL':
+                            if tmpType1 == 'STRING' and tmpType2 == 'STRING':
+                                if stripStringQuotes(lex[token-1].value) == stripStringQuotes(lex[token+tmp2].value):
+                                      tmpEndResult=True
+                                else: tmpEndResult=False
+                            elif safe:
+                                if tmpValue1 == tmpValue2:
+                                      tmpEndResult=True
+                                else: tmpEndResult=False
+                        elif lex[token].type == 'NOTEQ':
+                            if tmpType1 == 'STRING' and tmpType2 == 'STRING':
+                                if stripStringQuotes(lex[token - 1].value) != stripStringQuotes(lex[token + tmp2].value):
+                                    tmpEndResult = True
+                                else:
+                                    tmpEndResult = False
+                            elif safe:
+                                if tmpValue1 != tmpValue2:
+                                    tmpEndResult = True
+                                else:
+                                    tmpEndResult = False
+
+
+                        if tmpEndResult != None:
+                            # replace tokens with end result
+                            if debug: print(f'! compileTimeEval {lex[token-1].value} {lex[token].value} {lex[token+1].value} --> {tmpEndResult}')
+                            lex[token-1].type = lex[token+1].type = 'IGNORE'
+                            if tmp2 == 2:
+                                lex[token+2].type = 'IGNORE'
+                            if lex[token-2].type == 'MINUS':
+                                lex[token-2].type = 'IGNORE'
+                            lex[token].type = 'BOOL' ; lex[token].value = str(tmpEndResult)
+                            newOptimization = True
+
+                        
 
 
                     if token > len(lex)-1: break
@@ -2567,6 +2692,24 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         break
                                 lex[token+1].type=lex[token+2].type='IGNORE'
                                 newOptimization=True
+                        
+
+                    if optCompilerEval and not pyCompatibility and lex[token].type == 'STRING' and lex[token+1].type == 'STRING' and lex[token+2].type not in typeOperators and lex[token-1].type not in typeOperators:
+                        # evaluate string comparisons when they have no compare, inside conditional
+                        # if 'string' 'string'  -->  if 'string' == 'string'  -->  if True
+                        safe = False
+                        for ii in range(token,0,-1):
+                            if lex[ii].type in typeNewline: break
+                            elif lex[ii].type in typeConditionals: safe=True ; break
+                        if safe:
+                            if debug: print(f'! compileTimeEval {lex[token].value} == {lex[token+1].value} --> {stripStringQuotes(lex[token].value) == stripStringQuotes(lex[token+1].value)}')
+                            if stripStringQuotes(lex[token].value) == stripStringQuotes(lex[token+1].value):
+                                lex[token].value = 'True'
+                            else:
+                                lex[token].value = 'False'
+                            lex[token].type = 'BOOL'
+                            lex[token+1].type = 'IGNORE'
+                            newOptimization = True
                     if optCompilerEval and newOptimization and lex[token-1].type == 'LPAREN' and lex[token+1].type == 'RPAREN' and lex[token-2].type in ('LPAREN','ASSIGN')+typeNewline+typeOperators and lex[token].type not in ('FUNCTION','COMMAGRP'):
                         #print(lex[token-2].type,lex[token-1].type,lex[token].type,lex[token].value,lex[token+1].type,888888888888)
                         lex[token+1].type=lex[token-1].type='IGNORE' ; token-=2
