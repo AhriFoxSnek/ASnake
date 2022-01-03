@@ -901,7 +901,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif ':' in lex[lexIndex].value:
                 return False
             for tt in range(lexIndex - 1, 0, -1):
-                if lex[tt].type in typeConditionals and lex[tt - 1].type in typeNewline:
+                if lex[tt].type in typeConditionals and lex[tt].type != 'ELSE' and lex[tt - 1].type in typeNewline:
                     return True
                 elif lex[tt].type in typeNewline:
                     return False
@@ -1110,6 +1110,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             else:
                                                 tmpAddToIgnoresWhenNL = tmpi
                                                 # if we reach a point where we can determine its no longer constant, then ignore that point onward so the previous code still gets folded
+                                                
                                             if wasInDefs and lex[tmpi+1].type in typeAssignables+('ASSIGN',):
                                                 tmpSafe=False
                                                 if lex[tmpi+1].type == 'ASSIGN' and 'is' in lex[tmpi+1].value and determineIfAssignOrEqual(tmpi+1):
@@ -1281,7 +1282,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                 tmpi+=1
 
                                                         if tmpsafe:
-                                                            if debug: print(f'! replacing lex #{tmpi} (lastType:{lex[tmpi-1].type})')
+                                                            if debug: print(f'a! replacing lex #{tmpi} (lastType:{lex[tmpi-1].type})')
                                                             if isinstance(tmpf[0],str) == False: # if tmpf[0] is not string, then its a lex
                                                                 if not pyCompatibility: # These fix it not printing in ASnake mode. If in Python mode, don't fix it.
                                                                     if len(tmpf) == 1 and tmpf[0].type == 'STRING' and (tmpf[0].value.startswith('"""') or tmpf[0].value.startswith("'''")) and lex[tmpi-1].type in typeNewline:
@@ -2534,7 +2535,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     elif optCompilerEval and ((lex[token].type in typeCheckers and lex[token].type != 'PYIS') or (lex[token].type == 'ASSIGN' and 'is' in lex[token].value and determineIfAssignOrEqual(token))) \
                     and ( (lex[token-1].type in {'STRING','NUMBER','BOOL'} and (lex[token+1].type in {'STRING','NUMBER','BOOL'} or isANegativeNumberTokens(token+1)) and lex[token-2].type in typeConditionals+typeNewline+('AND','OR','LPAREN')) or (isANegativeNumberTokens(token-2) and (lex[token+1].type in {'STRING','NUMBER'} or isANegativeNumberTokens(token+1)) and lex[token-3].type in typeConditionals+typeNewline+('AND','OR','LPAREN') ) ):
                         # eval bool conditionals when STRING and/or NUMBER
-                        # jumpy BOOL
                         if lex[token].type == 'ASSIGN' and not pyCompatibility: lex[token].type = 'EQUAL'
                         tmpEndResult = None
                         if lex[token+1].type == 'MINUS':
@@ -4685,6 +4685,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if lexIndex-1 > 0 and lexIndex+1 < len(lex)-1 and len(line)>0:
                     if lex[lexIndex+1].type not in typeNewline+('IGNORE','INC','FSTR','PIPEGO','PIPE') and lex[lexIndex-1].type != 'IGNORE':
                         if lex[lexIndex+1].type == 'RBRACKET': bracketScope-=1
+                        elif lex[lexIndex+1].type == 'RPAREN': parenScope-=1
                         lex[lexIndex+1].value=f'{line[-1]},{lex[lexIndex+1].value}'
                         line=line[:-1]
                         lex[lexIndex+1].type='COMMAGRP' ; tok.type='IGNORE' ; lex[lexIndex-1].type='IGNORE'
@@ -5363,6 +5364,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     else:
                         listScope += tok.value.count('[')
                         listScope -= tok.value.count(']')
+                        parenScope -= tok.value.count(')') # jumpy
                 elif tok.type == 'LIST': inIf=True
                 elif tok.type == 'RETURN' and 'yield' not in tok.value:
                     if lastType not in typeNewline:
