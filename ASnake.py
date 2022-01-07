@@ -18,7 +18,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.12.8'
+ASnakeVersion='v0.12.9'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -258,10 +258,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         codeDict['OF']='case'
 
 
-    def makeToken(clone,value=None,type=None):
+    def makeToken(clone,value=None,type=None,lineno=None):
         tmptok=copy(clone)
         if value != None: tmptok.value=value
         if type != None: tmptok.type=type
+        if lineno != None: tmptok.lineno=lineno
         return tmptok
 
     def convertEmojiToAscii(tokValue):
@@ -463,6 +464,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     lex=[]
     lexIndex=0
     currentTab=0
+    lineNumber=0 # for source code
     bracketScope=0
     lastIndent=[0]
     tabBackup=[currentTab,lastIndent[:]]
@@ -480,16 +482,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lex[lexIndex].value += tok.value
                 continue
 
-        if len(lex)==0:
+        if not lex:
             tmptok=copy(tok)
             tok.type='IGNORE'
             lex.append(tok)
             tok.type=tmptok.type
             del tmptok
-        elif len(lex) > lexIndex:
-            if debug: print(f'lex={lexIndex} lexType={lex[lexIndex].type}\ttype={tok.type}, value={tok.value}')
+        elif debug and len(lex) > lexIndex: print(f'lex={lexIndex} ln={lineNumber} lexType={lex[lexIndex].type}\ttype={tok.type}, value={tok.value}')
 
-        if tok.type in ('BUILTINF','NUMBER'):
+        if tok.type in {'COMMAGRP', 'COMMENT', 'DICT', 'IGNORENL', 'INDEX', 'NEWLINE', 'PYDEF', 'PYPASS', 'STRING', 'STRLIT', 'STRRAW', 'TAB', 'THEN', 'TYPEWRAP'}:
+            # ^ every type that can have a newline should be included
+            lineNumber = lineNumber+tok.value.count('\n')
+        tok.lineno = lineNumber
+
+        if tok.type in {'BUILTINF','NUMBER'}:
             if tok.value.endswith('\n'):
                 tok.value=tok.value[:-1]
                 lex.append(tok)
@@ -689,7 +695,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lexIndex-=1 # i dont know why butff i think this works
                 inFrom=False
         elif tok.type in {'STRAW','STRLIT','STRING'}:
-            if tok.type in ('STRRAW','STRLIT'): tok.type='STRING'
+            if tok.type in {'STRRAW','STRLIT'}: tok.type='STRING'
             if tok.value[0]=='f':
                 if len([i for i in ('{','}') if i not in tok.value])>0:
                     tok.value=tok.value[1:] # optimization if f-string doesnt use {} then convert to regular string, better performance
@@ -784,7 +790,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     tmptok.type=[i for i in miniLex(tmptok.value+' ')][0].type
                     lex.append(tmptok)
             else: lex.append(tok)
-        elif tok.type in ('NEWLINE','COMMENT'):
+        elif tok.type in {'NEWLINE','COMMENT'}:
             if lex[lexIndex].type == 'TAB':
                 lex.pop() ; lexIndex-=1
                 if len(lastIndent)>1:
@@ -3273,7 +3279,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     listcomp={}
     lexIndex=-1
     lastIndent=[0,0,[],[]] # last counted string indent, last indent, last if indent , function indents
-    lineNumber=-1 # -1 because two newlines inserted automatically at the start, and linenumber should begin at 1
+    lineNumber=0
     storedIndents=[0]
     storedVars={}
     storedCustomFunctions={}
@@ -3284,6 +3290,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     switchCase={'case':False}
     # idMAIN
     for tok in lex:
+        lineNumber=tok.lineno
         if lexIndex+1 <= len(lex)-1:
             lexIndex+=1
         if hasPiped and lastType != 'PIPE': hasPiped=None
@@ -3646,7 +3653,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         elif startOfLine and inIf == False:
                             doPrint=False
                             if tok.type == 'STRING' and (tok.value.startswith('"""') or tok.value.startswith("'''")):
-                                lineNumber+=tok.value.count('\n')
                                 doPrint = False
                                 if indent==0 and lastType in typeNewline and lex[lexIndex+1].type in typeNewline and not any(t for t in keepAtTop if t.type == 'STRING'):
                                     keepAtTop.append(tok)
@@ -3808,7 +3814,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     return AS_SyntaxError(f'match is not provided a statement.','match variable',lineNumber,data)
             elif tok.type == 'IGNORENL':
                 ignoreNewline=True
-                lineNumber+=1
             elif tok.type in typeNewline and tok.type != 'END': # idNEWLINE
                 if parenScope>0 and tok.type=='TAB': tok.type='IGNORE' ; continue
                 # ^ allows tabs inside of parenthesis to be ignored
@@ -3964,7 +3969,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if isinstance(line,str): line=[line] # so weird
                             line.append('\n')
                         lastIndent=[tmpcheck,indent,lastIndent[2],lastIndent[3]]
-                        if '\n' in tok.value and tok.lineno==1: lineNumber+=1
                 else:
                     if indent > 0 and tok.type == 'NEWLINE' and notInDef and not ignoreIndentation and not indentSoon:
                         indent=0
@@ -3981,9 +3985,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         elif lexIndex+1 < len(lex) and lex[lexIndex+1].type=='NEWLINE':
                             # when doing multi line conditionals on 0 indent, : at the end seems to break the auto-assume-indent. this is due to the NEWLINE token being after THEN token with value of :
                             lex[lexIndex+1].type='IGNORE'
-
-                    if tok.lineno!=0: lineNumber+=tok.value.count('\n')
-                    # lineno == 0 means ignore; do not increment LineNumber
 
 
                 if lastIndent[2]!=[] and indent<lastIndent[2][-1]:
@@ -5459,7 +5460,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 #    storedCustomFunctions[tmp]['type']=None
             elif tok.type == 'PYPASS':
                 line.append(tok.value[2:][:-2])
-                lineNumber+=tok.value.count('\n')
             elif tok.type == 'TRY':
                 if ':' not in tok.value: tok.value+=':'
                 else: tok.value+='\n'#indentSoon=True
