@@ -1666,6 +1666,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if optInSet:
                             tmpscope=1 ; tmp=0 ; tmpf=[] ; tmpLeftScope = 1 ; inForLoop=hasComma=False
                             for tmpi in range(token+1,len(lex)):
+                                tmpLastIndex = tmpi+1
                                 if lex[tmpi].type == lex[token].type: tmpscope+=1 ; tmpLeftScope+=1
                                 elif lex[token].type == 'LPAREN' and lex[tmpi].type == 'RPAREN': tmpscope-=1
                                 elif lex[token].type == 'LIST' and lex[tmpi].type == 'LISTEND': tmpscope -= 1
@@ -1689,6 +1690,16 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if t in seen or '[' in t or ']' in t:
                                             tmpsafe = False ; break
                                         else: seen.add(t)
+                                if optCompilerEval and not inForLoop and lex[token - 2].type in {'STRING', 'NUMBER'}:
+                                    # if 2 in [1,2,3]  -->  if True
+                                    tmpsafe = False
+                                    if lex[token - 2].value in seen:
+                                          tmp=True
+                                    else: tmp=False
+                                    lex[token-2].type = 'BOOL'
+                                    lex[token-2].value = str(tmp)
+                                    for ii in range(token-1,tmpLastIndex):
+                                        lex[ii].type = 'IGNORE'
                                 if tmpsafe and not inForLoop:
                                     # if all are unique, and doesn't contain list
                                     lex[token].type='LBRACKET' ; lex[token].value='{'
