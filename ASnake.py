@@ -209,7 +209,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     'LISTEND':']','ELLIPSIS':'...','constLPAREN':'(','COLON':':','LINDEX':'[','RINDEX':']',
     "DQUOTE":'"',"SQUOTE":"'"}
 
-    convertType={'int':'NUMBER','float':'NUMBER','Py_ssize_t':'NUMBER','bool':'BOOL','bint':'BOOL','str':'STRING','list':'LIST','dict':'DICT','type':'TYPE','tuple':'TUPLE','set':'SET','bytes':'STRING'}
+    convertType={'int':'NUMBER','float':'NUMBER','Py_ssize_t':'NUMBER','bool':'BOOL','bint':'BOOL','str':'STRING','list':'LIST','dict':'DICT','type':'TYPE','tuple':'TUPLE','set':'SET','bytes':'STRING','object':'ID'}
     typeTypes=tuple([t for t in convertType])
 
     # useful types of sets of tokens or other things
@@ -1662,30 +1662,45 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             else:
                                 pyCompatibility=not pyCompatibility
 
-                    elif lex[token].type in ('LPAREN','LIST') and lex[token-1].type == 'INS' and lex[token-1].value.strip() == 'in':
+                    elif lex[token].type in {'LPAREN','LIST'} and lex[token-1].type == 'INS' and lex[token-1].value.strip() == 'in':
                         if optInSet:
-                            tmpscope=1 ; tmp=0 ; tmpf=[] ; tmpLeftScope = 1
+                            tmpscope=1 ; tmp=0 ; tmpf=[] ; tmpLeftScope = 1 ; inForLoop=hasComma=False
                             for tmpi in range(token+1,len(lex)):
                                 if lex[tmpi].type == lex[token].type: tmpscope+=1 ; tmpLeftScope+=1
                                 elif lex[token].type == 'LPAREN' and lex[tmpi].type == 'RPAREN': tmpscope-=1
                                 elif lex[token].type == 'LIST' and lex[tmpi].type == 'LISTEND': tmpscope -= 1
                                 if tmpscope == 0: tmp=tmpi ; break
-                                else: tmpf.append(copy(lex[tmpi]))
+                                else:
+                                    if not hasComma and lex[tmpi].type == 'COMMA': hasComma=True
+                                    tmpf.append(copy(lex[tmpi]))
+                            for tmpi in range(token-1,0,-1):
+                                if lex[tmpi].type == 'FOR': inForLoop=True ; break
+                                elif lex[tmpi].type in typeNewline: break
                             # if tmp is 0 then syntax error, but i don't think optimization stage is where to show it
                             if 0 < tmp and tmpLeftScope == 1 \
-                            and lex[tmp+1].type != 'PLUS':
+                            and lex[tmp+1].type != 'PLUS' and hasComma:
                                 if len(tmpf) == 1 and tmpf[0].type == 'COMMAGRP':
                                     tmpf=tmpf[0].value.split(',')
                                 else: tmpf=[l.value for l in tmpf if l.type != 'COMMA']
                                 seen=set()
-                                if not any(i in seen or seen.add(i) for i in tmpf) == True \
-                                and all(True if '[' not in i and ']' not in i else False for i in tmpf) \
-                                and ',' in tmpf:
+                                tmpsafe=True
+                                if not inForLoop:
+                                    for t in tmpf:
+                                        if t in seen or '[' in t or ']' in t:
+                                            tmpsafe = False ; break
+                                        else: seen.add(t)
+                                if tmpsafe and not inForLoop:
                                     # if all are unique, and doesn't contain list
                                     lex[token].type='LBRACKET' ; lex[token].value='{'
                                     lex[tmp].type = 'RBRACKET' ; lex[tmp].value = '}'
                                     if debug: print(f"! converted to set: {{{', '.join(tmpf)}}}")
-                                    newOptimization=True
+                                    newOptimization = True
+                                elif lex[token].type == 'LIST':
+                                    # might as well convert it to tuple
+                                    lex[token].type='LPAREN' ; lex[token].value='('
+                                    lex[tmp].type = 'RPAREN' ; lex[tmp].value = ')'
+                                    if debug: print(f"! converted to tuple: ({', '.join(tmpf)})")
+                                    newOptimization = True
 
                         if optListToTuple and lex[token].type == 'LIST':
                             if token-2 >= 0 and lex[token].type=='LIST' and lex[token].value!='(' and lex[token-1].value != 'print':
@@ -4091,7 +4106,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             else:
                                 if iskeyword(lastValue.strip()):
                                     tmp=f'Line {lineNumber} assigns to reserved Python keyword: {lastValue.strip()}'
-                                else: tmp=f'Line {lineNumber} assigns with invalid type: \"{lastType}\".'
+                                else:
+                                    if lastType == 'INTOED': tmpf=lex[lexIndex-2].value
+                                    else: tmpf=lastValue
+                                    tmp=f'Line {lineNumber} assigns with invalid token: \"{tmpf}\".'
                                 return AS_SyntaxError(tmp,'variableName %s %s'%(tok.value.replace(' ',''),lex[lexIndex+1].value),lineNumber,data)
                         elif lex[lexIndex+1].type == 'FSTR' and fstrQuote != '' and pythonVersion >= 3.08:
                             line.append('= ')
@@ -5703,7 +5721,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     line.append(' = '+tok.value)
                 else: line.append(tok.value)
             elif tok.type == 'DEFEXP':
-                line.append(decideIfIndentLine(indent, f'{expPrint[-1]}(')) ; rParen+=1 ; bigWrap=True
+                if lex[lexIndex+1].type == 'ID' and lex[lexIndex+1].value.strip() == 'print': # todo: replace with noParenFunc
+                    pass
+                else:
+                    line.append(decideIfIndentLine(indent, f'{expPrint[-1]}(')) ; rParen+=1 ; bigWrap=True
             elif tok.type in codeDict:
                 if tok.type == 'DEFFUNCT': notInDef=False
                 elif lastType == 'BUILTINF' and tok.type in ('AND','OR') and not startOfLine:
