@@ -5915,7 +5915,8 @@ if __name__ == '__main__':
             if ASFile == False and not args.eval:
                 exit()
 
-    pythonVersion = '3.10'
+    if not args.version:
+        pythonVersion = '3.10'
     if not args.pypy and not args.pyston and not args.version:
         from platform import python_version_tuple
         pv = python_version_tuple()
