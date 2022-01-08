@@ -2835,9 +2835,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if check:
                         breakOnNextNL=False ; ttenary=inCase=False
                         for tmpi in range(token + 1, len(lex) - 1):
-                            #print(lex[token].value,'+!',lex[tmpi].value,lex[tmpi].type,ttenary,tmpIndent)
+                            #print(lex[token].value,'+!',lex[tmpi].value,lex[tmpi].type,ttenary,tmpIndent,check)
                             if not inCase and lex[tmpi].type in {'ID', 'INC', 'BUILTINF','FUNCTION'} and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value):
-                                if lex[tmpi+1].type != 'ASSIGN' or lex[tmpi+1].value.strip() not in {'=','is'}:
+                                if lex[tmpi+1].type != 'ASSIGN' or (lex[tmpi+1].value.strip() not in {'=','is'} or determineIfAssignOrEqual(tmpi+1)):
                                     # only check False on non-assigns
                                     check=False ; break
                             elif not inCase and lex[tmpi].type == 'NRANGE':
