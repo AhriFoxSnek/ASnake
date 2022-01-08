@@ -1457,13 +1457,31 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 tmpi=2
                             else: tmpi=1
 
-                            if safe: # check behind
+                            if safe:
+                                # get forward conditionals indent
+                                tmpIndent=0
+                                for tmpii in range(token+1,len(lex)-1):
+                                    if lex[tmpii].type in typeNewline:
+                                        if lex[tmpii].type == 'THEN' and lex[tmpii+1].type not in {'TAB','NEWLINE'}:
+                                            tmpIndent=-1 # negative 1 should signify that it is on same indent
+                                            break
+                                        elif lex[tmpii].type == 'TAB':
+                                            tmpIndent=lex[tmpii].value.count(' ') ; break
+                                        elif lex[tmpii].type == 'NEWLINE':
+                                            tmpIndent=0 ; break
+
+                                # check behind
                                 tmpFirstTNewline=False
                                 for tmpii in range(token-1,0,-1):
                                     if lex[tmpii].type in typeNewline:
-                                        if tmpFirstTNewline: break
-                                        else: tmpFirstTNewline = True
+                                        if tmpIndent != -1 and lex[tmpii].type == 'TAB' and lex[tmpii].value.count(' ') > tmpIndent or ( lex[tmpii].value.count(' ') == tmpIndent and lex[tmpii+1].type in typeConditionals):
+                                           safe = False ; break
+                                        elif tmpFirstTNewline:
+                                            break
+                                        else:
+                                            tmpFirstTNewline = True
                                     elif lex[tmpii].type == 'OF': safe = False
+
 
                             if safe:
                                 tmpIndent = 0 ; tmp = 1
