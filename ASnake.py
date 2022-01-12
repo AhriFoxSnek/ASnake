@@ -548,7 +548,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tok.type='ID' ; lex.append(tok)
                 lex.append(makeToken(tok,'do','THEN')) ; lexIndex+=1
             else: lex.append(tok)
-        elif tok.type in ('TAB','THEN'):
+        elif tok.type in {'TAB','THEN'}:
             if lex[lexIndex].type == 'IGNORENL':
                 lex[lexIndex].type='IGNORE'
                 tok.type='IGNORE'
@@ -576,8 +576,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         lexIndex-=1
                         lex.pop()
                     elif lex[lexIndex].type == 'NEWLINE':
-                        lexIndex -= 1
-                        lex.pop()
+                        while lex[lexIndex].type == 'NEWLINE':
+                            lexIndex -= 1
+                            lex.pop()
                     elif ignoreIndentation and lex[lexIndex].type == 'END':
                         lex.pop() ; lexIndex-=1
                         if lex[lexIndex].type == 'TAB':
@@ -1337,7 +1338,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         inLoop=[True,tmpindent]
                                                         for tmpii in range(tmpi,len(lex)):
                                                             if lex[tmpi].type=='INC' or \
-                                                            (((lex[tmpii].type in ('ID','INC') and lex[tmpii].value.replace('++','').replace('--','').strip()==lex[token].value \
+                                                            (((lex[tmpii].type in {'ID','INC'} and lex[tmpii].value.replace('++','').replace('--','').strip()==lex[token].value \
                                                             and ((lex[tmpii-1].type not in typeConditionals+('OR','AND') or lex[tmpii-1].type == 'ELSE') \
                                                             and lex[tmpi-1].type!='ELSE') ) or (lex[tmpii].value.startswith('locals[') \
                                                             and lex[token].value in ''.join(lex[tmpii].value.split('locals[')[1:])))):
@@ -3722,7 +3723,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         line.append(decideIfIndentLine(indent,f'{expPrint[-1]}('))
                                         line.append(tok.value)
                                         bigWrap=True
-                                else: line.append(decideIfIndentLine(indent,tok.value+' '))
+                                else:
+                                    line.append(decideIfIndentLine(indent,tok.value+' '))
                             elif lexIndex == len(lex)-1 or (lexIndex+1 == len(lex)-1 and lex[lexIndex+1].type == 'NEWLINE'):
                                 doPrint=True # end of script
                             else:
@@ -3861,7 +3863,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.type in typeNewline and tok.type != 'END': # idNEWLINE
                 if parenScope>0 and tok.type=='TAB': tok.type='IGNORE' ; continue
                 # ^ allows tabs inside of parenthesis to be ignored
-                if bracketScope>0 and tok.type in ('TAB','NEWLINE'): tok.type='IGNORE' ; continue
+                if bracketScope>0 and tok.type in {'TAB','NEWLINE'}: tok.type='IGNORE' ; continue
                 # ^ allows tabs inside of brackets to be ignored
                 if fstrQuote != '':
                     if tok.type != 'THEN':
@@ -3869,7 +3871,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     elif not tenary:
                         tok.value='}{' ; line.append(tok.value) ; lastType=tok.type='FSTR' ; continue
 
-                if lexIndex+1 < len(lex) and lex[lexIndex+1].type in ('AND','OR'):
+                if lexIndex+1 < len(lex) and lex[lexIndex+1].type in {'AND','OR'}:
                     # allows for multiline conditional
                     continue
 
@@ -3887,8 +3889,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if len(code)==0: code.append(''.join(line)) ; line=[]
                 if tok.type == 'TAB' and (lastType not in ('THEN','DEFFUNCT','ENDIF') or code[-1].endswith(':\n')==False) and indentSoon and inReturn==False:
                     line.append(':\n')
-                    if lexIndex < len(lex) - 1 and lex[lexIndex + 1].type == 'OF' and switchCase['case'] == True and \
-                            switchCase['firstIf'] == False:
+                    if lexIndex < len(lex) - 1 and lex[lexIndex + 1].type == 'OF' and switchCase['case'] == True and switchCase['firstIf'] == False:
                         return AS_SyntaxError(
                             f'{switchCase["type"]} keyword needs line end syntax (tab, newline, then) then expression, not another {switchCase["type"]}',
                             f'{switchCase["type"]} 12 do "my fav num"', lineNumber, data)
@@ -4045,24 +4046,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     combineLines=False
 
 
-                if lexIndex+1<len(lex)-1 and lex[lexIndex+1].type=='ELSE' and len(lastIndent[2]) > 0 \
-                and (lastIndent[1] == indent or indent == 0):
-                    if line!=[] and REsearch('^ *',line[0].replace('\n','')).group().count(' ')==lastIndent[2][-1]:
-                        if line!=[]:
-                            line[0]=REsub('^ *',(REsearch('^ *',line[0]).group()+(' '*prettyIndent)),line[0])
-                        for tmpi in range(len(code)-1,0,-1):
-                            tmpindent='' if indent == 0 else ' '*lastIndent[2][-1]
-                            tmp=code[tmpi].replace('\n','')
-                            if tmp.startswith(f"{tmpindent}if") \
-                            or tmp.startswith(f"{tmpindent}elif") \
-                            or tmp.startswith('else') \
-                            or tmp == f"{' '*(indent+prettyIndent)}else:": break
-                            else:
-                                if REsearch('^ *',tmp).group().count(' ')==lastIndent[2][-1]:
-                                    if debug: print('replacingIndent!!',tmp)
-                                    tmpindent=REsearch('^ *',code[tmpi]).group()+' '*prettyIndent
-                                    code[tmpi]=REsub('^ *',tmpindent,code[tmpi])
-                # ^^ fixing indentation when there is statements that are the same indent when there is an else. we know those should be indented.
                 tenary=False
                 inFuncArg=False
                 inIf=False
@@ -4078,7 +4061,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     #print(len(comments)>0 , comments[0][1] == lexIndex , startOfLine,comments[0][1])
                     if comment: line.append(f'\n{comments[0][0]}\n')
                     comments.pop(0)
-
                 if tok.type != 'TAB': continue
             elif tok.type == 'ASSIGN': #idASSIGN
                 if pyIs == True and 'is' in tok.value:
@@ -4218,7 +4200,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif ((lastType in typeAssignables+('ASSIGN','FUNCTION','BUILTINF','LPAREN','RPAREN','BOOL','IGNORE','INDEX','COMMAGRP','FSTR','RETURN','RINDEX') and tok.value=='if') or tenary) and startOfLine == False:
                     tenary=True
                     # this section is for altered tenary
-                    if lastType in ('ASSIGN','RETURN') or (lastType == 'FSTR' and fstrQuote!=''): # alias:  c is if True then a else b
+                    if lastType in {'ASSIGN','RETURN'} or (lastType == 'FSTR' and fstrQuote!=''): # alias:  c is if True then a else b
                         search=False ; tmp=[]
                         for tmpi in range(lexIndex+1,len(lex)-1):
                             if lex[tmpi].type == 'ELSE': break
@@ -4231,10 +4213,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lex[tmpi].type in typeNewline: break
                         if search:
                             line.append(' '.join(tmp)+' ')
-                    if lastType in ('BUILTINF','RPAREN'): tok.value=' '+tok.value
+                    if lastType in {'BUILTINF','RPAREN'}: tok.value=' '+tok.value
                     line.append(tok.value+' ')
                 else:
-                    if tok.type in ('ELSE','ELIF','OF'):
+                    if tok.type in {'ELSE','ELIF','OF'}:
                         if tok.type == 'OF' and debug: print(switchCase) # needs to be if, not elif
                         if tok.type == 'ELSE' and tenary==False and listScope <= 0: # idELSE
                             tmpFoundIF=False ; tmpFoundReturn=False ; tmpListScope=0
@@ -4245,8 +4227,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 elif lex[t].type in typeNewline:
                                     check = True ; break
                                 elif lex[t].type == 'IF' and tmpListScope>=0: tmpFoundIF=True # tmpListScope would be negative if we're in list, due to going backwards
-                                elif lex[t].type in ('LIST','LINDEX'): tmpListScope+=1
-                                elif lex[t].type in ('LISTEND','RINDEX'): tmpListScope-=1
+                                elif lex[t].type in {'LIST','LINDEX'}: tmpListScope+=1
+                                elif lex[t].type in {'LISTEND','RINDEX'}: tmpListScope-=1
                                 elif lex[t].type == 'INDEX': tmpListScope+=lex[t].value.count('[') ; tmpListScope-=lex[t].value.count(']')
 
                             if tmpFoundIF and check and lastType not in typeNewline:
@@ -4354,7 +4336,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if tok.type != 'ELSE':
                         inIf=True
                         startOfLine=False
-                    if tok.type in ('IF','WHILE'):
+                    if tok.type in {'IF','WHILE'}:
                         if indent >= prettyIndent:
                             lastIndent[2].append(indent-prettyIndent)
                         else: lastIndent[2].append(indent)
@@ -5399,7 +5381,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex.insert(lexIndex+1,tmptok) ; del tmptok
                         elif lex[lexIndex+1].type == 'NEWLINE':
                             lex[lexIndex+1].type='TAB' ; lex[lexIndex+1].value=f"\n{' '*indent}"
-            elif tok.type in ('INS','LIST','COMMAGRP','BOOL','DICT','SET','ASYNC','RETURN','BREAK','LAMBDA'): # printing value with space
+            elif tok.type in {'INS','LIST','COMMAGRP','BOOL','DICT','SET','ASYNC','RETURN','BREAK','LAMBDA'}: # printing value with space
                 if tok.type == 'INS':
                     if 'are in' in tok.value: tok.value='in'
                     elif inIf and inLoop[0]:
@@ -5431,11 +5413,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         listScope -= tok.value.count(']')
                         parenScope -= tok.value.count(')')
                 elif tok.type == 'LIST': inIf=True
-                elif tok.type == 'RETURN' and 'yield' not in tok.value:
-                    if lastType not in typeNewline:
+                elif tok.type == 'RETURN':
+                    if 'yield' not in tok.value and lastType not in typeNewline:
                         line.append('\n') ; startOfLine=True
                     inIf=True ; inReturn=True
-                if tok.type in ('BOOL','LIST','SET') and lexIndex>0 and lex[lexIndex-1].type == 'ID':
+                if tok.type in {'BOOL','LIST','SET'} and lexIndex>0 and lex[lexIndex-1].type == 'ID':
                 # var = True
                     if inIf:
                         if tok.type=='BOOL' and optimize and optIfTrue and tok.value=='True' and ((lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] == 'BOOL') or lex[lexIndex-1].type == 'OF'):
@@ -5454,9 +5436,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
 
 
-                if tok.type in ('LIST','BOOL','DICT','SET') and  startOfLine and lexIndex+1 < len(lex) and lex[lexIndex+1].type in typeNewline and lex[lexIndex-1].type not in typeConditionals and inIf==False:
+                if tok.type in {'LIST','BOOL','DICT','SET'} and startOfLine and lexIndex+1 < len(lex) and lex[lexIndex+1].type in typeNewline and lex[lexIndex-1].type not in typeConditionals and inIf==False:
                     line.append(decideIfIndentLine(indent,f'{expPrint[-1]}({tok.value})'))
-                else: line.append(decideIfIndentLine(indent,f'{tok.value} '))
+                else:
+                    line.append(decideIfIndentLine(indent,f'{tok.value} '))
                 if len(tok.value)>0 and tok.value[0]=='=': tok.value[1:] # removing = for  var = True
                 if lexIndex+1 < len(lex) and lex[lexIndex+1].type=='PIPE' and (line==[] or lastType in typeNewline): startOfLine=True
             elif tok.type == 'IGNORE':
@@ -5768,7 +5751,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             lastType=tok.type
             lastValue=tok.value
 
-            if tok.type not in ('ENDIF','FROM') or (startOfLine and tok.type in typeConditionals) or inIf==False:
+            if tok.type not in {'ENDIF','FROM'} or (startOfLine and tok.type in typeConditionals) or inIf==False:
                 if storedIndents==[]: storedIndents=[0]
                 elif indent>storedIndents[-1]:
                     storedIndents.append(storedIndents[-1]+prettyIndent)
