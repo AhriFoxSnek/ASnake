@@ -1222,12 +1222,19 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         ignore=False # ignoring function blocks
                                         inLoop=[False,0]
                                         inCase=False # similar to inFrom ; do not replace constants in OF case statements
+
+                                        tmpFoundIndent=False
                                         for tmpi in range(token-1,0,-1):
                                             if lex[tmpi].type == 'TAB':
-                                                tmpindent=lex[tmpi].value.replace('\t',' ').count(' ')
-                                                if lex[tmpi+1].type in typeConditionals:
-                                                    tmpindent+=1
-                                                break
+                                                if not tmpFoundIndent:
+                                                    tmpindent=lex[tmpi].value.replace('\t',' ').count(' ')
+                                                    if lex[tmpi+1].type in typeConditionals:
+                                                        tmpindent+=1
+                                                    tmpFoundIndent=True
+                                                elif lex[tmpi].value.replace('\t',' ').count(' ') < tmpindent:
+                                                    if lex[tmpi+1].type == 'TYPEWRAP':
+                                                        tmpindent-=prettyIndent
+                                                    break
                                             # don't check THENs for indent
                                             elif lex[tmpi].type == 'NEWLINE': break
 
@@ -3054,11 +3061,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         # currently for singular values only
         nonlocal storedVarsHistory, line, code
         check=False # for checking if printf needs to be imported
-        if tok.value in storedVarsHistory and 'value' in storedVarsHistory[tok.value]:
-            tmpval=storedVarsHistory[tok.value]['value']
-            tmptype=storedVarsHistory[tok.value]['type']
-        else: tmpval=tok.value ; tmptype=tok.type
-        if tmptype in ('STRING','STRLIT','STRRAW'):
+        tmpval=tok.value ; tmptype=tok.type
+        if tmptype in {'STRING','STRLIT','STRRAW'}:
             if any(i for i in ('r','f') if i == tmpval[0]):
                 line.append(f'{" "*(indent)}printf({tmpval}.encode())\n')
                 line.append(f'{" "*(indent)}printf("\\n")')
