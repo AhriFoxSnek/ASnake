@@ -18,7 +18,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.12.9'
+ASnakeVersion='v0.12.10'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -1006,9 +1006,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if optConstantPropagation:
                             tmpi=None
                             if lex[token-1].type not in typeConditionals+('OR','AND','LOOP'):
-                                if lex[token+1].type in typeAssignables and lex[token+1].type not in ('LISTEND',) and lex[token+2].type not in ('PIPE','LISTCOMP'):
+                                if lex[token+1].type in typeAssignables and lex[token+1].type != 'LISTEND' and lex[token+2].type not in {'PIPE','LISTCOMP'}:
                                     tmpi=1
-                                elif lex[token+1].type == 'ASSIGN' and lex[token+1].value.strip() in ('is','=') and lex[token+2].type in typeAssignables+('LPAREN','LBRACKET','FUNCTION','MINUS','INS','LINDEX') and lex[token+2].type != 'LISTEND' and lex[token+3].type not in {'PIPE','LISTCOMP'}:
+                                elif lex[token+1].type == 'ASSIGN' and lex[token+1].value.strip() in {'is','='} and lex[token+2].type in typeAssignables+('LPAREN','LBRACKET','FUNCTION','MINUS','INS','LINDEX') and lex[token+2].type != 'LISTEND' and lex[token+3].type != 'LISTCOMP':
                                     tmpi=2
                             if lex[token].value == 'print' or lex[token-1].type == 'COMMA': tmpi=None
                             if optMathEqual and token+3 < len(lex) and lex[token+2].value == lex[token].value and lex[token+3].type in typeOperators: tmpi=None
@@ -1049,7 +1049,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 else:
                                     tmpNoEqualsAssign=True if tmpi == 1 else False
                                     for t in range(token+tmpi,len(lex)-1):
-                                        #print(tmpParenScope,lex[t].type,lex[t].value,[tt.value for tt in tmpf])
+                                        #print(lex[token].value,tmpParenScope,lex[t].type,lex[t].value,[tt.value for tt in tmpf])
                                         if tmpNoEqualsAssign:
                                             # fixes  x y 12 ; x ; y
                                             # it captures y 12 for x, it shouldn't
@@ -1076,17 +1076,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 elif lex[t].type == 'FUNCTION':
                                                     tmpParenScope+=1
                                                 if lex[t].type!='IGNORE': tmpf.append(copy(lex[t]))
-                                            elif lex[t].type in ('FUNCTION','PIPE'):
-                                                if lex[t].type == 'FUNCTION':
-                                                    tmpParenScope+=1
-                                                tmpf=None ; break
-                                            elif lex[t].type == 'ASSIGN' and ':' not in lex[t].value: tmpf=[]
+                                            elif lex[t].type == 'FUNCTION':
+                                                tmpParenScope+=1
+                                                tmpf.append(copy(lex[t]))
                                             else: vartype=None ; tmpf.append(copy(lex[t]))
                                             if lex[t].type == 'LBRACKET': tmpBracketScope+=1
                                             elif lex[t].type == 'RBRACKET': tmpBracketScope-=1
 
                                 if tmpf == []: tmpf=None
-                                if tmpf!=None and len(tmpf)>2 and tmpf[0].type in ('ID','BUILTINF') and tmpf[1].type == 'LINDEX' and (tmpf[-1].type == 'RINDEX' or tmpf[-2].type == 'RINDEX'):
+                                if tmpf!=None and len(tmpf)>2 and tmpf[0].type in {'ID','BUILTINF'} and tmpf[1].type == 'LINDEX' and (tmpf[-1].type == 'RINDEX' or tmpf[-2].type == 'RINDEX'):
                                     tmpf=None # thing[index] folding is slower than using var reference from var=thing[index]
                                 if valueStop==None: valueStop=len(lex)-1
 
@@ -1288,8 +1286,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             elif '\\\\' in tmpf: tmpsafe=False
                                                         if tmpsafe and lex[tmpi-2].type == 'BUILTINF' and '.join' in lex[tmpi-2].value and isinstance(tmpf[0],str) == False and any(True for _ in tmpf if _.type in {'FSTR','STRING','COMMAGRP'} and ('"""' in _.value or "'''" in _.value)):
                                                             tmpsafe = False # dumb pattern fix
-                                                        if inLoop[0] and tmpindent >= inLoop[1] and isinstance(tmpf[0],str) == False and 'FOR' in [t.type for t in tmpf]:
+                                                        if tmpsafe and inLoop[0] and tmpindent >= inLoop[1] and isinstance(tmpf[0],str) == False and 'FOR' in [t.type for t in tmpf]:
                                                             tmpsafe=False
+                                                        if tmpsafe and isinstance(tmpf[0],str) == False and 'FOR' in [l.type for l in tmpf]:
+                                                            # if the fold has a for loop (list comp),
+                                                            # and the current expression is also a list comp
+                                                            # then cancel optimization as it is slower.
+                                                            for tt in range(tmpi,0,-1):
+                                                                if lex[tt].type == 'FOR': tmpsafe=False ; break
+                                                                elif lex[tt].type in typeNewline: break
 
                                                         if tmpsafe and lex[tmpi-1].type not in typeNewline:
                                                             # sometimes folding will invalidate the print-on-default-expression feature
@@ -2793,12 +2798,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     token+=1
 
         # last optimizations, run at the end (until no more optimization)
-        newOptimization = True
+        newOptimization = True ; optRounds=0
         while newOptimization:
+            if debug: print(f'\t- end optimization round = {optRounds} -')
             newOptimization = False
             for token in range(0,len(lex)-1):
                 if token > len(lex)-1: break
-                if optFromFunc and lex[token].type == 'IMPORT':
+                if optFromFunc and optRounds == 0 and lex[token].type == 'IMPORT':
+                    # optFromFunc should only run once
                     # this is its import name (ie random.): wasImported,lex[token].value.replace('import ','')+'.'
                     importedName = lex[token].value.replace('import', '').strip() + '.'
                     if debug: print('import: ',lex[token].value.split()[1], wasImported[importedName] if importedName in wasImported else '[]')
@@ -2948,6 +2955,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         lex[tmpi].type='THEN'
                             if debug: print('eliminated variable:', lex[token].value)
                             newOptimization=True
+            optRounds+=1
             #print(' '.join([t.value for t in lex]))
         # clean up vv
         l = 0
@@ -3587,7 +3595,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if (inIf or lex[lexIndex-2].type=='LPAREN' or fstrQuote!='') and not (tok.type=='LIST' and lastType=='STRING'):
                                 # if im 'lazy' | if im == 'lazy'
                                 line.append('== ')
-                            elif lastType in ('ID','OF','BUILTINF') and lex[lexIndex-1].value.strip() not in ('print','print(') and lex[lexIndex-2].value.strip() not in ('print','print('):
+                            elif (lastType in {'ID','OF'} or (lastType == 'BUILTINF' and tok.type!= 'LPAREN' and '(' not in lastValue)) and lex[lexIndex-1].value.strip() not in ('print','print(') and lex[lexIndex-2].value.strip() not in ('print','print('):
                                 # im 'lazy' | im = 'lazy'
                                 check=False
                                 if compileTo == 'Cython':
@@ -4976,7 +4984,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmpInFunction = False ; tmpParenScope = 0
                         while lexIndex+tmpi < len(lex)-1:
                             if lex[lexIndex+tmpi].type == 'ID' and lex[lexIndex+tmpi].value == tmpval.value:
-                                if (tmpParenScope <= 0 and not tmpInFunction) or (lex[lexIndex+tmpi+1].type!='ASSIGN' and tmpInFunction):
+                                if not tmpInFunction or tmpParenScope <= 0 or (lex[lexIndex+tmpi+1].type!='ASSIGN' and tmpInFunction):
                                     lex[lexIndex+tmpi].value=f'{lex[lexIndex+tmpi].value}[0]'
                                 if lex[lexIndex+tmpi+1].type == 'ASSIGN' and not tmpInFunction:
                                     return AS_SyntaxError(f'Cannot reassign to constant variable {tmpval.value}',None,miniLineNumber,data,'Compile time error')
