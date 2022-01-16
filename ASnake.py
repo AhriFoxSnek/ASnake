@@ -2792,155 +2792,162 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                     token+=1
 
-        # last optimizations, run once at the end
-        for token in range(0,len(lex)-1):
-            if token > len(lex)-1: break
-            if optFromFunc and lex[token].type == 'IMPORT':
-                # this is its import name (ie random.): wasImported,lex[token].value.replace('import ','')+'.'
-                importedName = lex[token].value.replace('import', '').strip() + '.'
-                if debug: print('import: ',lex[token].value.split()[1], wasImported[importedName] if importedName in wasImported else '[]')
-                if importedName in wasImported:
-                    if len(wasImported[importedName]) > 0:
-                        lex[token].value=lex[token].value.replace('import','').replace(' ','')
-                        tmpf=[i for i in wasImported if i[:-1] in lex[token].value][0]
-                        if len(wasImported[tmpf]) > 1 or wasImported[tmpf][0] != '':
-                            lex[token].value='from %s import %s'%(lex[token].value,', '.join([wasImported[tmpf][i] for i in range(0,len(wasImported[tmpf]))]))
-                        else: lex[token].value=f'from {lex[token].value} import *'
-                elif 'from ' in lex[token].value:
-                    if len(wasImported) > 0:
-                        importName = lex[token].value.split('import')[0].replace('from ','').replace(' ','')+'.'
-                        if importName in wasImported:
-                            for fromImport in wasImported[importName]:
-                                if fromImport not in lex[token].value.split('import')[-1]:
-                                    lex[token].value=lex[token].value+', %s'%fromImport
+        # last optimizations, run at the end (until no more optimization)
+        newOptimization = True
+        while newOptimization:
+            newOptimization = False
+            for token in range(0,len(lex)-1):
+                if token > len(lex)-1: break
+                if optFromFunc and lex[token].type == 'IMPORT':
+                    # this is its import name (ie random.): wasImported,lex[token].value.replace('import ','')+'.'
+                    importedName = lex[token].value.replace('import', '').strip() + '.'
+                    if debug: print('import: ',lex[token].value.split()[1], wasImported[importedName] if importedName in wasImported else '[]')
+                    if importedName in wasImported:
+                        if len(wasImported[importedName]) > 0:
+                            lex[token].value=lex[token].value.replace('import','').replace(' ','')
+                            tmpf=[i for i in wasImported if i[:-1] in lex[token].value][0]
+                            if len(wasImported[tmpf]) > 1 or wasImported[tmpf][0] != '':
+                                lex[token].value='from %s import %s'%(lex[token].value,', '.join([wasImported[tmpf][i] for i in range(0,len(wasImported[tmpf]))]))
+                            else: lex[token].value=f'from {lex[token].value} import *'
+                    elif 'from ' in lex[token].value:
+                        if len(wasImported) > 0:
+                            importName = lex[token].value.split('import')[0].replace('from ','').replace(' ','')+'.'
+                            if importName in wasImported:
+                                for fromImport in wasImported[importName]:
+                                    if fromImport not in lex[token].value.split('import')[-1]:
+                                        lex[token].value=lex[token].value+', %s'%fromImport
 
-            elif optDeadVariableElimination and lex[token].type == 'ID' and lex[token].value != 'print':
-                if ((lex[token + 1].type in typeAssignables and lex[token+1].type!='LIST') or (lex[token + 1].type=='ASSIGN' and lex[token + 1].value in ('=','is','is '))) and lex[token - 1].type in typeNewline + ('CONSTANT', 'TYPE'):
-                    delPoint = tmpIndent = None ; check = True ; tmpReplaceWithPass = inCase = False
-                    tmpCurrentIndent = 0
-                    # tmpIndent is var's indent, tmpCurrentIndent is iterations indent
-                    for tmpi in range(token-1, 0, -1):
-                        #print(lex[token].value, '-!', lex[tmpi].value, lex[tmpi].type, tmpIndent,check)
-                        if lex[tmpi].type == 'TAB':
-                            if tmpIndent==None: tmpIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
-                            if delPoint==None: delPoint=tmpi
-                            tmpCurrentIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
-                            inCase=False
-                        elif lex[tmpi].type == 'NEWLINE':
-                            if tmpIndent==None: tmpIndent = 0
-                            if delPoint==None: delPoint=tmpi
-                            tmpCurrentIndent = 0
-                            inCase=False
-                        elif lex[tmpi].type == 'THEN':
-                            if delPoint==None: delPoint=tmpi
-                            inCase=False
-                        elif lex[tmpi].type == 'SCOPE' and lex[token].value in lex[tmpi].value :
-                            check=False ; break
-                        elif lex[tmpi].type == 'FROM': break
-                        elif not inCase and lex[tmpi].type in ('ID', 'INC', 'BUILTINF','FUNCTION') and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value):
-                            check = False
-                        #elif lex[tmpi].type == 'PYDEF' and lex[token].value in lex[tmpi].value.split('(')[-1]:
-                        #    check = False ; break
-                        elif lex[tmpi].type in typeConditionals and delPoint:
-                            # prevents dead variables defined in conditionals from breaking syntax
-                            tmpReplaceWithPass = True
-                            if lex[tmpi].type == 'IF':
-                                inCase = False
-                        elif lex[tmpi].type == 'PYCLASS' and delPoint:
-                            check=False
-                        elif lex[tmpi].type == 'TYPEWRAP':
-                            if lex[tmpi-1].type == 'TAB':
-                                tmpIndent = lex[tmpi-1].value.replace('\t', ' ').count(' ')
-                            elif lex[tmpi-1].type == 'NEWLINE': tmpIndent=0
-                            else: tmpIndent=None
-                            if delPoint: break
-                            else: delPoint=tmpi
-                        elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value:
-                            inCase=True
-                    if delPoint == None or tmpIndent == None: check=False
-                    if check:
-                        breakOnNextNL=False ; ttenary=inCase=False
-                        for tmpi in range(token + 1, len(lex) - 1):
-                            #print(lex[token].value,'+!',lex[tmpi].value,lex[tmpi].type,ttenary,tmpIndent,check)
-                            if not inCase and lex[tmpi].type in {'ID', 'INC', 'BUILTINF','FUNCTION'} and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value):
-                                if lex[tmpi+1].type != 'ASSIGN' or (lex[tmpi+1].value.strip() not in {'=','is'} or determineIfAssignOrEqual(tmpi+1)):
-                                    # only check False on non-assigns
-                                    check=False ; break
-                            elif not inCase and lex[tmpi].type == 'NRANGE':
-                                tmp=False
-                                if '...' in lex[tmpi].value:
-                                    tmp=lex[tmpi].value.split('...')
-                                elif '..' in lex[tmpi].value:
-                                    tmp=lex[tmpi].value.split('..')
-                                elif 'to' in lex[tmpi].value:
-                                    tmp=lex[tmpi].value.split('to',1)
-                                if tmp:
-                                    tmp=[i.strip() for i in tmp]
-                                    if lex[token].value in tmp:
-                                        check=False ; break
-                            elif lex[tmpi].type == 'INDEX' and lex[tmpi].value.startswith(lex[token].value):
+                elif optDeadVariableElimination and lex[token].type == 'ID' and lex[token].value != 'print':
+                    if ((lex[token + 1].type in typeAssignables and lex[token+1].type!='LIST') or (lex[token + 1].type=='ASSIGN' and lex[token + 1].value in ('=','is','is '))) and lex[token - 1].type in typeNewline + ('CONSTANT', 'TYPE'):
+                        delPoint = tmpIndent = None ; check = True ; tmpReplaceWithPass = inCase = False
+                        tmpCurrentIndent = 0
+                        # tmpIndent is var's indent, tmpCurrentIndent is iterations indent
+                        for tmpi in range(token-1, 0, -1):
+                            #print(lex[token].value, '-!', lex[tmpi].value, lex[tmpi].type, tmpIndent,check)
+                            if lex[tmpi].type == 'TAB':
+                                if tmpIndent==None: tmpIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
+                                if delPoint==None: delPoint=tmpi
+                                tmpCurrentIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
+                                inCase=False
+                            elif lex[tmpi].type == 'NEWLINE':
+                                if tmpIndent==None: tmpIndent = 0
+                                if delPoint==None: delPoint=tmpi
+                                tmpCurrentIndent = 0
+                                inCase=False
+                            elif lex[tmpi].type == 'THEN':
+                                if delPoint==None: delPoint=tmpi
+                                inCase=False
+                            elif lex[tmpi].type == 'SCOPE' and lex[token].value in lex[tmpi].value :
                                 check=False ; break
-                            elif lex[tmpi].type == 'LISTCOMP' and lex[tmpi].value.split(':')[0] == lex[token].value: check=False ; break
-                            elif not inCase and lex[tmpi].type == 'COMMAGRP' and any(True for x in lex[tmpi].value.split(',') if x.split('=')[-1].strip() == lex[token].value or lex[token].value+'.' in x.strip() or lex[token].value+'[' in x.strip()): check=False ; break
-                            elif lex[tmpi].type == 'FROM':
-                                for tmpii in range(tmpi, 0, -1):
-                                    if lex[tmpii].type == 'TAB':
-                                        tmp = lex[tmpii].value.replace('\t', ' ').count(' ');break
-                                    elif lex[tmpii].type == 'NEWLINE':
-                                        tmp = 0;break
-                                if tmp < tmpIndent:
-                                    breakOnNextNL=True
-                            elif lex[tmpi].type == 'ASSIGN' and ':' not in lex[tmpi].value and lex[tmpi+1].type == 'IF':
-                                ttenary=True
-                            elif lex[tmpi].type == 'ELSE' and ttenary: ttenary=False
-                            elif breakOnNextNL and not ttenary and lex[tmpi].type in typeNewline: inCase=False ; break
-                            elif lex[tmpi].type == 'INDEX' and f" {lex[token].value} " in lex[tmpi].value:
-                                check = False ; break
+                            elif lex[tmpi].type == 'FROM': break
+                            elif not inCase and lex[tmpi].type in ('ID', 'INC', 'BUILTINF','FUNCTION') and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value):
+                                check = False
+                            #elif lex[tmpi].type == 'PYDEF' and lex[token].value in lex[tmpi].value.split('(')[-1]:
+                            #    check = False ; break
+                            elif lex[tmpi].type in typeConditionals and delPoint:
+                                # prevents dead variables defined in conditionals from breaking syntax
+                                tmpReplaceWithPass = True
+                                if lex[tmpi].type == 'IF':
+                                    inCase = False
+                            elif lex[tmpi].type == 'PYCLASS' and delPoint:
+                                check=False
+                            elif lex[tmpi].type == 'TYPEWRAP':
+                                if lex[tmpi-1].type == 'TAB':
+                                    tmpIndent = lex[tmpi-1].value.replace('\t', ' ').count(' ')
+                                elif lex[tmpi-1].type == 'NEWLINE': tmpIndent=0
+                                else: tmpIndent=None
+                                if delPoint: break
+                                else: delPoint=tmpi
                             elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value:
-                                inCase = True
-                            elif lex[tmpi].type == 'IF':
-                                inCase = False
+                                inCase=True
+                        if delPoint == None or tmpIndent == None: check=False
+                        if check:
+                            breakOnNextNL=False ; ttenary=inCase=False
+                            for tmpi in range(token + 1, len(lex) - 1):
+                                #print(lex[token].value,'+!',lex[tmpi].value,lex[tmpi].type,ttenary,tmpIndent,check)
+                                if not inCase and lex[tmpi].type in {'ID', 'INC', 'BUILTINF','FUNCTION'} and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value):
+                                    if lex[tmpi+1].type != 'ASSIGN' or (lex[tmpi+1].value.strip() not in {'=','is'} or determineIfAssignOrEqual(tmpi+1)):
+                                        # only check False on non-assigns
+                                        check=False ; break
+                                elif not inCase and lex[tmpi].type == 'NRANGE':
+                                    tmp=False
+                                    if '...' in lex[tmpi].value:
+                                        tmp=lex[tmpi].value.split('...')
+                                    elif '..' in lex[tmpi].value:
+                                        tmp=lex[tmpi].value.split('..')
+                                    elif 'to' in lex[tmpi].value:
+                                        tmp=lex[tmpi].value.split('to',1)
+                                    if tmp:
+                                        tmp=[i.strip() for i in tmp]
+                                        if lex[token].value in tmp:
+                                            check=False ; break
+                                elif lex[tmpi].type == 'INDEX' and lex[tmpi].value.startswith(lex[token].value):
+                                    check=False ; break
+                                elif lex[tmpi].type == 'LISTCOMP' and lex[tmpi].value.split(':')[0] == lex[token].value: check=False ; break
+                                elif not inCase and lex[tmpi].type == 'COMMAGRP' and any(True for x in lex[tmpi].value.split(',') if x.split('=')[-1].strip() == lex[token].value or lex[token].value+'.' in x.strip() or lex[token].value+'[' in x.strip()): check=False ; break
+                                elif lex[tmpi].type == 'FROM':
+                                    for tmpii in range(tmpi, 0, -1):
+                                        if lex[tmpii].type == 'TAB':
+                                            tmp = lex[tmpii].value.replace('\t', ' ').count(' ');break
+                                        elif lex[tmpii].type == 'NEWLINE':
+                                            tmp = 0;break
+                                    if tmp < tmpIndent:
+                                        breakOnNextNL=True
+                                elif lex[tmpi].type == 'ASSIGN' and ':' not in lex[tmpi].value and lex[tmpi+1].type == 'IF':
+                                    ttenary=True
+                                elif lex[tmpi].type == 'ELSE' and ttenary: ttenary=False
+                                elif breakOnNextNL and not ttenary and lex[tmpi].type in typeNewline: inCase=False ; break
+                                elif lex[tmpi].type == 'INDEX' and f" {lex[token].value} " in lex[tmpi].value:
+                                    check = False ; break
+                                elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value:
+                                    inCase = True
+                                elif lex[tmpi].type == 'IF':
+                                    inCase = False
 
-                    if check:  # remove the var
-                        #print('-------', lex[token].value)
-                        ttenary = tmpPass = False ; tmpEnd = tmpParenScope = tmpListScope = 0
-                        for tmpi in range(delPoint+1, len(lex)*2):
-                            #print(lex[tmpi].type,lex[tmpi].value,f"({tmpParenScope}",f"[{tmpListScope}")
-                            if tmpi >= len(lex)-1:
-                                tmpEnd = tmpi-1 ; break
-                            if lex[tmpi].type == 'ASSIGN' and lex[tmpi+1].type == 'IF': ttenary=True
-                            elif ttenary and lex[tmpi].type == 'ELSE': ttenary=False
+                        if check:  # remove the var
+                            #print('-------', lex[token].value)
+                            ttenary = tmpPass = False ; tmpEnd = tmpParenScope = tmpListScope = 0
+                            for tmpi in range(delPoint+1, len(lex)*2):
+                                #print(lex[tmpi].type,lex[tmpi].value,f"({tmpParenScope}",f"[{tmpListScope}")
+                                if tmpi >= len(lex)-1:
+                                    tmpEnd = tmpi-1 ; break
+                                if lex[tmpi].type == 'ASSIGN' and lex[tmpi+1].type == 'IF': ttenary=True
+                                elif ttenary and lex[tmpi].type == 'ELSE': ttenary=False
 
-                            if not ttenary and lex[tmpi].type in typeNewline and tmpListScope == tmpParenScope == 0:
-                                tmpEnd=tmpi ; break
-                            else:
-                                if tmpReplaceWithPass:
-                                    lex[tmpi].type = 'NOTHING'
-                                    tmpReplaceWithPass=False
-                                elif lex[tmpi].type == 'INC' and lex[tmpi].value.replace('+','').replace('-','').strip() != lex[token].value:
-                                    lex.insert(tmpi+1,makeToken(lex[tmpi],'then','tmpPass')) ; tmpPass=True
-                                elif lex[tmpi].type == 'tmpPass': pass
+                                if not ttenary and lex[tmpi].type in typeNewline and tmpListScope == tmpParenScope == 0:
+                                    tmpEnd=tmpi ; break
                                 else:
-                                    if lex[tmpi].type in {'LPAREN','FUNCTION'}:
-                                        if lex[tmpi].type == 'FUNCTION' and '(' not in lex[tmpi].value:
+                                    if tmpReplaceWithPass:
+                                        lex[tmpi].type = 'NOTHING'
+                                        tmpReplaceWithPass=False
+                                    elif lex[tmpi].type == 'INC' and lex[tmpi].value.replace('+','').replace('-','').strip() != lex[token].value:
+                                        lex.insert(tmpi+1,makeToken(lex[tmpi],'then','tmpPass')) ; tmpPass=True
+                                    elif lex[tmpi].type == 'tmpPass': pass
+                                    else:
+                                        if lex[tmpi].type in {'LPAREN','FUNCTION'}:
+                                            if lex[tmpi].type == 'FUNCTION' and '(' not in lex[tmpi].value:
+                                                tmpParenScope -= 1
+                                            tmpParenScope += 1
+                                        elif lex[tmpi].type == 'RPAREN':
                                             tmpParenScope -= 1
-                                        tmpParenScope += 1
-                                    elif lex[tmpi].type == 'RPAREN':
-                                        tmpParenScope -= 1
-                                    elif lex[tmpi].type in {'LIST','LINDEX'}: tmpListScope+=1
-                                    elif lex[tmpi].type in {'LISTEND','RINDEX'}: tmpListScope-=1
-                                    elif lex[tmpi].type == 'optLIST':
-                                        if lex[tmpi].value == '[': tmpListScope+=1
-                                        else: tmpParenScope += 1
-                                    lex[tmpi].type = 'IGNORE'
-                        if tmpPass:
-                            # for removing the INCs from the expression while still keeping their effects by splitting them into new lines
-                            # tmpPass is so the previous section doesnt delete the THEN inserts
-                            for tmpi in range(delPoint + 1, tmpEnd*3):
-                                if tmpi >= len(lex) - 1: break
-                                if lex[tmpi].type == 'tmpPass':
-                                    lex[tmpi].type='THEN'
-                        if debug: print('eliminated variable:', lex[token].value)
+                                        elif lex[tmpi].type in {'LIST','LINDEX'}: tmpListScope+=1
+                                        elif lex[tmpi].type in {'LISTEND','RINDEX'}: tmpListScope-=1
+                                        elif lex[tmpi].type == 'INDEX':
+                                            tmpListScope += lex[tmpi].value.count('[')
+                                            tmpListScope -= lex[tmpi].value.count(']')
+                                        elif lex[tmpi].type == 'optLIST':
+                                            if lex[tmpi].value == '[': tmpListScope+=1
+                                            else: tmpParenScope += 1
+                                        lex[tmpi].type = 'IGNORE'
+                            if tmpPass:
+                                # for removing the INCs from the expression while still keeping their effects by splitting them into new lines
+                                # tmpPass is so the previous section doesnt delete the THEN inserts
+                                for tmpi in range(delPoint + 1, tmpEnd*3):
+                                    if tmpi >= len(lex) - 1: break
+                                    if lex[tmpi].type == 'tmpPass':
+                                        lex[tmpi].type='THEN'
+                            if debug: print('eliminated variable:', lex[token].value)
+                            newOptimization=True
             #print(' '.join([t.value for t in lex]))
         # clean up vv
         l = 0
