@@ -904,7 +904,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             # determines if a ASSIGN `is` operates as a EQUAL `==` not a ASSIGN `=`
             # token should be ASSIGN, and lexIndex should be ASSIGN's index
             if lex[lexIndex].type != 'ASSIGN':
-                print('determineIfAssignOrEqual error: not a ASSIGN') ; exit()
+                print('Compiler-error\ndetermineIfAssignOrEqual error: not a ASSIGN') ; exit()
             elif ':' in lex[lexIndex].value:
                 return False
             for tt in range(lexIndex - 1, 0, -1):
@@ -913,6 +913,41 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif lex[tt].type in typeNewline:
                     return False
             return False
+
+        def getNumberOfElementsInList(lexIndex,backwards=False):
+            # determine number of elements in list/tuple/set via lex tokens accurately
+            # returns tuple (int numberOfElements , int lexIndexOfCloser)
+            if (not backwards and lex[lexIndex].type not in {'LPAREN','LIST','LINDEX','LBRACKET'}) \
+            or (backwards and lex[lexIndex].type not in {'RPAREN', 'LISTEND', 'RINDEX', 'RBRACKET'}):
+                print('Compiler-error\ngetNumberOfElementsInList error: not a collection') ; exit()
+
+            if backwards:
+                collectionTypeEnd = {'RPAREN': 'LPAREN', 'LISTEND': 'LIST', 'RINDEX': 'LINDEX', 'RBRACKET': 'LBRACKET'}[lex[lexIndex].type]
+            else:
+                collectionTypeEnd={'LPAREN':'RPAREN','LIST':'LISTEND','LINDEX':'RINDEX','LBRACKET':'RBRACKET'}[lex[lexIndex].type]
+            tmpListScope=tmpParenScope=tmpBracketScope=0
+            elementCount=0
+            if backwards:
+                theRange=range(lexIndex-1,0,-1)
+            else:
+                theRange=range(lexIndex+1,len(lex)-1)
+            for t in theRange:
+                tmpListScope    += lex[t].value.count('[')
+                tmpListScope    -= lex[t].value.count(']')
+                tmpParenScope   += lex[t].value.count('(')
+                tmpParenScope   -= lex[t].value.count(')')
+                tmpBracketScope += lex[t].value.count('{')
+                tmpBracketScope -= lex[t].value.count('}')
+                #print(collectionTypeEnd,lex[t].type,elementCount,f"{tmpListScope}[ {tmpParenScope}( {tmpBracketScope}{{")
+                if (not backwards and tmpListScope <= 0 and tmpParenScope <= 0 and tmpBracketScope <= 0) or (backwards and tmpListScope >= 0 and tmpParenScope >= 0 and tmpBracketScope >= 0):
+                    if lex[t].type == collectionTypeEnd:
+                        if (not backwards and lexIndex+1 == t) or (backwards and lexIndex-1 == t): elementCount=-1
+                        return elementCount+1, t
+                    elif lex[t].type in typeNewline:
+                        print('Compiler-error\ngetNumberOfElementsInList error: missing close') ; exit()
+                    elif lex[t].type == 'COMMA':
+                        elementCount+=1
+            return elementCount, t
 
         # idOPTARGS
         # vv you can choose to disable specific optimizations
@@ -1270,7 +1305,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                 if lex[tmpii].type == 'LOOP': tmpsafe=False ; break
                                                                 elif lex[tmpii].type in typeNewline: break
                                                         if vartype!='STRING' and lex[tmpi+1].type=='LINDEX':tmpsafe=False # so it doesn't replace the var in var[index]
-                                                        if vartype in {'LIST','ID'} and lex[tmpi-1].type not in typeCheckers+('INS','EQUAL','LPAREN','BITWISE','ANYOF')+typeMops:
+                                                        if vartype in {'LIST','ID'} and lex[tmpi-1].type not in typeCheckers+('INS','EQUAL','LPAREN','BITWISE','ANYOF')+typeMops and (lex[tmpi-1].value.replace('(','') not in pyBuiltinFunctions or tmpIDshow > 1):
                                                             tmpsafe=False # functions can modify lists in place, therefore replacing it with the list can break behaviour
                                                             for tmpii in range(tmpi,0,-1):
                                                                 if lex[tmpii].type in typeNewline+('BUILTINF','FUNCTION','LPAREN'): break
@@ -1578,6 +1613,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if optFuncTricks:
                                 if optFuncTricksDict['EvalLen'] and optCompilerEval and 'len' not in reservedIsNowVar:
                                     if lex[token].value == 'ASlen' or lex[token].value == 'len' and lex[token-2].type=='STRING' :
+                                        # eval len of string
                                         if lex[token - 2].value.startswith('"""') or lex[token - 2].value.startswith("'''"):
                                             tmp=6
                                         else: tmp=2
@@ -1585,6 +1621,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         lex[token].type='NUMBER'
                                         del lex[token - 1] ; del lex[token - 2]
                                         newOptimization=True
+                                    elif lex[token].value in {'ASlen', 'len'} and lex[token - 2].type in {'RPAREN', 'LISTEND', 'RINDEX', 'RBRACKET'}:
+                                        # eval len of list/tuple/set
+                                        tmpf = getNumberOfElementsInList(token - 2, backwards=True)
+                                        if debug: print(f"! compilerEval: len of {lex[token-5].value}{lex[token-4].value}{lex[token-3].value}{lex[token-2].value} -->  {tmpf[0]}")
+                                        lex[token].type = 'NUMBER' ; lex[token].value = str(tmpf[0])
+                                        for t in range(token-1, tmpf[1]-1, -1):
+                                            lex[t].type = 'IGNORE'
+                                        newOptimization = True
 
                         if optLoopAttr and preAllocated and lex[token+1].type in typeAssignables+('ASSIGN',) \
                         and True in (True if p[1].startswith('AS'+lex[token].value) else False for p in preAllocated):
@@ -2075,6 +2119,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if optFuncTricksDict['EvalLen'] and optCompilerEval and 'len' not in reservedIsNowVar:
                                 if lex[token].value == 'ASlen' and lex[token+1].type=='LPAREN' and lex[token+2].type=='STRING' and lex[token+3].type=='RPAREN' \
                                 or lex[token].value == 'len(' and lex[token+1].type=='STRING' and lex[token+2].type=='RPAREN':
+                                    # eval len of string
                                     if lex[token].value == 'len(':
                                         if lex[token + 1].value.startswith('"""') or lex[token + 1].value.startswith("'''"):
                                             tmp = 6
@@ -2090,6 +2135,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex[token + 1].type=lex[token + 2].type='IGNORE'
                                     del lex[token + 1] ; del lex[token + 1]
                                     newOptimization=True
+                                elif ((lex[token].value in {'ASlen','len'} and lex[token+1].type=='LPAREN' and lex[token+2].type in {'LPAREN','LIST','LINDEX','LBRACKET'}) \
+                                or (lex[token].type == 'FUNCTION' and lex[token].value in {'ASlen(','len('} and lex[token+1].type in {'LPAREN','LIST','LINDEX','LBRACKET'} )):
+                                    # eval len of list/tuple/set
+                                    if lex[token].type == 'FUNCTION': tmp=1
+                                    else: tmp=2
+                                    tmpf = getNumberOfElementsInList(token+tmp)
+                                    if debug: print(f"! compilerEval: len of {lex[token+tmp].value}{lex[token+tmp+1].value}{lex[token+tmp+2].value}{lex[token+tmp+3].value} -->  {tmpf[0]}")
+                                    lex[token].type = 'NUMBER' ; lex[token].value = str(tmpf[0])
+                                    for t in range(token+1,tmpf[1]+2):
+                                        lex[t].type='IGNORE'
+                                    newOptimization = True
+
 
 
                             if optFuncTricksDict['optCythonTypeFromConversionFunction'] and compileTo=='Cython' and any(True for x in convertType if x == lex[token].value.replace('(','')):
@@ -2921,7 +2978,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if lex[tmpi].type == 'ASSIGN' and lex[tmpi+1].type == 'IF': ttenary=True
                                 elif ttenary and lex[tmpi].type == 'ELSE': ttenary=False
 
-                                if not ttenary and lex[tmpi].type in typeNewline and tmpListScope == tmpParenScope == 0:
+                                if not ttenary and lex[tmpi].type in typeNewline and tmpListScope <= 0 and tmpParenScope <= 0:
                                     tmpEnd=tmpi ; break
                                 else:
                                     if tmpReplaceWithPass:
