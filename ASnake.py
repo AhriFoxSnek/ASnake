@@ -6028,6 +6028,8 @@ if __name__ == '__main__':
             if WINDOWS:
                 from pathlib import PureWindowsPath
                 args.path = PureWindowsPath(args.path).as_posix()
+            if os.path.isdir(args.path):
+                args.path += '/'
             if args.path.endswith('/'):
                 args.path+="".join(x for x in '.'.join(ASFile.rsplit('.')[:-1]).split('/')[-1] if x.isalnum())
             if not args.path.endswith('.py'):
