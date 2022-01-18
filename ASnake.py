@@ -6008,6 +6008,12 @@ if __name__ == '__main__':
         pv = python_version_tuple()
         pythonVersion = pv[0] + '.' + pv[1]
 
+    WINDOWS=False
+    if compileAStoPy:
+        from platform import system as OSName
+        if 'windows' in OSName().lower():
+            WINDOWS = True
+
     s=monotonic()
     if (compileTo == 'Cython' and justRun) == False:
         code=build(data,comment=comment,optimize=optimize,debug=debug,compileTo=compileTo,pythonVersion=pythonVersion,enforceTyping=enforceTyping)
@@ -6019,6 +6025,9 @@ if __name__ == '__main__':
         print('# newline cleanup time:',round(monotonic()-s,4))
     if compileAStoPy:
         if args.path:
+            if WINDOWS:
+                from pathlib import PureWindowsPath
+                args.path = PureWindowsPath(args.path).as_posix()
             if args.path.endswith('/'):
                 args.path+="".join(x for x in '.'.join(ASFile.rsplit('.')[:-1]).split('/')[-1] if x.isalnum())
             if not args.path.endswith('.py'):
@@ -6046,9 +6055,9 @@ if __name__ == '__main__':
 
             if "'" in fileName:
                 fileName=fileName.replace("'","\\'")
-            from platform import system as OSName
+
             from subprocess import check_output, CalledProcessError
-            if 'windows' in OSName().lower():
+            if WINDOWS:
                 py3Command='"'+(check_output(['WHERE', 'python']).decode().split('\n')[0]).replace('\r','')+'"'
             else: # linux
                 if len(check_output(['which', 'python3']).decode()) > 0:
