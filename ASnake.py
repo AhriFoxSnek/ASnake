@@ -18,7 +18,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.12.10'
+ASnakeVersion='v0.12.11'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -5921,6 +5921,7 @@ if __name__ == '__main__':
     argParser.add_argument('-f', '--fast', action='store_true', help="Turns off code formatting, and turns off optimization. Useful for fast compile times.")
     argParser.add_argument('-pc', '--python-compatibility', action='store_true', help="Disables ASnake syntax to be compatible with most Python scripts. Useful for optimizing Python scripts written without ASnake in mind.")
     argParser.add_argument('-nc', '--no-comment', action='store_true', help="Turns off comments in the compiled file.")
+    argParser.add_argument('-p', '--path', action='store', help="Custom path for compiled file.")
     argParser.add_argument('-np', '--no-print', action='store_true', help="Doesn't print the compiled file on console.")
     argParser.add_argument('-jr', '--just-run', action='store_true', help="Will run compiled version of file if it exists, otherwise will compile and run it.")
     argParser.add_argument('-cy', '--cython', '--Cython', action='store_true', help="Compiles the code to Cython and .pyx")
@@ -6017,6 +6018,12 @@ if __name__ == '__main__':
         code=REsub(r"""\n\n+(?=([^"'\\]*?(\\.|("|')([^"'\\]*?\\.)*?[^"'\\]*?("|')))*?[^"']*?$)""",'\n',code)
         print('# newline cleanup time:',round(monotonic()-s,4))
     if compileAStoPy:
+        if args.path:
+            if args.path.endswith('/'):
+                args.path+="".join(x for x in '.'.join(ASFile.rsplit('.')[:-1]).split('/')[-1] if x.isalnum())
+            if not args.path.endswith('.py'):
+                args.path+='.py'
+            ASFile,tmpPath=args.path,ASFile
         filePath='/'.join(ASFile.split('/')[:-1])+'/'
         ASFileExt=ASFile.rsplit('.')[-1]
         ASFile='.'.join(ASFile.rsplit('.')[:-1])
@@ -6057,7 +6064,6 @@ except ModuleNotFoundError:
     print('Cython is not installed, ASnake is unable to compile to .so file.\\nThe .pyx file still compiled.\\nDo something like:\\n\\t{"python" if "windows" in OSName().lower() else py3Command} -m pip install cython') ; exit()
 setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.annotate else False}),
 {'include_dirs=[numpy.get_include(),"."]' if 'import numpy' in data else 'include_dirs=["."]'})""")
-            #os.system(f'{py3Command} ASsetup.py build_ext --inplace')
             try:
                 s = monotonic()
                 cythonCompileText = check_output(f'{py3Command} ASsetup.py build_ext --inplace', shell=True).decode()
@@ -6087,10 +6093,18 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                     if fancy:
                         print('\t____________')
         if fancy:
+            if ASFileExt == 'py' and not args.python_compatibility:
+                print('# Warning: Consider using -pc or --python-compatibility flag on Python files to ignore ASnake syntax.')
+
+            ASFileExt='.'+ASFileExt
+            if args.path:
+                ASFile, tmpPath = tmpPath, ASFile
+                fileName=args.path
+                ASFileExt=''
             if compileTo == 'Cython':
-                print(f'{ASFile}.{ASFileExt} compiled to {fileName} {"and "+cythonsoFile if not error else ""}')
+                print(f'{ASFile}{ASFileExt} compiled to {fileName} {"and "+cythonsoFile if not error else ""}')
             else:
-                print(f'{ASFile}.{ASFileExt} compiled to {fileName}')
+                print(f'{ASFile}{ASFileExt} compiled to {fileName}')
     else:
         if ASFile:
             tmp='/'.join(ASFile.split('/')[:-1])+'/'
