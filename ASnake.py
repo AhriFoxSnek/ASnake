@@ -5300,7 +5300,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         and tok.value == 'ASlen' and lex[lexIndex+1].type == 'LPAREN':
                             tok.value+='(' ; lex.remove(lex[lexIndex+1]) # optLoopAttr makes function without '(' at end, so add it
 
-                        if optSortedToSort and tok.value == 'sorted(' and lastType in ('ID','ASSIGN') and 'sorted' not in storedCustomFunctions:
+                        if optSortedToSort and tok.value == 'sorted(' and lastType in {'ID','ASSIGN'} and 'sorted' not in storedCustomFunctions:
                             # var is sorted(var) -> var.sort()
                             if lex[lexIndex-1].type == 'ASSIGN': tmp=2
                             else: tmp=1
@@ -5311,8 +5311,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if inIf: pass
                                 # ^ when in := walrus this optimization can change behaviour (returns None instead of list or True), so dont do it
                                 else:
+                                    tmpCount=0 # for copying indent
+                                    while code[-1][tmpCount] == ' ':
+                                        tmpCount+=1
                                     code=code[:-1] # removes  var =
-                                    tok.type='BUILTINF' ; tok.value=f'{lex[lexIndex-tmp].value}.sort('
+                                    tok.type='BUILTINF' ; tok.value=f'\n{" "*tmpCount}{lex[lexIndex-tmp].value}.sort('
                                     if lex[lexIndex + 1].type == 'COMMAGRP': lex[lexIndex+1].value=''.join(lex[lexIndex+1].value.split(',')[1:])
                                     else: lex[lexIndex+1].type = 'IGNORE'
                         elif optFuncTricks and optFuncTricksDict['collapseToFalseTrue'] and tok.value in {'len(','ASlen('} \
