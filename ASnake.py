@@ -5616,7 +5616,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         line.append(decideIfIndentLine(indent,f'range({tmp[0]},{tmp[-1]},-1)'))
                     else: line.append(decideIfIndentLine(indent,f'range({tmp[0]},{tmp[-1]})'))
 
-                if lastType == 'INS' and lastValue in ('in ','in') and lex[lexIndex+1].type not in typeNewline:
+                if lastType == 'INS' and lastValue in {'in ','in'} and lex[lexIndex+1].type not in typeNewline+('ENDIF',):
                     # if its a for loop and experession is after the NRANGE, asssume indent
                     check=False
                     for tmpi in range(lexIndex,0,-1):
