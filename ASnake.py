@@ -5117,7 +5117,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         lex[lexIndex + 1].type = 'INTOED'
                     else:
                         if line==[]: line.append(lex[lexIndex-1].value)
-                        if line[0].strip() == '(' and line[-1] == ')': line=line[1:-1]
+                        if line[0].strip() == '(' and line[-1] == ')':
+                            check=True ; tmpParenScope=0
+                            for char in ''.join(line):
+                                # if INTO piping a group of parens  (thing),(thang) into test
+                                # then we dont want to inherit the paren of  (thing) --> test(thing),(thang)
+                                # but instead wrap around both  test((thing),(thang))
+                                if char == '(': tmpParenScope+=1
+                                elif char == ')': tmpParenScope-=1
+                                elif char == ',' and tmpParenScope == 0: check=False ; break
+                            if check:
+                                # inherit paren
+                                line=line[1:-1]
                         line.insert(0,decideIfIndentLine(indent,f"{lex[lexIndex+1].value}("))
                         line.append(')')
                         lex[lexIndex+1].type='INTOED'
