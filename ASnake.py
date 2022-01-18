@@ -917,6 +917,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         def getNumberOfElementsInList(lexIndex,backwards=False):
             # determine number of elements in list/tuple/set via lex tokens accurately
             # returns tuple (int numberOfElements , int lexIndexOfCloser)
+            # return None is failure/invalid, ie list comp
             if (not backwards and lex[lexIndex].type not in {'LPAREN','LIST','LINDEX','LBRACKET'}) \
             or (backwards and lex[lexIndex].type not in {'RPAREN', 'LISTEND', 'RINDEX', 'RBRACKET'}):
                 print('Compiler-error\ngetNumberOfElementsInList error: not a collection') ; exit()
@@ -944,7 +945,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if (not backwards and lexIndex+1 == t) or (backwards and lexIndex-1 == t): elementCount=-1
                         return elementCount+1, t
                     elif lex[t].type in typeNewline:
-                        print('Compiler-error\ngetNumberOfElementsInList error: missing close') ; exit()
+                        return None # missing close
+                    elif lex[t].type == 'FOR':
+                        return None # list comp
                     elif lex[t].type == 'COMMA':
                         elementCount+=1
             return elementCount, t
@@ -1624,11 +1627,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     elif lex[token].value in {'ASlen', 'len'} and lex[token - 2].type in {'RPAREN', 'LISTEND', 'RINDEX', 'RBRACKET'}:
                                         # eval len of list/tuple/set
                                         tmpf = getNumberOfElementsInList(token - 2, backwards=True)
-                                        if debug: print(f"! compilerEval: len of {lex[token-5].value}{lex[token-4].value}{lex[token-3].value}{lex[token-2].value} -->  {tmpf[0]}")
-                                        lex[token].type = 'NUMBER' ; lex[token].value = str(tmpf[0])
-                                        for t in range(token-1, tmpf[1]-1, -1):
-                                            lex[t].type = 'IGNORE'
-                                        newOptimization = True
+                                        if tmpf != None:
+                                            if debug: print(f"! compilerEval: len of {lex[token-5].value}{lex[token-4].value}{lex[token-3].value}{lex[token-2].value} -->  {tmpf[0]}")
+                                            lex[token].type = 'NUMBER' ; lex[token].value = str(tmpf[0])
+                                            for t in range(token-1, tmpf[1]-1, -1):
+                                                lex[t].type = 'IGNORE'
+                                            newOptimization = True
 
                         if optLoopAttr and preAllocated and lex[token+1].type in typeAssignables+('ASSIGN',) \
                         and True in (True if p[1].startswith('AS'+lex[token].value) else False for p in preAllocated):
@@ -2141,11 +2145,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     if lex[token].type == 'FUNCTION': tmp=1
                                     else: tmp=2
                                     tmpf = getNumberOfElementsInList(token+tmp)
-                                    if debug: print(f"! compilerEval: len of {lex[token+tmp].value}{lex[token+tmp+1].value}{lex[token+tmp+2].value}{lex[token+tmp+3].value} -->  {tmpf[0]}")
-                                    lex[token].type = 'NUMBER' ; lex[token].value = str(tmpf[0])
-                                    for t in range(token+1,tmpf[1]+2):
-                                        lex[t].type='IGNORE'
-                                    newOptimization = True
+                                    if tmpf != None:
+                                        if debug: print(f"! compilerEval: len of {lex[token+tmp].value}{lex[token+tmp+1].value}{lex[token+tmp+2].value}{lex[token+tmp+3].value} -->  {tmpf[0]}")
+                                        lex[token].type = 'NUMBER' ; lex[token].value = str(tmpf[0])
+                                        for t in range(token+1,tmpf[1]+2):
+                                            lex[t].type='IGNORE'
+                                        newOptimization = True
 
 
 
