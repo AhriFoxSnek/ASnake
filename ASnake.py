@@ -238,7 +238,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     elif compileTo == 'Cython': pythonVersion='3.6'
     elif compileTo == 'Pyston': pythonVersion='3.8'
 
-    if compileTo == 'Cython': code=['#cython: language_level=3','# Cython compiled by ASnake '+ASnakeVersion]
+    if compileTo == 'Cython': code=['# Cython compiled by ASnake '+ASnakeVersion]
     else: code=[f'# Python{pythonVersion} compiled by ASnake '+ASnakeVersion]
 
 
@@ -3357,6 +3357,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         else:
             line.append(decideIfIndentLine(indent, f'@{tmpCache}{"(maxsize=128)" if tmpCache == "lru_cache" else ""}\n', False))
 
+    def insertAtTopOfCodeIfItIsNotThere(line):
+        nonlocal code
+        if any(i for i in code if line in i):
+            pass
+        else:
+            code.insert(1, line)
 
     line=[]
     anyCheck='none' # for any of syntax
@@ -3519,9 +3525,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if i.value in convertType:
                                     tmptype=i
                                     if compileTo=='Cython' and tmptype.value=='bool' and noKwargs:
-                                        tmpfirst=f'cdef extern from "stdbool.h":\n{" "*prettyIndent}ctypedef bint bool'
-                                        if any(True for i in code if i == tmpfirst)==False:
-                                            code.insert(1,tmpfirst)
+                                        insertAtTopOfCodeIfItIsNotThere(f'cdef extern from "stdbool.h":\n{" "*prettyIndent}ctypedef bint bool')
                                 elif i.type == 'ASSIGN': assign=True
                                 elif i.type in ('TIMES','EXPONENT','MINUS'): kwargs=i.type ; continue
                                 elif assign:
@@ -4674,8 +4678,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lex[lexIndex+1].type='IGNORE' ; indent+=prettyIndent ; startOfLine=True
                 if lex[lexIndex+2].value == forthingin and (lex[lexIndex+3].type in ('NEWLINE','TAB','FROM') and (lex[lexIndex+3].value in ('\n','from') or lexIndex+4==len(lex)-1)):
                     if compileTo=='Cython' and expPrint[-1]=='print' and f'cdef Py_ssize_t {forthingin}\n' in line:
-                        if any(i for i in code if 'from libc.stdio cimport printf\n' in i): pass
-                        else: code.insert(1,'from libc.stdio cimport printf\n')
+                        insertAtTopOfCodeIfItIsNotThere('from libc.stdio cimport printf\n')
                         line.append(decideIfIndentLine(indent,f'printf("%d\\n",{forthingin})\n'))
                     else:
                         line.append(decideIfIndentLine(indent,f'{expPrint[-1]}({forthingin})'))
@@ -4850,10 +4853,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             tok.value='bool'
 
                     if compileTo=='Cython' and tok.value=='bool':
-                        tmp=f'cdef extern from "stdbool.h":\n{" "*prettyIndent}ctypedef bint bool'
-                        if any(True for i in code if i == tmp)==False:
-                            code.insert(1,tmp)
-                        #tok.value='bint'
+                        insertAtTopOfCodeIfItIsNotThere(f'cdef extern from "stdbool.h":\n{" "*prettyIndent}ctypedef bint bool')
                     if lexIndex+2 < len(lex):
                         if lex[lexIndex+2].type == 'DEFFUNCT':
                             return AS_SyntaxError('type assigned to the wrong spot',f'myFunction does {tok.value}',lineNumber,data)
@@ -5345,6 +5345,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex[lexIndex + 1].type='INS' ; lex[lexIndex + 1].value='not'
                                 lex[lexIndex + 3].type = 'IGNORE'
                             lex[lexIndex + 4].type = 'IGNORE'
+
+                        elif compileTo == 'Cython' and tok.value == 'len(' and lex[lexIndex+1].type == 'STRING' and lex[lexIndex+2].type == 'RPAREN':
+                            insertAtTopOfCodeIfItIsNotThere('from libc.string cimport strlen as CYlen\n')
+                            tok.value='CYlen('
 
 
                     if tok.type == 'INDEX':
@@ -5866,7 +5870,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     if len(line) > 0:
         code.append(''.join(line))
     if keepAtTop:
-        tmp=[] ; order=('SHEBANG','STRING','IMPORT')
+        if compileTo == 'Cython':
+            keepAtTop.append(makeToken(lex[0],'#cython: language_level=3','CYLEVEL'))
+        tmp=[] ; order=('CYLEVEL','SHEBANG','STRING','IMPORT')
         for o in order:
             for t in keepAtTop:
                 if t.type == o:
