@@ -18,7 +18,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.12.11'
+ASnakeVersion='v0.12.12'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -1154,7 +1154,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             if (lex[tmpi+1].type == 'ASSIGN' and lex[tmpi+2].type == vartype) or lex[tmpi+1].type == vartype or (vartype=='NUMBER' and lex[tmpi].type=='INC'):
                                                 pass
                                             else: linkType=False
-                                            if lex[tmpi+1].type=='LINDEX' and vartype=='STRING': pass
+                                            if lex[tmpi+1].type=='LINDEX':
+                                                if vartype=='STRING': pass
+                                                else:
+                                                    # if assigning to index
+                                                    for tt in range(tmpi, len(lex) - 1):
+                                                        if lex[tt].type in typeNewline:
+                                                            break
+                                                        elif lex[tt].type == 'ASSIGN':
+                                                            if 'is' in lex[tt].value and determineIfAssignOrEqual(tt):
+                                                                break
+                                                            else:
+                                                                tmpAddToIgnoresWhenNL = tt ; break
                                             else:
                                                 tmpAddToIgnoresWhenNL = tmpi
                                                 # if we reach a point where we can determine its no longer constant, then ignore that point onward so the previous code still gets folded
@@ -1171,6 +1182,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     tmpSafe=True ; tmpAddToIgnoresWhenNL=0
                                                 if not tmpSafe:
                                                     search = False
+
                                         elif inFrom and lex[tmpi].type == 'ID' and lex[token].value == lex[tmpi].value:
                                             search = False
                                         elif lex[tmpi].type == 'FUNCTION' and lex[tmpi].value in {'locals(','globals('} and lex[tmpi+1].type == 'RPAREN' and lex[tmpi+2].type == 'LINDEX' and lex[tmpi+3].type == 'STRING' and lex[tmpi+3].value.replace('"','').replace("'","") == lex[token].value:
@@ -1384,8 +1396,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     or (lex[tmpi].type == 'NEWLINE' and lex[tmpi].type!='TAB' and tmpindent>0) or (lex[tmpi].type=='THEN' and '\n' in lex[tmpi].value and lex[tmpi].value.replace('\t',' ').count(' ') < tmpindent):
                                                         break # if inside a indented block, try and stay local to that, do not escape it
                                                     elif lex[tmpi].type in {'LOOP','WHILE'} or lex[tmpi].type == 'FOR' and lex[tmpi-1].type in typeNewline:
-                                                        # lookahead for loops in case it changes inside of it
+                                                        if inLoop[0] == False and not isinstance(tmpf[0],str) and len(tmpf) > 1:
+                                                            # if variable isnt a literal and is folding into a loop, dont bother, inefficient
+                                                            ignores.append(tmpi) ; search = False ; continue
                                                         inLoop=[True,tmpindent]
+                                                        # lookahead for loops in case it changes inside it
                                                         for tmpii in range(tmpi,len(lex)):
                                                             if lex[tmpi].type=='INC' or \
                                                             (((lex[tmpii].type in {'ID','INC'} and lex[tmpii].value.replace('++','').replace('--','').strip()==lex[token].value \
@@ -1398,16 +1413,26 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                         tmpSafe=True
                                                                     if not tmpSafe:
                                                                         ignores.append(tmpi+1) ; search=False ; break
+                                                                elif lex[tmpii+1].type == 'LINDEX':
+                                                                    # assigning to index
+                                                                    for tt in range(tmpii+2, len(lex) - 1):
+                                                                        if lex[tt].type in typeNewline:
+                                                                            break
+                                                                        elif lex[tt].type == 'ASSIGN':
+                                                                            if 'is' in lex[tt].value and determineIfAssignOrEqual(tt):
+                                                                                break
+                                                                            else:
+                                                                                ignores.append(tmpi+1) ; search=False ; break
                                                             elif (lex[tmpii].type=='TAB' and lex[tmpii].value.replace('\t',' ').count(' ') < inLoop[1]) \
                                                             or (lex[tmpii].type == 'NEWLINE' and lex[tmpii].type!='TAB' and inLoop[1]>0) or (lex[tmpii].type=='THEN' and '\n' in lex[tmpii].value and lex[tmpii].value.replace('\t',' ').count(' ') < inLoop[1]):
                                                                 inLoop=[False,0] ; break
                                                         if lex[tmpi].type == 'LOOP' and ((lex[tmpi+1].type=='ID' and lex[tmpi+1].value==lex[token].value) or (tmpi+2 < len(lex)-1 and lex[tmpi+2].type=='ID' and lex[tmpi+2].value==lex[token].value)) \
-                                                        and isinstance(tmpf[0],str) == False and tmpf[0].type != 'RPAREN':
+                                                        and not isinstance(tmpf[0],str) and tmpf[0].type != 'RPAREN':
                                                             if (lex[tmpi+1].type=='ID' and lex[tmpi+1].value==lex[token].value): tmp=1
                                                             else: tmp=2
                                                             # with loop syntax, fold onto iterable
                                                             if debug: print(f'! replacing lex #{tmpi} (lastType:{lex[tmpi-tmp].type})')
-                                                            if isinstance(tmpf[0],str) == False:
+                                                            if not isinstance(tmpf[0],str):
                                                                 lex[tmpi+tmp].type='IGNORE'
                                                                 for t in tmpf:
                                                                     lex.insert(tmpi+tmp,t)
@@ -1415,7 +1440,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                 tmpf=''.join(tmpf)
                                                                 lex[tmpi+tmp].value=tmpf ; lex[tmpi+tmp].type=vartype
                                                     elif lex[tmpi].type == 'LISTCOMP' and lex[tmpi].value.split(':')[0] == lex[token].value:
-                                                        if isinstance(tmpf[0], str) == True:
+                                                        if isinstance(tmpf[0], str):
                                                             lex[tmpi].value=tmpf+':'+''.join(lex[tmpi].value.split(':')[1:])
                                                             if debug: print(f'! replacing lex #{tmpi} (lastType:{lex[tmpi-1].type})')
                                                             newOptimization = True
@@ -2264,7 +2289,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lex[tmpi].type in typeNewline:
                                 break
                         if tmpscope <= 0:  # if paren scope negative (complete) or zero (nonexistent)
-                            if optLoopAttr:
+                            if optLoopAttr: # the real start of optLoopAttr
                                 if lex[token-1].type == 'TAB':
                                     tmpindent=lex[token-1].value.count(' ')
                                 else: tmpindent=0
@@ -2278,7 +2303,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 firstIndent=False # wait until first indent when doing the optimization on for loops: for x in thing.split()  would not benefit since it runs only once
                                 if lex[token].type != 'FOR': firstIndent=True # should only apply to for loops, see above ^
                                 else:
-                                    # dont optimize the iterator variables in for loop
+                                    # don't optimize the iterator variables in for loop
                                     if lex[token+1].type=='COMMAGRP':
                                         ignoreVars=lex[token+1].value.split(',')
                                     else:
@@ -2298,7 +2323,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if tmpImportName+'.' in importcheck: break
                                         elif tmpImportName in importcheck: check=True
                                         if check == False:
-                                            for ii in range(token-2,0,-1): # search backwards for evidence its safe to use the variable
+                                            # search backwards for evidence if its safe to use the variable
+                                            for ii in range(token-2,0,-1): # BEHIND LOOP
                                                 #if debug: print(lex[tmpi].value,check,lex[ii].type,lex[ii].value,'|',lex[tmpi].value)
                                                 if lex[ii].type in ('ID','BUILTINF') and lex[ii].value.startswith(lex[tmpi].value.split('.')[0])\
                                                 and lex[ii+1].type in typeAssignables+('ASSIGN',):
@@ -2314,10 +2340,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 elif lex[ii].type == 'TAB' and (minindent==None or lex[ii].value.count(' ') < minindent):
                                                     minindent=lex[ii].value.count(' ')
                                             for ii in range(tmpi,0,-1): # search backwards within expression
+                                                tmpIndex = ii
                                                 if lex[ii].type == 'ID' and lex[ii].value.startswith(lex[tmpi].value.split('.')[0]) and lex[ii + 1].type == 'INS' and lex[ii - 1].type == 'FOR':
-                                                    check = False # dont want to optimize listcomps as it could call builtin of something that doesnt exist yet: sum(1 for c in word if c.isupper())
+                                                    check = False # dont want to optimize listcomps as it could call builtin of something that doesn't exist yet: sum(1 for c in word if c.isupper())
                                                     break
                                                 elif lex[ii].type in typeNewline: break
+                                            for ii in range(tmpIndex,token,-1): # search behind within the loop
+                                                if lex[ii].type in ('ID','BUILTINF') and lex[ii].value.startswith(lex[tmpi].value.split('.')[0]) and lex[ii-1].type in {'WITHAS','FOR'}:
+                                                    # WITHAS / FOR makes a new variable, which we cannot preallocate properly
+                                                    check = False ; break
                                         if check:
                                             assignCheck.append(lex[tmpi].value.split('.')[0])
                                             minicheck=True
@@ -5869,9 +5900,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
     if len(line) > 0:
         code.append(''.join(line))
+    if compileTo == 'Cython':
+        keepAtTop.append(makeToken(lex[0], '#cython: language_level=3', 'CYLEVEL'))
     if keepAtTop:
-        if compileTo == 'Cython':
-            keepAtTop.append(makeToken(lex[0],'#cython: language_level=3','CYLEVEL'))
         tmp=[] ; order=('CYLEVEL','SHEBANG','STRING','IMPORT')
         for o in order:
             for t in keepAtTop:
