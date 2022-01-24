@@ -987,9 +987,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
         if compileTo == 'Cython':
             # v incompatible optimizations v
-            optWalrus=optStrFormatToFString=optLoopAttr=False
+            optWalrus=optStrFormatToFString=False
             # v compatible but slower v
             optNestedLoopItertoolsProduct=optFuncCache=False
+            # v prevents Cython-ization v
+            optLoopToMap=optLoopAttr=False
         elif compileTo == 'PyPy3':
             # v seems to be slower for some reason on PyPy but faster on Python v
             optNestedLoopItertoolsProduct=optFuncCache=optLoopToMap=optListPlusListToExtend=False
@@ -3203,7 +3205,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             if not forLoop and loopSyntaxCount < 3:
                 if lex[tmpi].type in typeNewline+('FUNCTION',):
                     if lex[tmpi].type == 'FUNCTION': expressionStart = tmpi-1
-                    else: expressionStart = tmpi
+                    else: expressionStart = tmpi ; tmpFirstIndent = False
                     loopSyntaxCount=3
                 elif lex[tmpi].type not in typeMops:
                     loopSyntaxCount+=1
@@ -3258,7 +3260,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     tmpVal = lex[tmpi-1].value
                 elif optLoopAttr and '_append' in lex[tmpi].value and lex[tmpi].value.startswith('AS'):
                     tmpVal = lex[tmpi].value[2:-7]
-                    break
+                   # break
 
         if not forLoop:
             if lex[lexIndex + 1].type == 'NUMBER' or (
