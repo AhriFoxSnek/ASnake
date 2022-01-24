@@ -952,6 +952,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         elementCount+=1
             return elementCount, t
 
+        def checkIfInsideFSTR(lexIndex) -> bool:
+            for t in range(lexIndex,0,-1):
+                if lex[t].type in typeNewline:
+                    if lex[t].type == 'THEN': pass
+                    else: return False
+                elif lex[t].type == 'FSTR':
+                    return True
+
         # idOPTARGS
         # vv you can choose to disable specific optimizations
         optFromFunc=True
@@ -1367,13 +1375,23 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             if debug: print(f'! replacing lex #{tmpi} (lastType:{lex[tmpi-1].type})')
                                                             if isinstance(tmpf[0],str) == False: # if tmpf[0] is not string, then its a lex
                                                                 if not pyCompatibility: # These fix it not printing in ASnake mode. If in Python mode, don't fix it.
+                                                                    tmpCheck = False
                                                                     if len(tmpf) == 1 and tmpf[0].type == 'STRING' and (tmpf[0].value.startswith('"""') or tmpf[0].value.startswith("'''")) and lex[tmpi-1].type in typeNewline:
                                                                         # multiline strings dont print due to doc-strings, thus when constant folding onto a asnake bare ID,
                                                                         # it wouldnt print even though it should. this adds print token to fix that
-                                                                        tmpf.append(makeToken(tmpf[0], 'print', 'ID'))
+                                                                        tmpCheck = True
                                                                     elif lex[tmpi-1].type in typeNewline and lex[tmpi+1].type in typeNewline and lex[tmpi].type == 'ID' and lex[tmpi].value not in definedFuncs:
                                                                         # when it folds onto a bare ID, it should still print
-                                                                        tmpf.append(makeToken(tmpf[0], 'print', 'ID'))
+                                                                        tmpCheck = True
+                                                                    elif (lex[tmpi-1].type in typeNewline or (lex[tmpi-1].type == 'ID' and lex[tmpi-1].value == 'print')) and all(True if l.type in ('COMMA','NUMBER','STRING','LIST','LISTEND','LINDEX','RINDEX','LPAREN','RPAREN') else False for l in tmpf ) and not checkIfInsideFSTR(tmpi):
+                                                                        # if comma group of simple literals
+                                                                        if lex[tmpi-1].type in typeNewline:
+                                                                            tmpCheck = True
+                                                                        else:
+                                                                            tmpf.append(makeToken(tmpf[0], '(', 'LPAREN'))
+                                                                            tmpf.insert(0,makeToken(tmpf[0], ')', 'RPAREN'))
+                                                                    if tmpCheck:
+                                                                        tmpf.append(makeToken(tmpf[0], 'defExp', 'DEFEXP'))
                                                                 lex[tmpi].type='IGNORE'
                                                                 for t in tmpf:
                                                                     lex.insert(tmpi,copy(t))
