@@ -3824,7 +3824,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lexIndex+1 <= len(lex) and tok.type != 'LISTEND':
                                 if lex[lexIndex+1].type in typeNewline+typeConditionals+('TRY','ELSE'):
                                     doPrint=True
-                                elif lexIndex-1 >= 0 and (lex[lexIndex-1].type in typeNewline+('TRY','ELSE') or (lexIndex-3>0 and lex[lexIndex-3].type=='LOOP') or (lex[lexIndex-1].type == 'DEFFUNCT' or (lex[lexIndex-1].type == 'TYPE' and lex[lexIndex-2].type == 'DEFFUNCT'))):
+                                elif lexIndex-1 >= 0 and (lex[lexIndex-1].type in typeNewline+('TRY',) or (lexIndex-3>0 and lex[lexIndex-3].type=='LOOP') or (lex[lexIndex-1].type == 'DEFFUNCT' or (lex[lexIndex-1].type == 'TYPE' and lex[lexIndex-2].type == 'DEFFUNCT')) or (lex[lexIndex-1].type == 'ELSE' and lex[lexIndex-2].type in typeNewline) ):
                                     tmp=rParen
                                     rParen+=1
                                     for tmpi in range(lexIndex,len(lex)-1):
