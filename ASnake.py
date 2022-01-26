@@ -576,7 +576,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         lexIndex-=1
                         lex.pop()
                     elif lex[lexIndex].type == 'NEWLINE':
-                        while lex[lexIndex].type == 'NEWLINE':
+                        while lexIndex > 0 and lex[lexIndex].type == 'NEWLINE':
                             lexIndex -= 1
                             lex.pop()
                     elif ignoreIndentation and lex[lexIndex].type == 'END':
@@ -1413,7 +1413,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     elif lex[tmpi].type == 'FROM': inFrom=True
                                                     elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value: inCase=True
                                                     elif (lex[tmpi].type=='TAB' and lex[tmpi].value.replace('\t',' ').count(' ') < tmpindent) \
-                                                    or (lex[tmpi].type == 'NEWLINE' and lex[tmpi].type!='TAB' and tmpindent>0) or (lex[tmpi].type=='THEN' and '\n' in lex[tmpi].value and lex[tmpi].value.replace('\t',' ').count(' ') < tmpindent):
+                                                    or (lex[tmpi].type == 'NEWLINE' and tmpindent>0) or (lex[tmpi].type=='THEN' and '\n' in lex[tmpi].value and lex[tmpi].value.replace('\t',' ').count(' ') < tmpindent):
                                                         break # if inside a indented block, try and stay local to that, do not escape it
                                                     elif lex[tmpi].type in {'LOOP','WHILE'} or lex[tmpi].type == 'FOR' and lex[tmpi-1].type in typeNewline:
                                                         if inLoop[0] == False and not isinstance(tmpf[0],str) and len(tmpf) > 1:
@@ -4750,9 +4750,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if tok.value == 'are': tmpcheck=True
                         else: tmpcheck=False
                         line=line[:-1]
-                        if lex[lexIndex-1].type == 'COMMAGRP': # group to check
-                            tmpfirst=f'({lex[lexIndex-1].value})'
-                        elif lex[lexIndex-2].type == 'ANYOF': tmpfirst=lex[lexIndex-1].value
+                        if lex[lexIndex-2].type == 'ANYOF': tmpfirst=lex[lexIndex-1].value
                         else:
                             tmpfirst=[]
                             for tmpi in range(lexIndex-1,0,-1):
@@ -4760,30 +4758,64 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     try: line=line[:-line.index(lex[tmpi+1].value)]
                                     except (IndexError, ValueError): line=[]
                                     break
+                                elif lex[tmpi].type == 'IGNORE': pass
                                 else: tmpfirst.append(lex[tmpi].value)
-                            tmpfirst=''.join(reversed(tmpfirst))
+                            tmpfirst='('+(''.join(reversed(tmpfirst)))+')'
 
-                        # vv thing to check group with/against
-                        if lexIndex+2 < len(lex) and lex[lexIndex+2].type in typeAssignables+('BOOL','INDEX'):
-                            check=lex[lexIndex+1].value
-                            tmpcheck=lex[lexIndex+2].value
-                            lex[lexIndex+2].type = 'IGNORE'
-                        elif lex[lexIndex+1].type == 'INS' and lex[lexIndex+1].value.strip() == 'not':
-                            if tok.value.strip() == 'are':
-                                check='!='
-                            else: check = '=='
-                        elif lex[lexIndex+1].type in typeAssignables+('BOOL',):
-                            check='==' ; tmpcheck=lex[lexIndex+1].value
-                        else: check = '=='
 
-                        if check == 'equal':
-                            check = '=='
-                        elif check in ('unequal','not equal','not ',' not','not','!='):
-                            check='!='
-                        if check == '==' and tmpcheck in ('False',False):
-                            check='!=' ; tmpcheck='True'
+                        # handle compare
+                        if lex[lexIndex+1].type in typeCheckers+('INS',):
+                            tmp=2 ; check = lex[lexIndex+1].value
+                            if lex[lexIndex + 1].type == 'EQUAL' and lex[lexIndex+1].value.strip() != 'equal' and lex[lexIndex].value != 'are':
+                                check = '!='
+                            elif lex[lexIndex + 1].type in {'ID','EQUAL','NOTEQ'} and lex[lexIndex + 1].value.replace('not','').strip() == 'equal':
+                                check = 'equal'
+                                if 'not' in lex[lexIndex+1].value:
+                                    if 'are' == lex[lexIndex].value: lex[lexIndex].value = 'arent'
+                                    else: lex[lexIndex].value = 'are'
+                                if 'are' == lex[lexIndex].value: tmpcheck=True
+                                else: tmpcheck=False
+                            elif lex[lexIndex + 1].type == 'NOTEQ' and lex[lexIndex].value != 'are':
+                                check = '=='
+                            elif lex[lexIndex + 1].type == 'INS' and check.strip() == 'not':
+                                if lex[lexIndex+2].value.strip() == 'in':
+                                    check = 'not in'
+                                    lex[lexIndex+2].type = 'IGNORE'
+                                    tmp=3
+                                else:
+                                    if 'are' == lex[lexIndex].value: check = '!='
+                                    else: check = '=='
+                        else:
+                            tmp=1
+                            if lex[lexIndex+1].type == 'BOOL':
+                                # if _  vs   if _ == True
+                                tmp = False
+                                check = tmpcheck = ''
+                                if lex[lexIndex+1].value == 'False':
+                                    tmpcheck='== False'
+                            else:
+                                if lex[lexIndex + 1].type in {'ID','EQUAL'} and lex[lexIndex + 1].value.strip() == 'equal':
+                                    check = 'equal'
+                                    if 'are' == lex[lexIndex].value: tmpcheck=True
+                                    else: tmpcheck=False
+                                elif 'are' == lex[lexIndex].value:
+                                   check = '=='
+                                else: check = '!='
+
+                        # handle object
+                        if tmp:
+                            tmpcheck = ''
+                            for tt in range(lexIndex + tmp, len(lex) - 1):
+                                if lex[tt].type in typeNewline+('ENDIF',):
+                                    break
+                                else:
+                                    tmpcheck += lex[tt].value
+                                    lex[tt].type = 'IGNORE'
+                            tmpcheck = f"({tmpcheck})"
+
                         # check is operator, tmpcheck is object
                         # like check ==     tmpcheck True
+                        # tmpfirst is iterable
                         if lex[lexIndex+1].type in ('FUNCTION','BUILTINF') or (lex[lexIndex+1].type in ('IGNORE','NOTEQ','INS') and lex[lexIndex+2].type in ('FUNCTION','BUILTINF')):
                             tmpcheck='' ; tmpScope=0
                             for tmpi in range(lexIndex+(1 if lex[lexIndex+1].type in ('FUNCTION','BUILTINF') else 2),len(lex)-1):
@@ -4802,8 +4834,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         else: # just a note: this can be 'any' or 'all', while the above are optimizations for 'all'
                             if check == '==' and tmpcheck == 'True':
                                 line.append(f"{anyCheck}(True for _ in {tmpfirst} if _)")
+                            elif anyCheck == 'any' and check == 'equal':
+                                if lex[lexIndex].value != 'are':
+                                    line.append(f"len(set({tmpfirst})) != 1")
+                                else:
+                                    line.append(f"len(set({tmpfirst})) != len({tmpfirst})")
+                            elif anyCheck == 'all' and check == 'equal':
+                                if lex[lexIndex].value != 'are':
+                                    line.append(f"len(set({tmpfirst})) == len({tmpfirst})")
+                                else:
+                                    line.append(f"len(set({tmpfirst})) == 1")
                             else:
-                                line.append(f"{anyCheck}(True for _ in {tmpfirst} if _ {check} {tmpcheck})")
+                                line.append(f"{anyCheck}(True if _ {check} {tmpcheck} else False for _ in {tmpfirst})")
                         lex[lexIndex+1].type = 'IGNORE' ; lex[lexIndex-1].type = 'IGNORE'
                         anyCheck='none'
                     else:
