@@ -1672,7 +1672,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     elif lex[token].value in {'ASlen', 'len'} and lex[token - 2].type in {'RPAREN', 'LISTEND', 'RINDEX', 'RBRACKET'}:
                                         # eval len of list/tuple/set
                                         tmpf = getNumberOfElementsInList(token - 2, backwards=True)
-                                        if tmpf != None:
+                                        if tmpf != None and tmpf[0] > 1:
                                             if debug: print(f"! compilerEval: len of {lex[token-5].value}{lex[token-4].value}{lex[token-3].value}{lex[token-2].value} -->  {tmpf[0]}")
                                             lex[token].type = 'NUMBER' ; lex[token].value = str(tmpf[0])
                                             for t in range(token-1, tmpf[1]-1, -1):
@@ -2190,7 +2190,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     if lex[token].type == 'FUNCTION': tmp=1
                                     else: tmp=2
                                     tmpf = getNumberOfElementsInList(token+tmp)
-                                    if tmpf != None:
+                                    if tmpf != None and tmpf[0] > 1:
                                         if debug: print(f"! compilerEval: len of {lex[token+tmp].value}{lex[token+tmp+1].value}{lex[token+tmp+2].value}{lex[token+tmp+3].value} -->  {tmpf[0]}")
                                         lex[token].type = 'NUMBER' ; lex[token].value = str(tmpf[0])
                                         for t in range(token+1,tmpf[1]+2):
