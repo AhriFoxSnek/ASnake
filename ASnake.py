@@ -1366,10 +1366,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             for tt in range(tmpStartOfline+1,len(lex)-1):
                                                                 if lex[tt].type in typeNewline: break
                                                                 elif lex[tt].type == 'DEFEXP': tmpDefExp=tmpsafe=False ; break
+                                                                elif lex[tt].type == 'ID' and lex[tt+1].type in typeAssignables: tmpDefExp=False
                                                                 elif lex[tt].type not in typePrintable: tmpDefExp=False
                                                             if tmpDefExp and tmpsafe:
                                                                 lex.insert(tmpStartOfline+1,makeToken(lex[0],'defExp','DEFEXP'))
                                                                 tmpi+=1
+
 
                                                         if tmpsafe:
                                                             if debug: print(f'! replacing lex #{tmpi} (lastType:{lex[tmpi-1].type})')
