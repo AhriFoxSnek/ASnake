@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # dependencies
-import sly.lex
+from sly.lex import LexError
 from sly import Lexer
 from autopep8 import fix_code
 
@@ -18,7 +18,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.12.12'
+ASnakeVersion='v0.12.13'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -107,7 +107,7 @@ class Lexer(Lexer):
     META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n]*=)(?=[\n \]\)\$\[]))|([^+\-/*^~<>&\n()[\],=]*((=.*)|(?=\n)|$|(?=,))))'
     FUNCMOD = r'@.*'
     PYDEF   = r'c?def +([\w.\[\d:,\] ]* )?\w+ *\(((?!: *return).)*\)*( *((-> *)?\w* *):?)'
-    PYCLASS = r'class ([a-z]|[A-Z])\w*(\(.*\))?:'
+    PYCLASS = r'class ([a-z]|[A-Z])\w*(\(.*\))?:?'
     STRLIT  = r'(r|f)?\"\"\"[\w\W]+?\"\"\"|(r|f)?\'\'\'[\w\W]+?\'\'\''
     INDEX   = r'''((((\w[\w\d_]*)|(\)( |\t)*)|(?!.*("|')))(\[(((.(?! \w))*?:[^#:\n\[]*?)|(([^,])*?)|.*\(.*\))[^\[,\n]*\])+(?= *[\.+)-\\*\n=\w]| *))|\[ *\])'''
     LIST    = r'\['
@@ -3453,6 +3453,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         pyIs = metaInformation[4]
         autoEnumerate = metaInformation[5]
         intVsStrDoLen = metaInformation[6]
+        metaDefaultExpressionWithFunction = metaInformation[7]
     else:
         expPrint=[0,'print']
         ignoreIndentation=False
@@ -3460,6 +3461,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         pyIs=False
         autoEnumerate=True
         intVsStrDoLen=True
+        metaDefaultExpressionWithFunction = True
 
     listcomp={}
     lexIndex=-1
@@ -3847,14 +3849,19 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 elif lexIndex-1 >= 0 and (lex[lexIndex-1].type in typeNewline+('TRY',) or (lexIndex-3>0 and lex[lexIndex-3].type=='LOOP') or (lex[lexIndex-1].type == 'DEFFUNCT' or (lex[lexIndex-1].type == 'TYPE' and lex[lexIndex-2].type == 'DEFFUNCT')) or (lex[lexIndex-1].type == 'ELSE' and lex[lexIndex-2].type in typeNewline) ):
                                     tmp=rParen
                                     rParen+=1
+                                    tmpHaveSeenOperator=False
                                     for tmpi in range(lexIndex,len(lex)-1):
                                         if lex[tmpi].type in typeNewline+('FROM',): break
+                                        elif tmpHaveSeenOperator and lex[tmpi].type == 'FUNCTION':
+                                            pass
                                         elif lex[tmpi].type not in typePrintable:
                                             rParen-=1 ; break
                                         elif lex[tmpi].type == 'RINDEX' and lex[tmpi+1].type == 'ID':
                                             rParen-=1 ; break
                                         elif tmpi-1 == lexIndex and lex[lexIndex].type == 'ID' and lex[tmpi].type in typeAssignables+('INDEX','LPAREN'):
                                             rParen-=1 ; break
+                                        if metaDefaultExpressionWithFunction and lex[tmpi].type in typeOperators:
+                                            tmpHaveSeenOperator=True
                                     if rParen == tmp or listScope > 0: # normal
                                         line.append(f'{" "*(indent)}{tok.value} ')
                                     else: # expression which can be print (no functions or assignment)
@@ -5445,6 +5452,30 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             insertAtTopOfCodeIfItIsNotThere('from libc.string cimport strlen as CYlen\n')
                             tok.value='CYlen('
 
+                    if metaDefaultExpressionWithFunction and (tok.type == 'FUNCTION' or (tok.type == 'BUILTINF' and lex[lexIndex+1].type == 'LPAREN')) and not fstrQuote and lastType in typeNewline:
+                        tmpInFunction=0 ; doPrint = False
+                        for tt in range(lexIndex,len(lex)-1):
+                            if tmpInFunction <= 0 and lex[tt].type in typeOperators:
+                                doPrint=True ; break
+                            elif lex[tt].type in typeNewline: break
+                            elif lex[tt].type == 'LPAREN': tmpInFunction+=1
+                            elif lex[tt].type == 'FUNCTION' and '(' in lex[tt].value: tmpInFunction+=1
+                            elif lex[tt].type == 'RPAREN': tmpInFunction-=1
+                        if doPrint:
+                            line.append(decideIfIndentLine(indent,f'{expPrint[-1]}('))
+                            bigWrap = True; rParen += 1
+                    if lastType in typeNewline and tok.type == 'BUILTINF' and lex[lexIndex+1].type not in ('LPAREN','ASSIGN'):
+                        check = True
+                        for t in range(lexIndex,len(lex)-1):
+                            if lex[t].type in typeNewline: break
+                            elif lex[t].type not in typePrintable+('BUILTINF',):
+                                check = False ; break
+                            elif lex[t].type == 'BUILTINF' and lex[t + 1].type == 'LPAREN':
+                                check = False ; break
+                        if check:
+                            line.append(decideIfIndentLine(indent, f'{expPrint[-1]}('))
+                            bigWrap = True ; rParen += 1
+
 
                     if tok.type == 'INDEX':
                         parenScope-=tok.value.count(')') ; parenScope+=tok.value.count('(')
@@ -5464,9 +5495,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             storedVarsHistory[lex[lexIndex-tmpi].value]['value'] = 'INDEX'
                         else: storeVar(lex[lexIndex-tmpi],tok,lex[lexIndex+1],position=lexIndex)
                     elif tok.type == 'RPAREN': parenScope=parenScope-1 if parenScope > 0 else 0
-                    # vv i dont think i want to print this. i guess only data types will print vv
-                    #elif lastType in typeNewline and lexIndex+1 < len(lex) and lex[lexIndex+1].type in typeNewline:
-                    #    line.append(decideIfIndentLine(indent,'print(')) ; tok.value+=')'
                     elif lastType in typeNewline and lex[lexIndex].type=='INDEX':
                         check=True
                         for t in range(lexIndex+1,len(lex)):
@@ -5498,9 +5526,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif tok.type == 'FSTR': # idFSTR
                     if startOfLine and lastType in typeNewline+('ELSE','DEFFUNCT'):
                         check=True # if pipe then dont assume print , else do
+                        tmp=False
                         for t in range(lexIndex + 1, len(lex)):
                             if lex[t].type in typeNewline: break
-                            elif lex[t].type == 'PIPE': check = False; break
+                            elif lex[t].type == 'PIPE' and tmp: check = False
+                            elif lex[t].type == 'FSTR': tmp=check=True
                         if tok.value.replace('f','').startswith('"""') or tok.value.replace('f','').startswith("'''"): check = False
                         if check: line.append(decideIfIndentLine(indent,expPrint[-1]+'(')) ; bigWrap=True ; rParen+=1
 
@@ -5739,7 +5769,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
             elif tok.type == 'META':
                 tmpf=tok.value.split('=')[0].replace(' ','').replace('$','') # needs replace instead of strip()
-                if tmpf in ('defexp','defaultExpression','defaultPrint','expPrint','defprint'):
+                if tmpf in {'defexp','defaultExpression','defaultPrint','expPrint','defprint'}:
 
                     tmp=tok.value[tok.value.index('=')+1:]
                     while tmp[0] == ' ': tmp=tmp[1:]
@@ -5797,6 +5827,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         code.append(f'# Compile target changed to {compileTo}{tmp}')
                     pythonVersion = tmp
                     # in pre-phase it already checked if it was float, no need for try except
+                elif tmpf in {'noDefExpOnFunc','defExpIgnoreFunction','defaultExpressionIgnoreFunction','ignoreDefExpFunction'}:
+                    if tmp in {'true', 'yes', 'on'}:
+                        metaDefaultExpressionWithFunction = True
+                    elif tmp in {'no', 'false', 'off'}:
+                        metaDefaultExpressionWithFunction = False
+                    else:
+                        metaDefaultExpressionWithFunction = False
 
 
 
@@ -5896,6 +5933,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.type == 'PYCLASS':
                 line.append(decideIfIndentLine(indent,tok.value))
                 indent+=prettyIndent
+                if tok.value[-1] != ':':
+                    indentSoon=True
             elif tok.type in typeCheckers:
                 if intVsStrDoLen and (lastType in ('STRING','LIST','LISTCOMP','DICT','TUPLE') or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] in ('STRING','LIST','LISTCOMP','DICT','TUPLE'))) \
                 and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in ('NUMBER','INC') or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type']=='NUMBER'))):
@@ -5976,7 +6015,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             code.insert(0,t.value)
     if debug: print('len of lex',len(lex)-1)
     if outputInternals:
-        metaInformation=[inlineReplace,expPrint,ignoreIndentation,functionPassing,pyIs,autoEnumerate,intVsStrDoLen]
+        metaInformation=[inlineReplace,expPrint,ignoreIndentation,functionPassing,pyIs,autoEnumerate,intVsStrDoLen,metaDefaultExpressionWithFunction]
         return ('\n'.join(code), lex, storedVarsHistory,metaInformation)
     else:
         return '\n'.join(code)
