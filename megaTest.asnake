@@ -248,4 +248,41 @@ if x[-1] is 1 $worked
 else 'list-comp shortcut backwards' $failed
 
 
+
+increment does return z+1 from int z
+
+$start
+increment(1)+2
+if result is 4 $worked
+else 'function default expression when not bare (starting with function)' $failed
+
+$start
+2+increment(2)
+if result is 5 $worked
+else 'function default expression when not bare (starting with literal)' $failed
+
+$start
+result = 6
+increment(2)
+if result is 6 $worked
+else 'bare function shouldnt trigger default expression' $failed
+
+class Thing():
+	value = 1
+	def blah(self)
+		return 2
+classObject = Thing()
+
+$start
+classObject.value
+if result is 1 $worked
+else 'object attribute trigger default expression' $failed
+
+$start
+classObject.blah()
+if result isnt 2 $worked
+else 'object function shouldnt trigger default expression' $failed
+
+
+
 f"Failed={failed} Working={working} out of {max}" to print
