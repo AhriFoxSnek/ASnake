@@ -5891,9 +5891,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         elif lex[tmpi].type == 'WHILE' and not tmpIndent: tmpInWhile = True
 
                     if tmpInWhile:
-                        if tmpIndent: tmpIndent+=prettyIndent
+                        if tmpIndent:
+                            tmpIndent+=prettyIndent
+                            tmpLastIndent = tmpIndent
+                        else: tmpLastIndent=0
                         # increment at end
-                        tmpLastIndent=0
                         line.append(tmp)
                         for tmpi in range(lexIndex+1,len(lex)):
                             if tmpIndent == None:
@@ -5911,7 +5913,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     else:
                                         if lex[tmpi].type == 'TAB':
                                             tmpLastIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
-                                        elif lex[tmpi].type in typeConditionals and tmpLastIndent:
+                                        if lex[tmpi+1].type in typeConditionals and tmpLastIndent:
                                             tmpLastIndent+=prettyIndent
                                     if found:
                                         lex.insert(tmpi, copy(lex[lexIndex]))
