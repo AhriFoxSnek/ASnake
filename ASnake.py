@@ -165,7 +165,7 @@ class Lexer(Lexer):
     ARE     = r"(arent|aren\'t|are)(?= |\n|\t)"
     BOOL    = r'True|False|None'
     MODULO  = r'%|remainder(?= |\n|\t)'
-    INC     = r'((\+{2}|\-{2})[^\[\]\(\)\+\-\/\*\d\s,=][^\s\+\-\/\*,\(\)=]*(\[.*\])?)|([^\[\]\(\)\+\-\/\*\d\s,=][^\s\+\-\/\*,=]*(\[.*\])?(\+{2}|\-{2}))'
+    INC     = r'((\+{2}|\-{2})[^\[\]\(\)\+\-\/\*\d\s,=][^\s\+\-\/\*,\(\)=><]*(\[.*\])?)|([^\[\]\(\)\+\-\/\*\d\s,=][^\s\+\-\/\*,=]*(\[.*\])?(\+{2}|\-{2}))'
     HEXDEC  = r'0x[\da-f]+'
     NUMBER  = r'(0x\d*)|(((( \-\d|\d)\d*\.?\d*)|(\-?\.))(e(-|\+)\d+)?\.?_*\d*j?(?!\w+))'
     SCINOTAT= r'(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE]\d+)'
@@ -5893,6 +5893,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if tmpInWhile:
                         if tmpIndent: tmpIndent+=prettyIndent
                         # increment at end
+                        tmpLastIndent=0
                         line.append(tmp)
                         for tmpi in range(lexIndex+1,len(lex)):
                             if tmpIndent == None:
@@ -5900,15 +5901,25 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     if lex[tmpi].type == 'TAB':
                                         tmpIndent = lex[tmpi].value.replace('\t',' ').count(' ')
                                     elif lex[tmpi].type == 'NEWLINE': tmpIndent = 0
+                                    tmpLastIndent = tmpIndent
                             else:
                                 if lex[tmpi].type in typeNewline:
                                     found=False
                                     if lex[tmpi].type == 'TAB' and lex[tmpi].value.replace('\t', ' ').count(' ') < tmpIndent:
                                         found=True
                                     elif lex[tmpi].type == 'NEWLINE': found=True
+                                    else:
+                                        if lex[tmpi].type == 'TAB':
+                                            tmpLastIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
+                                        elif lex[tmpi].type in typeConditionals and tmpLastIndent:
+                                            tmpLastIndent+=prettyIndent
                                     if found:
                                         lex.insert(tmpi, copy(lex[lexIndex]))
-                                        lex.insert(tmpi, makeToken(lex[tmpi],'then','THEN'))
+                                        if tmpLastIndent > tmpIndent:
+                                            if tmpIndent == 0: tmpIndent = prettyIndent
+                                            lex.insert(tmpi,makeToken(lex[tmpi],f"\n\t{' '*tmpIndent}",'TAB'))
+                                        else:
+                                            lex.insert(tmpi, makeToken(lex[tmpi],'then','THEN'))
                                         break
 
                     else:
@@ -5936,12 +5947,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if tok.value[-1] != ':':
                     indentSoon=True
             elif tok.type in typeCheckers:
-                if intVsStrDoLen and (lastType in ('STRING','LIST','LISTCOMP','DICT','TUPLE') or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] in ('STRING','LIST','LISTCOMP','DICT','TUPLE'))) \
-                and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in ('NUMBER','INC') or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type']=='NUMBER'))):
+                if intVsStrDoLen and (lastType in {'STRING','LIST','LISTCOMP','DICT','TUPLE'} or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] in {'STRING','LIST','LISTCOMP','DICT','TUPLE'})) \
+                and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in {'NUMBER','INC'} or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type']=='NUMBER'))):
                     line[-1]=line[-1].replace(lex[lexIndex-1].value,f"len({lex[lexIndex-1].value})")
                     line.append(decideIfIndentLine(indent,f'{codeDict[tok.type]} '))
-                elif intVsStrDoLen and (lastType in ('NUMBER','INC') or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type']=='NUMBER')) \
-                and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in ('STRING','LIST','LISTCOMP','DICT','TUPLE') or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type'] in ('STRING','LIST','LISTCOMP','DICT','TUPLE')))):
+                elif intVsStrDoLen and (lastType in {'NUMBER','INC'} or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type']=='NUMBER')) \
+                and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in {'STRING','LIST','LISTCOMP','DICT','TUPLE'} or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type'] in ('STRING','LIST','LISTCOMP','DICT','TUPLE')))):
                     tmp=False
                     for tmpi in range(lexIndex+1,len(lex)-1):
                         if lex[tmpi].type in typeNewline: break
@@ -5972,7 +5983,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     line.append(decideIfIndentLine(indent, f'{expPrint[-1]}(')) ; rParen+=1 ; bigWrap=True
             elif tok.type in codeDict:
                 if tok.type == 'DEFFUNCT': notInDef=False
-                elif lastType == 'BUILTINF' and tok.type in ('AND','OR') and not startOfLine:
+                elif lastType == 'BUILTINF' and tok.type in {'AND','OR'} and not startOfLine:
                     line.append(' ')
                 if tok.value in ASnakeKeywords and tok.value in reservedIsNowVar:
                     line.append(decideIfIndentLine(indent,f'{tok.value} '))
