@@ -6034,7 +6034,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         return '\n'.join(code)
         
     
-def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False):
+def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runtime='Python'):
     if pep:
         if execTime:
             s=monotonic()
@@ -6043,35 +6043,46 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False):
             print('# autopep8 time:', round(monotonic()-s, 4))
     if fancy:
         print(code)
-        if run: print('\t____________\n\t~ Python Eval\n')
+        if run: print(f'\t____________\n\t~ {runtime} Eval\n')
     if run:
-        import subprocess as sp
-        import platform
-        if 'linux' in platform.system().lower():
-            proc = sp.Popen("ls -ls /usr/bin/python* | awk '/-> python3/ {print $10 ;exit}'", shell=True, stdout=sp.PIPE, stdin=sp.PIPE)
-            pyCall = proc.stdout.readline().decode().split('/')[-1].strip()
+        from subprocess import run as spRun
+        from subprocess import Popen
+        from subprocess import PIPE
+        from platform import system as platformSystem
+        if 'linux' in platformSystem().lower():
+            if runtime == 'Pyston':
+                pyCall = 'pyston'
+            elif runtime == 'PyPy':
+                pyCall = 'pypy3'
+            else:
+                proc = Popen("ls -ls /usr/bin/python* | awk '/-> python3/ {print $10 ;exit}'", shell=True, stdout=PIPE, stdin=PIPE)
+                pyCall = proc.stdout.readline().decode().split('/')[-1].strip()
         else:
-            pyCall = 'py'
+            if runtime == 'PyPy':
+                pyCall = 'pypy3'
+            else:
+                pyCall = 'py'
 
         if headless:
             with open('ahrscriptExec.py','w') as f:
                 f.write(code)
             if execTime:
                 s = monotonic()
-            child = sp.Popen(f'{pyCall} ahrscriptExec.py', stdout=sp.PIPE, cwd=os.getcwd(), shell=True)
+            child = Popen(f'{pyCall} ahrscriptExec.py', stdout=PIPE, cwd=os.getcwd(), shell=True)
             child.communicate()
         else:
             if execTime:
                 s = monotonic()
-            sp.run([pyCall, "-c", code])
+            spRun([pyCall, "-c", code])
 
 
         if fancy:
             print('\t____________')
         if execTime:
             print('exec time:',monotonic()-s)
-    try: os.remove('ahrscriptExec.py')
-    except: pass
+    if headless:
+        try: os.remove('ahrscriptExec.py')
+        except: pass
 
         
 if __name__ == '__main__':
@@ -6226,19 +6237,22 @@ if __name__ == '__main__':
             if WINDOWS:
                 py3Command='"'+(check_output(['WHERE', 'python']).decode().split('\n')[0]).replace('\r','')+'"'
             else: # linux
-                if len(check_output(['which', 'python3']).decode()) > 0:
+                if args.pyston and len(check_output(['which', 'pyston']).decode()) > 0:
+                    py3Command='pyston'
+                elif len(check_output(['which', 'python3']).decode()) > 0:
                     py3Command='python3'
                 else: py3Command='python'
+            includeNumpy= True if 'import numpy' in code or 'from numpy' in code else False
             with open('ASsetup.py', 'w') as f:
                 f.write(f"""
-{'import numpy' if 'import numpy' in data else ''}
+{'import numpy' if includeNumpy else ''}
 from setuptools import setup
 try:
     from Cython.Build import cythonize
 except ModuleNotFoundError:
     print('Cython is not installed, ASnake is unable to compile to .so file.\\nThe .pyx file still compiled.\\nDo something like:\\n\\t{"python" if "windows" in OSName().lower() else py3Command} -m pip install cython') ; exit()
 setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.annotate else False}),
-{'include_dirs=[numpy.get_include(),"."]' if 'import numpy' in data else 'include_dirs=["."]'})""")
+{'include_dirs=[numpy.get_include(),"."]' if includeNumpy else 'include_dirs=["."]'})""")
             try:
                 s = monotonic()
                 cythonCompileText = check_output(f'{py3Command} ASsetup.py build_ext --inplace', shell=True).decode()
@@ -6262,11 +6276,7 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                     execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=fancy)
                     if '/' in ASFile: tmp=f"import sys\nsys.path.append('{ASFile.split('/')[-1]}')\nimport {ASFile.split('/')[-1]}"
                     else: tmp=f'import {ASFile}'
-                    if fancy:
-                        print('\t____________\n\t~ Cython Eval\n')
-                    execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=False)
-                    if fancy:
-                        print('\t____________')
+                    execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=False,runtime='Cython')
         if fancy:
             if ASFileExt == 'py' and not args.python_compatibility:
                 print('# Warning: Consider using -pc or --python-compatibility flag on Python files to ignore ASnake syntax.')
@@ -6284,6 +6294,11 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
         if ASFile:
             tmp='/'.join(ASFile.split('/')[:-1])+'/'
             if tmp != '/': os.chdir(tmp)
+
+        if args.pyston: runtime = 'Pyston'
+        elif args.pypy: runtime = 'PyPy'
+        else: runtime = 'Python'
+
         if compileTo == 'Cython':
             ASFile='.'.join(ASFile.rsplit('.')[:-1])
             execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=fancy)
@@ -6292,7 +6307,7 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                 ASFile=ASFile.replace("'","").replace("_",'')
                 tmp=f"import sys\nsys.path.append('{tmpASFile}');import {ASFile.split('/')[-1]}"
             else: tmp=f'import {ASFile}'
-            execPy(tmp,run=runCode,execTime=True,pep=False,headless=False,fancy=False)
+            execPy(tmp,run=runCode,execTime=True,pep=False,headless=False,fancy=False,runtime=runtime)
         else:
-            execPy(code,run=runCode,execTime=True,pep=pep,headless=headless,fancy=fancy)
+            execPy(code,run=runCode,execTime=True,pep=pep,headless=headless,fancy=fancy,runtime=runtime)
 
