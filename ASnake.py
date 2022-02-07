@@ -6043,7 +6043,6 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runti
             print('# autopep8 time:', round(monotonic()-s, 4))
     if fancy:
         print(code)
-        if run: print(f'\t____________\n\t~ {runtime} Eval\n')
     if run:
         from subprocess import run as spRun
         from subprocess import Popen
@@ -6059,9 +6058,18 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runti
                 pyCall = proc.stdout.readline().decode().split('/')[-1].strip()
         else:
             if runtime == 'PyPy':
-                pyCall = 'pypy3'
+                from subprocess import check_output, CalledProcessError, STDOUT
+                try:
+                    pyCall = check_output(['WHERE','pypy'], stderr=STDOUT).decode().split('/')[-1].strip()
+                except CalledProcessError:
+                    print("Warning: PATH to pypy3 not found. Defaulting to Python.")
+                    pyCall = 'py'
+                    runtime = 'Python'
             else:
                 pyCall = 'py'
+
+        if fancy:
+            print(f'\t____________\n\t~ {runtime} Eval\n')
 
         if headless:
             with open('ahrscriptExec.py','w') as f:
@@ -6083,6 +6091,7 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runti
     if headless:
         try: os.remove('ahrscriptExec.py')
         except: pass
+
 
         
 if __name__ == '__main__':
@@ -6175,6 +6184,8 @@ if __name__ == '__main__':
             print('# Downloaded latest ASnake.')
             if ASFile == False and not args.eval:
                 exit()
+            else:
+                print("# Warning: To run the latest ASnake you must do the command again, currently you are using the last version of ASnake.")
 
     if not args.version:
         pythonVersion = '3.10'
