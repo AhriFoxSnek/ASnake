@@ -234,7 +234,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     metaIgnoreIndent = {'ignoreIndentation','ignoreIndent','noindent','noIndent','noIndentation'}
 
 
-    if compileTo == 'PyPy3': pythonVersion='3.7'
+    if compileTo == 'PyPy3' and pythonVersion not in {'3.8',3.08,3.8}: pythonVersion='3.7'
     elif compileTo == 'Cython': pythonVersion='3.6'
     elif compileTo == 'Pyston': pythonVersion='3.8'
 
@@ -6243,12 +6243,21 @@ if __name__ == '__main__':
             if "'" in fileName:
                 fileName=fileName.replace("'","\\'")
 
-            from subprocess import check_output, CalledProcessError
+            from subprocess import check_output, CalledProcessError, STDOUT
             if WINDOWS:
-                py3Command='"'+(check_output(['WHERE', 'python']).decode().split('\n')[0]).replace('\r','')+'"'
+                if args.pypy:
+                    try:
+                        py3Command = '"' + check_output(['WHERE', 'pypy'], stderr=STDOUT).decode().split('/')[-1].strip() + '"'
+                    except CalledProcessError:
+                        print("Warning: PATH to pypy3 not found. Defaulting to Python.")
+                        py3Command = '"' + (check_output(['WHERE', 'python']).decode().split('\n')[0]).replace('\r','') + '"'
+                else:
+                    py3Command='"'+(check_output(['WHERE', 'python']).decode().split('\n')[0]).replace('\r','')+'"'
             else: # linux
                 if args.pyston and len(check_output(['which', 'pyston']).decode()) > 0:
                     py3Command='pyston'
+                elif args.pypy and len(check_output(['which', 'pypy3']).decode()) > 0:
+                    py3Command = 'pypy3'
                 elif len(check_output(['which', 'python3']).decode()) > 0:
                     py3Command='python3'
                 else: py3Command='python'
@@ -6260,7 +6269,8 @@ from setuptools import setup
 try:
     from Cython.Build import cythonize
 except ModuleNotFoundError:
-    print('Cython is not installed, ASnake is unable to compile to .so file.\\nThe .pyx file still compiled.\\nDo something like:\\n\\t{"python" if "windows" in OSName().lower() else py3Command} -m pip install cython') ; exit()
+    print('Cython is not installed, ASnake is unable to compile to .so file.\\nThe .pyx file still compiled.\\nDo something like:\\n\\t{"python" if "windows" in OSName().lower() else py3Command} -m pip install cython')
+    raise Exception
 setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.annotate else False}),
 {'include_dirs=[numpy.get_include(),"."]' if includeNumpy else 'include_dirs=["."]'})""")
             try:
@@ -6274,6 +6284,11 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
             os.remove('ASsetup.py')
             if fancy or error:
                 print(cythonCompileText)
+                if error and py3Command == 'pypy3':
+                    if 'ModuleNotFoundError' in cythonCompileText:
+                        print('Suggestion:\n\tpypy3 -m ensurepip\nTo make sure you have pip, then:\n\tpypy3 -m pip install --upgrade pip setuptools\nTo make sure you have the latest setuptools.')
+                    elif not WINDOWS and 'fatal error: Python.h: No such file or directory' in cythonCompileText:
+                        print("Suggestion:\n\tsudo apt-get install pypy3-dev\n(or your distro's equivalent) For headers.")
             cythonsoFile = ''
             if not error:
                 cythonsoFile=cythonCompileText.split('/')[-1][:-5]
@@ -6286,7 +6301,10 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                     execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=False,windows=WINDOWS)
                     if '/' in ASFile: tmp=f"import sys\nsys.path.append('{ASFile.split('/')[-1]}')\nimport {ASFile.split('/')[-1]}"
                     else: tmp=f'import {ASFile}'
-                    execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=fancy,runtime='Cython',windows=WINDOWS)
+                    if args.pyston: runtime = 'Pyston'
+                    elif args.pypy: runtime = 'PyPy'
+                    else: runtime = 'Cython'
+                    execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=fancy,runtime=runtime,windows=WINDOWS)
         if fancy:
             if ASFileExt == 'py' and not args.python_compatibility:
                 print('# Warning: Consider using -pc or --python-compatibility flag on Python files to ignore ASnake syntax.')
