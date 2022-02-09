@@ -6034,7 +6034,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         return '\n'.join(code)
         
     
-def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runtime='Python'):
+def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runtime='Python',windows=False):
     if pep:
         if execTime:
             s=monotonic()
@@ -6047,8 +6047,7 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runti
         from subprocess import run as spRun
         from subprocess import Popen
         from subprocess import PIPE
-        from platform import system as platformSystem
-        if 'linux' in platformSystem().lower():
+        if not windows: # linux
             if runtime == 'Pyston':
                 pyCall = 'pyston'
             elif runtime == 'PyPy':
@@ -6056,7 +6055,7 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runti
             else:
                 proc = Popen("ls -ls /usr/bin/python* | awk '/-> python3/ {print $10 ;exit}'", shell=True, stdout=PIPE, stdin=PIPE)
                 pyCall = proc.stdout.readline().decode().split('/')[-1].strip()
-        else:
+        else: # windows
             if runtime == 'PyPy':
                 from subprocess import check_output, CalledProcessError, STDOUT
                 try:
@@ -6238,7 +6237,7 @@ if __name__ == '__main__':
         if compileTo == 'Cython':
 
             if code.startswith(f'# ASnake {ASnakeVersion} ERROR'):
-                execPy(code,run=True,execTime=False,pep=False,headless=False,fancy=False)
+                execPy(code,run=True,execTime=False,pep=False,headless=False,fancy=False,windows=WINDOWS)
                 exit()
 
             if "'" in fileName:
@@ -6284,10 +6283,10 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                 if runCode:
                     if filePath:
                         os.chdir(filePath)
-                    execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=fancy)
+                    execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=False,windows=WINDOWS)
                     if '/' in ASFile: tmp=f"import sys\nsys.path.append('{ASFile.split('/')[-1]}')\nimport {ASFile.split('/')[-1]}"
                     else: tmp=f'import {ASFile}'
-                    execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=False,runtime='Cython')
+                    execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=fancy,runtime='Cython',windows=WINDOWS)
         if fancy:
             if ASFileExt == 'py' and not args.python_compatibility:
                 print('# Warning: Consider using -pc or --python-compatibility flag on Python files to ignore ASnake syntax.')
@@ -6312,13 +6311,13 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
 
         if compileTo == 'Cython':
             ASFile='.'.join(ASFile.rsplit('.')[:-1])
-            execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=fancy)
+            execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=fancy,windows=WINDOWS)
             if '/' in ASFile:
                 tmpASFile=ASFile.split('/')[-1].replace("'","\\'")
                 ASFile=ASFile.replace("'","").replace("_",'')
                 tmp=f"import sys\nsys.path.append('{tmpASFile}');import {ASFile.split('/')[-1]}"
             else: tmp=f'import {ASFile}'
-            execPy(tmp,run=runCode,execTime=True,pep=False,headless=False,fancy=False,runtime=runtime)
+            execPy(tmp,run=runCode,execTime=True,pep=False,headless=False,fancy=False,runtime=runtime,windows=WINDOWS)
         else:
-            execPy(code,run=runCode,execTime=True,pep=pep,headless=headless,fancy=fancy,runtime=runtime)
+            execPy(code,run=runCode,execTime=True,pep=pep,headless=headless,fancy=fancy,runtime=runtime,windows=WINDOWS)
 
