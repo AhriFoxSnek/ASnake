@@ -234,7 +234,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     metaIgnoreIndent = {'ignoreIndentation','ignoreIndent','noindent','noIndent','noIndentation'}
 
 
-    if compileTo == 'PyPy3' and pythonVersion not in {'3.8',3.08,3.8}: pythonVersion='3.7'
+    if compileTo == 'PyPy3' and (pythonVersion == '3.10' or (not isinstance(pythonVersion, str) and pythonVersion > 3.8)):
+                                pythonVersion='3.7'
     elif compileTo == 'Cython': pythonVersion='3.6'
     elif compileTo == 'Pyston': pythonVersion='3.8'
 
