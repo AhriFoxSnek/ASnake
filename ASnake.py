@@ -6035,7 +6035,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         return '\n'.join(code)
         
     
-def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runtime='Python',windows=False):
+def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runtime='Python',windows=False,runCommand=None):
     if pep:
         if execTime:
             s=monotonic()
@@ -6048,25 +6048,28 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runti
         from subprocess import run as spRun
         from subprocess import Popen
         from subprocess import PIPE
-        if not windows: # linux
-            if runtime == 'Pyston':
-                pyCall = 'pyston'
-            elif runtime == 'PyPy':
-                pyCall = 'pypy3'
-            else:
-                proc = Popen("ls -ls /usr/bin/python* | awk '/-> python3/ {print $10 ;exit}'", shell=True, stdout=PIPE, stdin=PIPE)
-                pyCall = proc.stdout.readline().decode().split('/')[-1].strip()
-        else: # windows
-            if runtime == 'PyPy':
-                from subprocess import check_output, CalledProcessError, STDOUT
-                try:
-                    pyCall = check_output(['WHERE','pypy'], stderr=STDOUT).decode().split('/')[-1].strip()
-                except CalledProcessError:
-                    print("Warning: PATH to pypy3 not found. Defaulting to Python.")
+        if runCommand:
+            pyCall=runCommand
+        else:
+            if not windows: # linux
+                if runtime == 'Pyston':
+                    pyCall = 'pyston'
+                elif runtime == 'PyPy':
+                    pyCall = 'pypy3'
+                else:
+                    proc = Popen("ls -ls /usr/bin/python* | awk '/-> python3/ {print $10 ;exit}'", shell=True, stdout=PIPE, stdin=PIPE)
+                    pyCall = proc.stdout.readline().decode().split('/')[-1].strip()
+            else: # windows
+                if runtime == 'PyPy':
+                    from subprocess import check_output, CalledProcessError, STDOUT
+                    try:
+                        pyCall = check_output(['WHERE','pypy'], stderr=STDOUT).decode().split('/')[-1].strip()
+                    except CalledProcessError:
+                        print("Warning: PATH to pypy3 not found. Defaulting to Python.")
+                        pyCall = 'py'
+                        runtime = 'Python'
+                else:
                     pyCall = 'py'
-                    runtime = 'Python'
-            else:
-                pyCall = 'py'
 
         if fancy:
             print(f'\t____________\n\t~ {runtime} Eval\n')
@@ -6111,6 +6114,7 @@ if __name__ == '__main__':
     argParser.add_argument('-cy', '--cython', '--Cython', action='store_true', help="Compiles the code to Cython and .pyx")
     argParser.add_argument('-pp', '--pypy', '--PyPy', action='store_true', help="Compiles to be compatible with latest PyPy3 Runtime.")
     argParser.add_argument('-ps', '--pyston', '--Pyston', action='store_true', help="Compiles to be compatible with Pyston runtime.")
+    argParser.add_argument('-rc', '--run-command', action='store', help="Specifies the command to call Python. Useful for when there are multiple aliases, and you want a specific one.")
     argParser.add_argument('-a', '--annotate', action='store_true',help="When compiling to Cython, will compile a html file showing Python to C conversions.")
     argParser.add_argument('-d', '--debug', action='store_true', help="Debug info for compiler developers.")
     argParser.add_argument('-t', '--test', action='store_true', help="Headless run debug for compiler developers.")
@@ -6195,7 +6199,7 @@ if __name__ == '__main__':
         pythonVersion = pv[0] + '.' + pv[1]
 
     WINDOWS=False
-    if compileAStoPy:
+    if compileAStoPy or runCode:
         from platform import system as OSName
         if 'windows' in OSName().lower():
             WINDOWS = True
@@ -6238,14 +6242,16 @@ if __name__ == '__main__':
         if compileTo == 'Cython':
 
             if code.startswith(f'# ASnake {ASnakeVersion} ERROR'):
-                execPy(code,run=True,execTime=False,pep=False,headless=False,fancy=False,windows=WINDOWS)
+                execPy(code,run=True,execTime=False,pep=False,headless=False,fancy=False,windows=WINDOWS,runCommand=args.run_command)
                 exit()
 
             if "'" in fileName:
                 fileName=fileName.replace("'","\\'")
 
             from subprocess import check_output, CalledProcessError, STDOUT
-            if WINDOWS:
+            if args.run_command:
+                p3Command=args.run_command
+            elif WINDOWS:
                 if args.pypy:
                     try:
                         py3Command = '"' + check_output(['WHERE', 'pypy'], stderr=STDOUT).decode().split('/')[-1].strip() + '"'
@@ -6305,7 +6311,7 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                     if args.pyston: runtime = 'Pyston'
                     elif args.pypy: runtime = 'PyPy'
                     else: runtime = 'Cython'
-                    execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=fancy,runtime=runtime,windows=WINDOWS)
+                    execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=fancy,runtime=runtime,windows=WINDOWS,runCommand=args.run_command)
         if fancy:
             if ASFileExt == 'py' and not args.python_compatibility:
                 print('# Warning: Consider using -pc or --python-compatibility flag on Python files to ignore ASnake syntax.')
@@ -6330,13 +6336,13 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
 
         if compileTo == 'Cython':
             ASFile='.'.join(ASFile.rsplit('.')[:-1])
-            execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=fancy,windows=WINDOWS)
+            execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=fancy,windows=WINDOWS,runCommand=args.run_command)
             if '/' in ASFile:
                 tmpASFile=ASFile.split('/')[-1].replace("'","\\'")
                 ASFile=ASFile.replace("'","").replace("_",'')
                 tmp=f"import sys\nsys.path.append('{tmpASFile}');import {ASFile.split('/')[-1]}"
             else: tmp=f'import {ASFile}'
-            execPy(tmp,run=runCode,execTime=True,pep=False,headless=False,fancy=False,runtime=runtime,windows=WINDOWS)
+            execPy(tmp,run=runCode,execTime=True,pep=False,headless=False,fancy=False,runtime=runtime,windows=WINDOWS,runCommand=args.run_command)
         else:
-            execPy(code,run=runCode,execTime=True,pep=pep,headless=headless,fancy=fancy,runtime=runtime,windows=WINDOWS)
+            execPy(code,run=runCode,execTime=True,pep=pep,headless=headless,fancy=fancy,runtime=runtime,windows=WINDOWS,runCommand=args.run_command)
 
