@@ -1295,7 +1295,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         tmpindent-=prettyIndent
                                                     break
                                             # don't check THENs for indent
-                                            elif lex[tmpi].type == 'NEWLINE': break
+                                            elif lex[tmpi].type == 'NEWLINE':
+                                                if lex[tmpi+1].type == 'TYPEWRAP':
+                                                    tmpindent-=prettyIndent
+                                                break
 
                                         if len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TYPEWRAP' and (lex[tmpi-1].type=='NEWLINE' or (lex[tmpi-1].type in typeNewline and lex[tmpi-1].value.count(' ')<tmpindent))])>0:
                                             linkType=False # if there is a typewrap defining the types, then we shouldnt mess with it
@@ -1408,6 +1411,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         tmp=lex[tmpi].value.split(',')
                                                         for i in range(0,len(tmp)):
                                                             if tmp[i].strip() == lex[token].value:
+                                                                if i == len(tmp)-1 and lex[tmpi+1].type == 'ASSIGN' and lex[tmpi+1].value == '=':
+                                                                    break
                                                                 if debug: print(f'! replacing value {tmp[i]} inside COMMAGRP {lex[tmpi].value}')
                                                                 tmp[i]=''.join(tmpf)
                                                                 newOptimization = True
@@ -6112,9 +6117,9 @@ if __name__ == '__main__':
     argParser.add_argument('-np', '--no-print', action='store_true', help="Doesn't print the compiled file on console.")
     argParser.add_argument('-jr', '--just-run', action='store_true', help="Will run compiled version of file if it exists, otherwise will compile and run it.")
     argParser.add_argument('-cy', '--cython', '--Cython', action='store_true', help="Compiles the code to Cython and .pyx")
-    argParser.add_argument('-pp', '--pypy', '--PyPy', action='store_true', help="Compiles to be compatible with latest PyPy3 Runtime.")
+    argParser.add_argument('-pp', '--pypy', '--PyPy', action='store_true', help="Compiles to be compatible with PyPy3 Runtime.")
     argParser.add_argument('-ps', '--pyston', '--Pyston', action='store_true', help="Compiles to be compatible with Pyston runtime.")
-    argParser.add_argument('-rc', '--run-command', action='store', help="Specifies the command to call Python. Useful for when there are multiple aliases, and you want a specific one.")
+    argParser.add_argument('-rc', '--run-command', action='store', help="Specifies the command to call Python when using --run. Useful for when there are multiple Python aliases, and you want a specific one.")
     argParser.add_argument('-a', '--annotate', action='store_true',help="When compiling to Cython, will compile a html file showing Python to C conversions.")
     argParser.add_argument('-d', '--debug', action='store_true', help="Debug info for compiler developers.")
     argParser.add_argument('-t', '--test', action='store_true', help="Headless run debug for compiler developers.")
