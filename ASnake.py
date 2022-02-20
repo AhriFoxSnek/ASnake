@@ -758,9 +758,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 and len([i for i in tmp if (i[0] in ("'",'"') and i[-1] in ("'",'"'))])==0:
                     for t in tmp:
                         for i in miniLex(t+' '):
-                                lex.append(i)
-                                lexIndex+=1
-                                if debug: print('--',i)
+                            lex.append(i)
+                            lexIndex+=1
+                            if debug: print('--',i)
                         if t is not tmp[-1]:
                             tmptok=copy(tok) ; tmptok.type='COMMA' ; tmptok.value=','
                             lex.append(tmptok) ; lexIndex+=1
@@ -771,7 +771,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             else:
                 for i in miniLex(REsub(r"""(,(?=[^']*(?:'[^']*'[^']*)*$))|,(?=[^"]*(?:"[^"]*"[^"]*)*$)""",' , ',tok.value)):
                     if i.type == 'STRING' and i.value[0] == 'f':
-                        createFString(tok)
+                        createFString(i)
                     else:
                         lex.append(i)
                         lexIndex+=1
