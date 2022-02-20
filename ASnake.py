@@ -76,7 +76,7 @@ class Calc(ast.NodeVisitor):
 class Lexer(Lexer):
 
     def error(self, t):
-        print(f"# ASnake{ASnakeVersion} Warning: Illegal character in:\n'''\n{t.value}'''")
+        print(f"# ASnake {ASnakeVersion} Warning: Illegal character in:\n'''\n{t.value}'''")
         self.index += 1
 
     # Set of token names.   This is always required
@@ -491,7 +491,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             else:
                 lex[lexIndex].value += tok.value
                 continue
-        if willPipe: # jumpy
+        if willPipe:
             if tok.type in {'ID','BUILTINF','TYPE'}:
                 if tok.type == 'BUILTINF' and tok.value[-1] == '(':
                     return AS_SyntaxError(
@@ -3208,8 +3208,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         if ':' in var1.value:
             var1.value=var1.value.split(':')[0].replace(' ','')
         if var1.type == 'ID' and '*' in var1.value: var1.value=var1.value.replace('*','')
-        #if var2 != None and var2.type in ('FUNCTION','BUILTINF','INDEX'):
-        #    return
 
         if ',' in var1.value:
             # if ID has multiple variables, recurse over them
@@ -3991,8 +3989,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             else: storeVar(makeToken(tok,tmpVars[t],'ID'), tmpf[t][0], makeToken(tok,'then','THEN'))
                                     else: storeVar(lex[lexIndex-2],lex[lexIndex],lex[lexIndex+1],position=lexIndex)
                                 else:
-                                    # regular  var = 12
-                                    storeVar(lex[lexIndex-2],lex[lexIndex],lex[lexIndex+1],position=lexIndex)
+                                    if not (lex[lexIndex-2].value in storedVarsHistory and 'staticType' in storedVarsHistory[lex[lexIndex-2].value]):
+                                        # regular  var = 12
+                                        storeVar(lex[lexIndex-2],lex[lexIndex],lex[lexIndex+1],position=lexIndex)
+
                             if lexIndex+1 <= len(lex)-1:
                                 if tok.type == 'ID' and lex[lexIndex+1].type == 'BUILTINF':
                                     line.append(tok.value)
