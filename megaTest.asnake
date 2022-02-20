@@ -209,8 +209,8 @@ if result is 'test4' $worked
 else 'default print for fstring on asnake function' $failed
 
 $start
-x = 3
-match x
+xint = 3
+match xint
 of 1 do result is False
 of 2 do result is False
 of 3 do result is True
@@ -220,8 +220,8 @@ if result is True $worked
 else 'basic asnake case switch' $failed
 
 $start
-x = 3
-match x
+xint = 3
+match xint
 case 1 do result is False
 case 2 do result is False
 case 3 do result is True
@@ -232,19 +232,19 @@ else 'basic python case switch' $failed
 
 
 $start
-x is 12 : _
-if x greater than 10 $worked
+xlist is 12 : _
+if xlist greater than 10 $worked
 else 'basic list-comp shortcut + len check' $failed
 
 $start
 n 2
-x is 12 n: _
-if x less than 10 $worked
+xlist is 12 n: _
+if xlist less than 10 $worked
 else 'list-comp shortcut stepping' $failed
 
 $start
-x is 12 -: _
-if x[-1] is 1 $worked
+xlist is 12 -: _
+if xlist[-1] is 1 $worked
 else 'list-comp shortcut backwards' $failed
 
 
@@ -282,6 +282,33 @@ $start
 classObject.blah()
 if result isnt 2 $worked
 else 'object function shouldnt trigger default expression' $failed
+
+
+
+$start
+xstr = "abcdefg"
+y = 4
+if xstr > y do $worked
+else 'str vs int compares len' $failed
+
+$start
+xstr = "hijklmn"
+y = 12
+if y > xstr do $worked
+else 'int vs str compares len' $failed
+
+$start
+y = 4
+if (xstr := "abcdefg") > y do $worked
+else 'walrus str vs int compares len' $failed
+
+$start
+y = 12
+if y > (xstr := "hijklmn") do $worked
+else 'int vs walrus str compares len' $failed
+
+
+
 
 
 
