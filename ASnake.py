@@ -6214,6 +6214,8 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runti
                 else:
                     proc = Popen("ls -ls /usr/bin/python* | awk '/-> python3/ {print $10 ;exit}'", shell=True, stdout=PIPE, stdin=PIPE)
                     pyCall = proc.stdout.readline().decode().split('/')[-1].strip()
+                    if not pyCall:
+                        pyCall = 'python'
             else: # windows
                 if runtime == 'PyPy':
                     from subprocess import check_output, CalledProcessError, STDOUT
