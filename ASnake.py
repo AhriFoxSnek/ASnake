@@ -3284,7 +3284,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         nonlocal storedVarsHistory, line, code
         check=False # for checking if printf needs to be imported
         tmpval=tok.value ; tmptype=tok.type
-        if tmptype in {'STRING','STRLIT','STRRAW'}:
+        if tok.value in storedVarsHistory and 'staticType' in storedVarsHistory[tok.value]:
+            if storedVarsHistory[tok.value]['staticType'] == 'int':
+                line.append(f'{" "*(indent)}printf("%d\\n",{tmpval})\n')
+                check=True
+            else: line.append(f'{" "*(indent)}print({tmpval})')
+        elif tmptype in {'STRING','STRLIT','STRRAW'}:
             if any(i for i in ('r','f') if i == tmpval[0]):
                 line.append(f'{" "*(indent)}printf({tmpval}.encode())\n')
                 line.append(f'{" "*(indent)}printf("\\n")')
@@ -3300,8 +3305,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             check=True
         else: line.append(f'{" "*(indent)}print({tmpval})')
 
-        if any(i for i in code if 'from libc.stdio cimport printf\n' in i): check=False
-        if check: code.insert(1,'from libc.stdio cimport printf\n')
+        if check: insertAtTopOfCodeIfItIsNotThere('from libc.stdio cimport printf\n')
 
     def optLoopToMap_Function(lexIndex, forLoop=True):
         # optimization which turns loops appending with only a function into a map
