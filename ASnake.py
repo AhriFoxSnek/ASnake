@@ -3281,7 +3281,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         # this was originally meant for expression print detect, but now its
         # in function form so print without parenthesis can use it, and print.
         # currently for singular values only
-        nonlocal storedVarsHistory, line, code
+        nonlocal storedVarsHistory, line
         check=False # for checking if printf needs to be imported
         tmpval=tok.value ; tmptype=tok.type
         if tok.value in storedVarsHistory and 'staticType' in storedVarsHistory[tok.value]:
