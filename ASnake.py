@@ -5210,14 +5210,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if lex[lexIndex+1].value in convertType: tmpf=convertType[lex[lexIndex+1].value]
                             else: tmpf=lex[lexIndex+1].value
                             storedVarsHistory[lex[lexIndex+2].value]={'value': lex[lexIndex+2].value+'[0]', 'type': tmpf}
-                            if any(i for i in code if 'from typing import Tuple\n' in i): pass
-                            else: code.insert(1,'from typing import Tuple\n')
-                            lex[lexIndex+1].type=lex[lexIndex+2].type='IGNORE'
-                            if lex[lexIndex+3].type != 'ASSIGN':
-                                lex[lexIndex+3].value=f"{lex[lexIndex+2].value} : Tuple[{lex[lexIndex+1].value}] = ({lex[lexIndex+3].value}"
+                            if pythonVersion > 3.04:
+                                insertAtTopOfCodeIfItIsNotThere('from typing import Tuple\n')
+                                lex[lexIndex+1].type=lex[lexIndex+2].type='IGNORE'
+                                if lex[lexIndex+3].type != 'ASSIGN':
+                                    lex[lexIndex+3].value=f"{lex[lexIndex+2].value} : Tuple[{lex[lexIndex+1].value}] = ({lex[lexIndex+3].value}"
+                                else:
+                                    lex[lexIndex+3].value=f"{lex[lexIndex+2].value} : Tuple[{lex[lexIndex+1].value}] = ({lex[lexIndex+4].value}"
+                                    lex[lexIndex+4].type='IGNORE'
                             else:
-                                lex[lexIndex+3].value=f"{lex[lexIndex+2].value} : Tuple[{lex[lexIndex+1].value}] = ({lex[lexIndex+4].value}"
-                                lex[lexIndex+4].type='IGNORE'
+                                if lex[lexIndex + 3].type != 'ASSIGN':
+                                    lex[lexIndex + 3].value = f"{lex[lexIndex + 2].value} = ({lex[lexIndex + 3].value}"
+                                else:
+                                    lex[lexIndex + 3].value = f"{lex[lexIndex + 2].value} = ({lex[lexIndex + 4].value}"
+                                    lex[lexIndex + 2].type = lex[lexIndex + 4].type = 'IGNORE'
                             lex[lexIndex+3].type='BUILTINF'
                             tmpval=copy(lex[lexIndex+2])
                         else: tmpi=2
@@ -6046,7 +6052,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         line.append(decideIfIndentLine(indent,f'{codeDict[tok.type]} '))
                         check = False
                     elif (lastType in {'NUMBER','INC'} or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type']=='NUMBER')) \
-                    and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in {'STRING','LIST','LISTCOMP','DICT','TUPLE'} or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type'] in ('STRING','LIST','LISTCOMP','DICT','TUPLE')))):
+                    and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in {'STRING','LIST','LISTCOMP','DICT','TUPLE'} or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type'] in ('STRING','LIST','LISTCOMP','DICT','TUPLE') and lex[lexIndex+2].type not in {'LINDEX','INDEX'}))):
                         tmp=False
                         for tmpi in range(lexIndex+1,len(lex)-1):
                             if lex[tmpi].type in typeNewline: break
@@ -6068,7 +6074,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             checkForWalrus=True
                         elif (lastType in {'NUMBER','INC'} or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type']=='NUMBER')) \
                         and lex[lexIndex+1].type == 'LPAREN':
-                            tmpRange = (range(lexIndex+1, len(lex)-1), True)  # False stands for backward
+                            #
+                            tmpRange = (range(lexIndex+1, len(lex)-1), True)  # True stands for forward
                             checkForWalrus = True
 
                         if checkForWalrus:
