@@ -18,7 +18,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.12.14'
+ASnakeVersion='v0.12.15'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -1345,7 +1345,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         elif lex[tmpi].type == 'FROM' and inDef:
                                             search=inFrom=True ; inDef=False
                                             ignores[-1].append(tmpi)
-                                        elif lex[tmpi].type == 'TRY': ignores.append(tmpi) ; break
+                                        #elif lex[tmpi].type == 'TRY':
+                                        #    if 'try' in lex[tmpi].value: ignores.append([tmpi])
+                                        #    elif 'except' in lex[tmpi].value: ignores[-1].append(tmpi)
                                         elif lex[tmpi-1].type == 'INS' and lex[tmpi-2].type == 'COMMAGRP' and lex[tmpi].type == 'ID' and lex[tmpi].value == lex[token].value and vartype == 'DICT':
                                             search=False # dicts don't seem to play well with stuff like enumerate
                                         elif (not inFrom and not inCase ) and lex[tmpi].type == 'ID' and lex[tmpi].value == lex[token].value and lex[tmpi+1].type != 'ASSIGN':
@@ -1360,7 +1362,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             inCase=False
                                         elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value:
                                             inCase=True
-                                    if len([True for tmpi in range(token,0,-1) if lex[tmpi].type in ('SCOPE','META',) and lex[token].value in lex[tmpi].value])>0: search=False
+                                    if len([True for tmpi in range(token,0,-1) if lex[tmpi].type in {'SCOPE','META'} and lex[token].value in lex[tmpi].value])>0: search=False
                                     # ^^ no global var pls
                                     if len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TRY' and 'try' in lex[tmpi].value])>len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TRY' and 'except' in lex[tmpi].value]): search=False
                                     # ^^ fixes it in cases where the constant is defined in the except
@@ -1467,6 +1469,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             if tmpDefExp and tmpsafe:
                                                                 lex.insert(tmpStartOfline+1,makeToken(lex[0],'defExp','DEFEXP'))
                                                                 tmpi+=1
+
+                                                        if tmpsafe and not isinstance(tmpf[0],str) and len([True for _ in tmpf if _.type == 'DICT']) > 0:
+                                                            # dict not allowed in fstring
+                                                            for tt in range(tmpi,0,-1):
+                                                                if lex[tt].type in typeNewline: break
+                                                                elif lex[tt].type == 'FSTR': tmpsafe = False ; break
 
 
                                                         if tmpsafe:
@@ -3060,7 +3068,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 check = False
                             #elif lex[tmpi].type == 'PYDEF' and lex[token].value in lex[tmpi].value.split('(')[-1]:
                             #    check = False ; break
-                            elif lex[tmpi].type in typeConditionals and delPoint:
+                            elif (lex[tmpi].type in typeConditionals or (lex[tmpi].type == 'TRY' and 'try' in lex[tmpi].value)) and delPoint:
                                 # prevents dead variables defined in conditionals from breaking syntax
                                 tmpReplaceWithPass = True
                                 if lex[tmpi].type == 'IF':
@@ -3112,7 +3120,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 elif lex[tmpi].type == 'ASSIGN' and ':' not in lex[tmpi].value and lex[tmpi+1].type == 'IF':
                                     ttenary=True
                                 elif lex[tmpi].type == 'ELSE' and ttenary: ttenary=False
-                                elif breakOnNextNL and not ttenary and lex[tmpi].type in typeNewline: inCase=False ; break
+                                elif breakOnNextNL and not ttenary and lex[tmpi].type in typeNewline: break
                                 elif lex[tmpi].type == 'INDEX' and f" {lex[token].value} " in lex[tmpi].value:
                                     check = False ; break
                                 elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value:
