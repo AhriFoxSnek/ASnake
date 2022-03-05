@@ -1362,12 +1362,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             inCase=False
                                         elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value:
                                             inCase=True
-                                    if len([True for tmpi in range(token,0,-1) if lex[tmpi].type in {'SCOPE','META'} and lex[token].value in lex[tmpi].value])>0: search=False
-                                    # ^^ no global var pls
-                                    if len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TRY' and 'try' in lex[tmpi].value])>len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TRY' and 'except' in lex[tmpi].value]): search=False
-                                    # ^^ fixes it in cases where the constant is defined in the except
-                                    if tmpIDshow > 1 and isinstance(tmpf[0],str) == False and len(tmpf) > 1 and vartype!="LIST": search=False
-                                    # ^^ when a constant involves operations, its better to compute it once and share the value rather than compute the value in many places.
+                                    if search:
+                                        if len([True for tmpi in range(token,0,-1) if lex[tmpi].type in {'SCOPE','META'} and lex[token].value in lex[tmpi].value])>0: search=False
+                                        # ^^ no global var pls
+                                        elif len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TRY' and 'try' in lex[tmpi].value])>len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TRY' and 'except' in lex[tmpi].value]): search=False
+                                        # ^^ fixes it in cases where the constant is defined in the except
+                                        elif tmpIDshow > 1 and isinstance(tmpf[0],str) == False and len(tmpf) > 1 and vartype!="LIST": search=False
+                                        # ^^ when a constant involves operations, its better to compute it once and share the value rather than compute the value in many places.
 
                                     if search or linkType:
                                         inFrom=False # dont replace constants inside of FROM (function args)
@@ -1380,21 +1381,21 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         for tmpi in range(token-1,0,-1):
                                             if lex[tmpi].type == 'TAB':
                                                 if not tmpFoundIndent:
-                                                    tmpindent=lex[tmpi].value.replace('\t',' ').count(' ')
+                                                    tmpindent=lex[tmpi].value.replace('\t',' ').count(' '*prettyIndent)
                                                     if lex[tmpi+1].type in typeConditionals:
                                                         tmpindent+=1
                                                     tmpFoundIndent=True
-                                                elif lex[tmpi].value.replace('\t',' ').count(' ') < tmpindent:
+                                                elif lex[tmpi].value.replace('\t',' ').count(' '*prettyIndent) < tmpindent:
                                                     if lex[tmpi+1].type == 'TYPEWRAP':
-                                                        tmpindent-=prettyIndent
+                                                        tmpindent-=1
                                                     break
                                             # don't check THENs for indent
                                             elif lex[tmpi].type == 'NEWLINE':
                                                 if lex[tmpi+1].type == 'TYPEWRAP':
-                                                    tmpindent-=prettyIndent
+                                                    tmpindent-=1
                                                 break
 
-                                        if len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TYPEWRAP' and (lex[tmpi-1].type=='NEWLINE' or (lex[tmpi-1].type in typeNewline and lex[tmpi-1].value.count(' ')<tmpindent))])>0:
+                                        if len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TYPEWRAP' and (lex[tmpi-1].type=='NEWLINE' or (lex[tmpi-1].type in typeNewline and lex[tmpi-1].value.count(' '*prettyIndent)<tmpindent))])>0:
                                             linkType=False # if there is a typewrap defining the types, then we shouldnt mess with it
                                             if search == False: token+=1 ; continue # if linktype and search are false, why are we here? leave
 
@@ -1404,6 +1405,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 print('tokens',lex[token].value,'=',''.join([f.value for f in tmpf[::-1]]))
                                             else: print('str',lex[token].value,'=',''.join([f for f in tmpf]))
 
+                                        tmpLastIndent = 0
                                         for tmpi in range(valueStop,len(lex)):
                                             if inFrom or inCase:
                                                 if lex[tmpi].type in typeNewline: inFrom=inCase=False
@@ -1520,8 +1522,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                                     elif lex[tmpi].type == 'FROM': inFrom=True
                                                     elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value: inCase=True
-                                                    elif (lex[tmpi].type=='TAB' and lex[tmpi].value.replace('\t',' ').count(' ') < tmpindent) \
-                                                    or (lex[tmpi].type == 'NEWLINE' and tmpindent>0) or (lex[tmpi].type=='THEN' and '\n' in lex[tmpi].value and lex[tmpi].value.replace('\t',' ').count(' ') < tmpindent):
+                                                    elif (lex[tmpi].type=='TAB' and lex[tmpi].value.replace('\t',' ').count(' '*prettyIndent) < tmpindent) \
+                                                    or (lex[tmpi].type == 'NEWLINE' and tmpindent>0) or (lex[tmpi].type=='THEN' and '\n' in lex[tmpi].value and lex[tmpi].value.replace('\t',' ').count(' '*prettyIndent) < tmpindent):
                                                         break # if inside a indented block, try and stay local to that, do not escape it
                                                     elif lex[tmpi].type in {'LOOP','WHILE'} or lex[tmpi].type == 'FOR' and lex[tmpi-1].type in typeNewline:
                                                         if inLoop[0] == False and not isinstance(tmpf[0],str) and len(tmpf) > 1:
@@ -1595,6 +1597,16 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             if debug and lex[tmpi].value != f"{tmp[0]}{tmpt}{tmp[1]}":
                                                                 print('! NRANGE replace',lex[tmpi].value,' --> ',f"{tmp[0]}{tmpt}{tmp[1]}")
                                                             lex[tmpi].value = f"{tmp[0]}{tmpt}{tmp[1]}"
+                                                    elif lex[tmpi].type in typeNewline:
+                                                        if lex[tmpi].type == 'NEWLINE':
+                                                            tmpLastIndent = 0
+                                                        elif lex[tmpi].type == 'TAB':
+                                                            tmpLastIndent = lex[tmpi].value.count(' '*prettyIndent)
+                                                        elif lex[tmpi].type == 'END':
+                                                            # END decreases the indent, which can confuse propagation. Thus we must keep track of it.
+                                                            tmpLastIndent -= prettyIndent
+                                                            if tmpLastIndent < 0: tmpLastIndent = 0
+                                                            if tmpindent > tmpLastIndent: search = False
 
                                                 if tmpi >= len(lex)-1 and linkType and (enforceTyping or compileTo == 'Cython') and lex[token-1].type != 'TYPE'\
                                                 and lex[token-2].type != 'LOOP' and lex[token-1].type != 'ID':
