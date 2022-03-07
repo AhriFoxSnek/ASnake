@@ -3574,7 +3574,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
     listcomp={}
     lexIndex=-1
-    lastIndent=[0,0,[],[]] # last counted string indent, last indent, last if indent , function indents
+    lastIndent=[0,0,[],[],0] # last counted string indent, last indent, last if indent , function indents, with indent
     lineNumber=0
     storedIndents=[0]
     storedVars={}
@@ -4269,7 +4269,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if '\n' in tok.value and (lexIndex < len(lex)-1 and lex[lexIndex+1].type !='THEN'):
                             if isinstance(line,str): line=[line] # so weird
                             line.append('\n')
-                        lastIndent=[tmpcheck,indent,lastIndent[2],lastIndent[3]]
+                        lastIndent=[tmpcheck,indent,lastIndent[2],lastIndent[3],lastIndent[4]]
                 else:
                     if indent > 0 and tok.type == 'NEWLINE' and notInDef and not ignoreIndentation and not indentSoon:
                         indent=0
@@ -4293,7 +4293,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                 if indent<inLoop[1] or indent==0:
                     inLoop[0]=False
-                inLoop[1]=indent
+                if indent<lastIndent[4]:
+                    lastIndent[4]=0
 
                 if combineLines:
                     if isinstance(line,str): line=[line] # so weird
@@ -4588,12 +4589,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         line.append(codeDict[tok.type]+' ')
                         if tenary==False: indentSoon=True
                     if tok.type == 'WHILE':
-                        inLoop=[True,indent]
+                        if not inLoop[0]:
+                            inLoop=[True,indent]
                     if tok.type != 'ELSE':
                         inIf=True
                         startOfLine=False
                     if tok.type in {'IF','WHILE'}:
                         if indent >= prettyIndent:
+                            while lastIndent[2] and lastIndent[2][-1] <= indent - prettyIndent:
+                                lastIndent[2].pop()
                             lastIndent[2].append(indent-prettyIndent)
                         else: lastIndent[2].append(indent)
                         if debug: print(indent,lastIndent[2])
@@ -4610,7 +4614,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if lex[lexIndex+1].type == 'ID': tmp=lex[lexIndex+1].value
                             else: tmp='x'
                             return AS_SyntaxError('When doing Python list comprehensions, you need a variable before the \'for\'.', f'[ {tmp} for {tmp} in range(12) ]', lineNumber, data)
-                        if compileTo == 'Cython' and optimize and lastType in typeNewline and lex[lexIndex+1].type == 'ID' and inLoop[0]==False and lex[lexIndex+1].value not in storedVarsHistory and lastIndent[2] == []:
+                        if compileTo == 'Cython' and optimize and lastType in typeNewline and lex[lexIndex+1].type == 'ID' and not inLoop[0] and not lastIndent[4] and lex[lexIndex+1].value not in storedVarsHistory and lastIndent[2] == []:
                             check=True
                             if lex[lexIndex+2].type == 'INS' and lex[lexIndex+3].value in storedVarsHistory and 'type' in storedVarsHistory[lex[lexIndex+3].value] and storedVarsHistory[lex[lexIndex+3].value]['type'] in ('TUPLE','LIST','SET'):
                                 check=False
@@ -4623,7 +4627,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         inIf=True
                         line.append(decideIfIndentLine(indent,f'{tok.value} '))
                         indent+=prettyIndent
-                        inLoop=[True,indent]
+                        if not inLoop[0]:
+                            inLoop=[True,indent]
                     else:
                         line.append(decideIfIndentLine(indent,f'{tok.value} '))
             elif tok.type == 'LOOP': # idLOOP
@@ -4633,7 +4638,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     tok.value='for' ; tok.type='FOR'
                     indentSoon = True ; inIf = True
                     line.append(decideIfIndentLine(indent, f'{tok.value} '))
-                    indent += prettyIndent ; inLoop = [True, indent] ; continue
+                    indent += prettyIndent
+                    if not inLoop[0]: inLoop = [True, indent]
+                    continue
                 elif lexIndex+2 < len(lex) and lex[lexIndex+2].type in typeOperators+('LPAREN','COMMA'):
                     return AS_SyntaxError('loop syntax must have no operations on it', 'loop iterable iterator', lineNumber, data)
 
@@ -4855,7 +4862,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         line.append(decideIfIndentLine(indent,f'{expPrint[-1]}({forthingin})'))
                     indent-=prettyIndent ; startOfLine=True
                 code.append(''.join(line)) ; line=[]
-                inLoop=[True,indent]
+                if not inLoop[0]: inLoop = [True, indent]
 
             elif tok.type == 'ARE': #idARE
                 if lexIndex-1 > 0:
@@ -5639,6 +5646,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         line.append(decideIfIndentLine(indent,f'{expPrint[-1]}('))
                         bigWrap=True
                 elif tok.type == 'WITHAS' and tok.value.startswith('as'): tok.value=f' {tok.value}'
+                elif tok.type == 'WITHAS' and not lastIndent[4]: lastIndent[4] = indent
                 elif tok.type == 'RPAREN': parenScope=parenScope-1 if parenScope > 0 else 0
                 elif tok.type == 'FSTR': # idFSTR
                     if startOfLine and lastType in typeNewline+('ELSE','DEFFUNCT'):
