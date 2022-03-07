@@ -6512,7 +6512,10 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                 fileName=args.path
                 ASFileExt=''
             if compileTo == 'Cython':
-                print(f'{ASFile}{ASFileExt} compiled to {fileName} {"and "+cythonsoFile if not error else ""}')
+                if error:
+                    print(f'!!! {ASFile}{ASFileExt} Cython compilation failed. See above.')
+                else:
+                    print(f'{ASFile}{ASFileExt} compiled to {fileName} and {cythonsoFile}')
             else:
                 print(f'{ASFile}{ASFileExt} compiled to {fileName}')
     else:
