@@ -1840,9 +1840,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex[tmpStartOfCommagrp].type='IGNORE'
 
                             if safe:
+                                tmpIndex=0 ; tmpEndOfStatement=0 ; tmpScopes={'list':0,'tuple':0,'set':0}
+                                tmpVarNames = [i[0].value for i in tmpVars if i[0].type == 'ID']
                                 # regular comma group
                                 # gather values of vars
-                                tmpIndex=0 ; tmpEndOfStatement=0 ; tmpScopes={'list':0,'tuple':0,'set':0}
                                 for tmpi in range(tmpStartOfCommagrp, len(lex) - 1):
                                     #print(tmpIndex,lex[tmpi].type,tmpScopes)
                                     if lex[tmpi].type in typeNewline:
@@ -1864,7 +1865,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         elif lex[tmpi].type == 'RBRACKET':
                                             tmpScopes['set'] -= 1
 
-                                        if tmpIndex <= len(tmpVars)-1:
+                                        if tmpIndex <= len(tmpVars)-1 \
+                                        and not (lex[tmpi].type == 'ID' and lex[tmpi].value in tmpVarNames): # cancel optimization if reassigning one of the vars to another
                                             tmpVars[tmpIndex][1].append(copy(lex[tmpi]))
                                         else: safe = False ; break
 
@@ -3137,6 +3139,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     inCase = True
                                 elif lex[tmpi].type == 'IF':
                                     inCase = False
+                                elif lex[tmpi].type == 'PYDEF' and REfindall(f'=.*?{lex[token].value}',lex[tmpi].value):
+                                    # if var is in function default argument like:
+                                    # def thing(arg=var)
+                                    check = False ; break
 
                         if check:  # remove the var
                             #print('-------', lex[token].value)
@@ -6072,7 +6078,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     indentSoon=True
             elif tok.type in typeCheckers:
                 check = True
-                if optFuncTricksDict['collapseToFalseTrue'] and lex[lexIndex+1].type == 'BOOL' and lex[lexIndex+1].value != 'None':
+                if optimize and optFuncTricksDict['collapseToFalseTrue'] and lex[lexIndex+1].type == 'BOOL' and lex[lexIndex+1].value != 'None':
                     check = False
                     tok.type = lex[lexIndex + 1].type = 'IGNORE'
                     if lex[lexIndex+1].value == 'False':
