@@ -135,10 +135,10 @@ class Lexer(Lexer):
     NOTEQ   = r'!=|isnt|isn\'t|not equal|unequal'
     LESSEQ  = r'(<=)|(=<)'
     GREATEQ = r'(>=)|(=>)'
-    BITWISE = r'\^|~|\||&|(<<)|(>>)'
+    BITWISE = r'(\^|~|\||&|(<<)|(>>))(?!=)'
     LESS    = r'<|((is )?less (than )?)|(lesser (than )?)'
     GREATER = r'>|((is )?greater (than )?)'
-    ASSIGN  = r'''=|is( |(?=("|'|{|\[|\()))|(\+|-|\*\*?|\/\/?|:|%|>>|<<)='''
+    ASSIGN  = r'''=|is( |(?=("|'|{|\[|\()))|(\+|-|\*\*?|\/\/?|:|%|>>|<<|\^|~|\||&)='''
     ENDIF   = r': *'
     DEFFUNCT= r'does(?= |\n|\t)'
     SCOPE   = r'(global|local|nonlocal) (\w* *,?)*'
@@ -166,7 +166,7 @@ class Lexer(Lexer):
     BOOL    = r'True|False|None'
     MODULO  = r'%|remainder(?= |\n|\t)'
     INC     = r'((\+{2}|\-{2})[^\[\]\(\)\+\-\/\*\d\s,=][^\s\+\-\/\*,\(\)=><]*(\[.*\])?)|([^\[\]\(\)\+\-\/\*\d\s,=][^\s\+\-\/\*,=]*(\[.*\])?(\+{2}|\-{2}))'
-    HEXDEC  = r'0x[\da-f]+'
+    HEXDEC  = r'0x[\da-fA-F]+'
     NUMBER  = r'(0x\d*)|(((( \-\d|\d)\d*\.?\d*)|(\-?\.))(e(-|\+)\d+)?\.?_*\d*j?(?!\w+))'
     SCINOTAT= r'(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE]\d+)'
     BINARY  = r'0(o|O|x|X|b|B)\d+'
@@ -753,9 +753,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif tok.type == 'COMMAGRP': # splitting into proper tokens a,b,c = d if a,b,c=d
             if (lex[lexIndex].type != 'FROM' and inFrom==False) and tok.value.count('=')==1:
                 tmp=tok.value.split(',')
-                if ('=' in tmp[-1] or tmp[-1].startswith('is') or tmp[-1].startswith(' is') )\
-                and (len(REfindall(r'\b[^\'"\d]',','.join(tmp[:-1])))==tok.value.count(',')+1) \
-                and len([i for i in tmp if (i[0] in ("'",'"') and i[-1] in ("'",'"'))])==0:
+                if len([i for i in tmp if (i[0] in ("'",'"') and i[-1] in ("'",'"'))])==0:
                     for t in tmp:
                         for i in miniLex(t+' '):
                             lex.append(i)
@@ -6441,14 +6439,12 @@ if __name__ == '__main__':
         if filePath=='/': filePath=''
         if ASFileExt == 'py' and os.path.isfile(filePath+fileName):
             fileName="AS_"+fileName
+        if code.startswith(f'# ASnake {ASnakeVersion} ERROR'):
+            execPy(code, run=True, execTime=False, pep=False, headless=False, fancy=False, windows=WINDOWS,runCommand=args.run_command)
+            exit()
         with open(filePath+fileName,'w',encoding='utf-8') as f:
             f.write(code)
         if compileTo == 'Cython':
-
-            if code.startswith(f'# ASnake {ASnakeVersion} ERROR'):
-                execPy(code,run=True,execTime=False,pep=False,headless=False,fancy=False,windows=WINDOWS,runCommand=args.run_command)
-                exit()
-
             if "'" in fileName:
                 fileName=fileName.replace("'","\\'")
 
