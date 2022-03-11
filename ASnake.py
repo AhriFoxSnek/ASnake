@@ -5563,7 +5563,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             # when var is list, when checking if len is zero
                             # len(x) == 0 -> if not x aka false
                             # len(x) > 0 -> if x aka true
-                            tok.type = 'IGNORE'
+                            tok.type = lex[lexIndex].type = 'IGNORE'
                             if lex[lexIndex + 3].type == 'GREATER':
                                 lex[lexIndex + 2].type = lex[lexIndex + 3].type = 'IGNORE'
                             else:
@@ -5571,6 +5571,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex[lexIndex + 1].type='INS' ; lex[lexIndex + 1].value='not'
                                 lex[lexIndex + 3].type = 'IGNORE'
                             lex[lexIndex + 4].type = 'IGNORE'
+                            continue
 
                         elif compileTo == 'Cython' and tok.value == 'len(' and lex[lexIndex+1].type == 'STRING' and lex[lexIndex+2].type == 'RPAREN':
                             insertAtTopOfCodeIfItIsNotThere('from libc.string cimport strlen as CYlen\n')
@@ -6073,7 +6074,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     indentSoon=True
             elif tok.type in typeCheckers:
                 check = True
-                if intVsStrDoLen:
+                if optFuncTricksDict['collapseToFalseTrue'] and lex[lexIndex+1].type == 'BOOL' and lex[lexIndex+1].value != 'None':
+                    check = False
+                    tok.type = lex[lexIndex + 1].type = 'IGNORE'
+                    if lex[lexIndex+1].value == 'False':
+                        line[-1] = 'not '+line[-1]
+                elif intVsStrDoLen:
                     if (lastType in {'STRING','LIST','LISTCOMP','DICT','TUPLE'} or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] in {'STRING','LIST','LISTCOMP','DICT','TUPLE'})) \
                     and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in {'NUMBER','INC'} or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type']=='NUMBER'))):
                         line[-1]=line[-1].replace(lex[lexIndex-1].value,f"len({lex[lexIndex-1].value})")
