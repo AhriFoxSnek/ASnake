@@ -48,7 +48,7 @@ _OP_MAP = {
     ast.Mult: operator.mul,
     ast.Div: operator.truediv,
     ast.FloorDiv: operator.floordiv,
-    ast.Invert: operator.neg,
+    ast.USub: operator.neg,
     ast.Pow: operator.pow,
     ast.RShift: operator.rshift,
     ast.LShift: operator.lshift,
@@ -59,19 +59,16 @@ _OP_MAP = {
 }
 class Calc(ast.NodeVisitor):
     def visit_BinOp(self, node):
-        left = self.visit(node.left)
-        right = self.visit(node.right)
-        return _OP_MAP[type(node.op)](left, right)
-    def visit_Num(self, node):
+        return _OP_MAP[type(node.op)](self.visit(node.left), self.visit(node.right))
+    def visit_Constant(self, node):
         return node.n
     def visit_Expr(self, node):
         return self.visit(node.value)
+    def visit_UnaryOp(self, node):
+        return _OP_MAP[type(node.op)](node.operand.value)
     @classmethod
     def evaluate(cls, expression):
-        tree = ast.parse(expression)
-        calc = cls()
-        return str(calc.visit(tree.body[0]))
-
+        return str(cls().visit(ast.parse(expression).body[0]))
 
 class Lexer(Lexer):
 
@@ -232,6 +229,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     metaPyCompat = {'pythonCompatibility','pycompat','pyCompatibility','pyCompat','pythonCompat'}
     metaPyVersion = {'version','pythonVersion','pyver','PythonVersion','pyVersion'}
     metaIgnoreIndent = {'ignoreIndentation','ignoreIndent','noindent','noIndent','noIndentation'}
+    metaPyIs = {'pyis','pythonIs','pyIs','isPython','pythonis','isIdentity'}
 
 
     if compileTo == 'PyPy3' and (pythonVersion == '3.10' or (not isinstance(pythonVersion, str) and pythonVersion > 3.8)):
@@ -257,6 +255,25 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
     if pythonVersion >= 3.10:
         codeDict['OF']='case'
+
+
+    # meta
+    if metaInformation:
+        expPrint = metaInformation[1]
+        ignoreIndentation = metaInformation[2]
+        functionPassing = metaInformation[3]
+        pyIs = metaInformation[4]
+        autoEnumerate = metaInformation[5]
+        intVsStrDoLen = metaInformation[6]
+        metaDefaultExpressionWithFunction = metaInformation[7]
+    else:
+        expPrint = [0, 'print']
+        ignoreIndentation = False
+        functionPassing = False
+        pyIs = False
+        autoEnumerate = True
+        intVsStrDoLen = True
+        metaDefaultExpressionWithFunction = True
 
 
     def makeToken(clone,value=None,type=None,lineno=None):
@@ -749,7 +766,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     indexTokenSplitter(tok)
                 else:
                     lex.append(tok)
-        elif tok.type == 'FROM': inFrom=True ; lex.append(tok)
+        elif tok.type == 'FROM':
+            check = False
+            for tmpi in range(lexIndex, 0, -1):
+                if lex[tmpi].type == 'RETURN' and 'raise' in lex[tmpi].value:
+                    check = True
+                elif lex[tmpi].type in typeNewline:
+                    break
+            if check:
+                # from can be used on raise, so do not take it as ASnake from
+                tok.type = 'PYPASS'
+                tok.value = f"p!{tok.value} !p"
+            else:
+                inFrom=True
+            lex.append(tok)
         elif tok.type == 'COMMAGRP': # splitting into proper tokens a,b,c = d if a,b,c=d
             if (lex[lexIndex].type != 'FROM' and inFrom==False) and tok.value.count('=')==1:
                 tmp=tok.value.split(',')
@@ -992,6 +1022,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         def determineIfAssignOrEqual(lexIndex):
             # determines if a ASSIGN `is` operates as a EQUAL `==` not a ASSIGN `=`
             # token should be ASSIGN, and lexIndex should be ASSIGN's index
+            # True means it is Equal , False means Assign
             if lex[lexIndex].type != 'ASSIGN':
                 print('Compiler-error\ndetermineIfAssignOrEqual error: not a ASSIGN') ; exit()
             elif ':' in lex[lexIndex].value:
@@ -1476,6 +1507,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                 if lex[tt].type in typeNewline: break
                                                                 elif lex[tt].type == 'FSTR': tmpsafe = False ; break
 
+                                                        if tmpsafe and isinstance(tmpf[0],str) and not pyIs and (lex[tmpi-1].type == 'PYIS' or (lex[tmpi-2].type == 'ASSIGN' and lex[tmpi-1].type == 'INS') or (lex[tmpi-1].type == 'ASSIGN' and determineIfAssignOrEqual(tmpi-1))):
+                                                            tmpsafe=False # using Python is on literal will make it bring up syntax warning
+
 
                                                         if tmpsafe:
                                                             if debug: print(f'! replacing lex #{tmpi} (lastType:{lex[tmpi-1].type})')
@@ -1890,21 +1924,36 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                     elif lex[token].type == 'META':
                         metaCall=lex[token].value.replace('$','').replace(' ','').lower()
+                        metaCallSplit = metaCall.split('=')[0]
                         if metaCall == 'cython':
                             compileTo='Cython'
                         elif metaCall == 'python':
                             compileTo='Python'
-                        elif metaCall.split('=')[0] in {'optimize','optimization','optimizing'}:
+                        elif metaCallSplit in {'optimize','optimization','optimizing'}:
                             if '=' in metaCall:
                                 if metaCall.split('=')[-1].lower() == 'true': optimize=True
                                 elif metaCall.split('=')[-1].lower() == 'false': optimize=True
                             else: optimize = not optimize
-                        elif metaCall.split('=')[0] in metaPyCompat:
+                        elif metaCallSplit in metaPyCompat:
                             if '=' in metaCall:
                                 if 'true' in metaCall.split('=')[1]: pyCompatibility=True
                                 else: pyCompatibility=False
                             else:
                                 pyCompatibility=not pyCompatibility
+                            if pyCompatibility: pyIs = True
+                            else: pyIs = False
+                        elif metaCallSplit in metaPyIs:
+                            tmp = lex[token].value.split('=')
+                            if len(tmp) > 1:
+                                tmp = tmp[1].lower().strip()
+                                if tmp in {'true', 'yes', 'on'}:
+                                    pyIs = True
+                                elif tmp in {'no', 'false', 'off'}:
+                                    pyIs = False
+                                else:
+                                    pyIs = True
+                            else:
+                                pyIs = True
 
                     elif lex[token].type in {'LPAREN','LIST'} and lex[token-1].type == 'INS' and lex[token-1].value.strip() == 'in':
                         if optInSet:
@@ -2452,7 +2501,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if lex[tmpi].value.count(' ') <= tmpindent: break
                                         else: firstIndent=True
                                     elif lex[tmpi].type == 'NEWLINE': break
-                                    elif lex[tmpi].type=='BUILTINF' and '.' in lex[tmpi].value and lex[tmpi].value[0] not in ('"',"'",'.') and lex[tmpi].value.startswith('self.')==False and lex[tmpi].value.startswith(lex[token+1].value+'.')==False and lex[tmpi].value.split('.')[0] not in ignoreVars and firstIndent:
+                                    elif lex[tmpi].type=='BUILTINF' and '.' in lex[tmpi].value and lex[tmpi].value[0] not in ('"',"'",'.') and lex[tmpi].value.startswith('self.')==False and lex[tmpi].value.startswith('cls.')==False and lex[tmpi].value.startswith(lex[token+1].value+'.')==False and lex[tmpi].value.split('.')[0] not in ignoreVars and firstIndent:
                                         check=False ; minindent=None
                                         tmpImportName=lex[tmpi].value.split('.')[0]
                                         if tmpImportName+'.' in importcheck: break
@@ -2943,8 +2992,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if lex[token].type == 'IGNORE':
                         del lex[token] ; token-=2
                     if optCompilerEval and lex[token].type in ('STRING','NUMBER'):
+                        # math or string evaluation
                         check=False
                         if token+3 < len(lex)-1 and lex[token+3].type == 'PIPE' and lex[token+3].value == 'to': pass
+                        elif isANegativeNumberTokens(token+2) and ((lex[token-1].type in typeOperators and lex[token+2].type in typeOperator \
+                        and orderOfOps[lex[token-1].type] <= orderOfOps[lex[token+2].type]) or lex[token-1].type in typeNewline):
+                            check = True
                         elif lex[token-1].type in typeOperators and lex[token+1].type in typeOperators:
                             # helps follow the order of operations for more accuracy
                             if orderOfOps[lex[token-1].type] <= orderOfOps[lex[token+1].type]:
@@ -2954,7 +3007,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 check=True
                                 #print(lex[token-1].type in typeOperators , lex[token-1].type, lex[token+1].type in typeOperators,lex[token+1].type)
                         if check:
-                            if lex[token].type == 'NUMBER' and lex[token+1].type in typeOperators and (lex[token+2].type == 'NUMBER' or (lex[token+2].type == 'LPAREN' and lex[token+3].type == 'NUMBER')):
+                            if lex[token].type == 'NUMBER' and lex[token+1].type in typeOperators and (lex[token+2].type == 'NUMBER' or (lex[token+2].type == 'LPAREN' and lex[token+3].type == 'NUMBER') or isANegativeNumberTokens(token+2)):
                                 tmpscope=0 ; tmpf=[] ; fail=False
                                 for tmpi in range(token,len(lex)):
                                     if lex[tmpi].type in typeOperators+('LPAREN','RPAREN','NUMBER') and tmpscope>=0:
@@ -3557,24 +3610,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     rParen=0
     constWrap=False
     incWrap=['',0]
-
-    # meta
-    if metaInformation:
-        expPrint = metaInformation[1]
-        ignoreIndentation = metaInformation[2]
-        functionPassing = metaInformation[3]
-        pyIs = metaInformation[4]
-        autoEnumerate = metaInformation[5]
-        intVsStrDoLen = metaInformation[6]
-        metaDefaultExpressionWithFunction = metaInformation[7]
-    else:
-        expPrint=[0,'print']
-        ignoreIndentation=False
-        functionPassing=False
-        pyIs=False
-        autoEnumerate=True
-        intVsStrDoLen=True
-        metaDefaultExpressionWithFunction = True
 
     listcomp={}
     lexIndex=-1
@@ -5924,7 +5959,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             functionPassing=False
                         else: functionPassing=True
                     else: functionPassing=True
-                elif tmpf in {'pyis','pythonIs','pyIs','isPython','pythonis','isIdentity'}:
+                elif tmpf in metaPyIs:
                     tmp=tok.value.split('=')
                     if len(tmp) > 1:
                         tmp=tmp[1].lower().strip()
@@ -6078,7 +6113,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     indentSoon=True
             elif tok.type in typeCheckers:
                 check = True
-                if optimize and optFuncTricksDict['collapseToFalseTrue'] and lex[lexIndex+1].type == 'BOOL' and lex[lexIndex+1].value != 'None':
+                if optimize and optFuncTricks and optFuncTricksDict['collapseToFalseTrue'] and lex[lexIndex+1].type == 'BOOL' and lex[lexIndex+1].value != 'None':
                     check = False
                     tok.type = lex[lexIndex + 1].type = 'IGNORE'
                     if lex[lexIndex+1].value == 'False':
