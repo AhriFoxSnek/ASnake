@@ -101,7 +101,7 @@ class Lexer(Lexer):
     TAB     = r'\n(>>>|\.\.\.)?([\t| ]+)'
     NEWLINE = r'\n'
     PYPASS  = r"p!(.|\n)+?!p"
-    META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n]*=)(?=[\n \]\)\$\[]))|([^+\-/*^~<>&\n()[\],=]*((=.*)|(?=\n)|$|(?=,))))'
+    META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n()]*=)(?=[\n \]\)\$\[]))|(([^+\-/*^~<>&\n()[\],=]*|(\={2}))((=.*)|(?=\n)|$|(?=,))))'
     FUNCMOD = r'@.*'
     PYDEF   = r'c?def +([\w.\[\d:,\] ]* )?\w+ *\(((?!: *return).)*\)*( *((-> *)?\w* *):?)'
     PYCLASS = r'class ([a-z]|[A-Z])\w*(\(.*\))?:?'
@@ -468,6 +468,19 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             pass
         else:
             code.insert(1, line)
+
+    def findEndOfExpression(lexIndex):
+        tmpParenScope = 0
+        for tmpi in range(lexIndex,0,-1):
+            if lex[tmpi].type in typeNewline+typeConditionals:
+                return tmpi+1
+            elif lex[tmpi].type == 'LPAREN' or (lex[tmpi].type == 'FUNCTION' and lex[tmpi].value.endswith('(')):
+                tmpParenScope += 1
+            elif lex[tmpi].type == 'RPAREN':
+                tmpParenScope -= 1
+            elif lex[tmpi].type in typeCheckers+typeMops and tmpParen == 0:
+                return tmpi+1
+
 
 
     prettyIndent = 4
@@ -859,6 +872,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if len(tmp)>0:
                         tmp=tmp[0]
                         for t in miniLex(inlineReplace[tmp]+' '):#inlineReplace[tok.value.split('=')[0].replace(' ','').replace('$','')]+' '):
+                            if t.type == 'ID' and t.value in defaultTypes and t.value not in reservedIsNowVar:
+                                t.type = 'TYPE'
                             lex.append(t) ; lexIndex+=1
                             if debug: print('--',t)
                         #print(tok.value.lstrip('$'+tmp)) ; exit()
@@ -2884,6 +2899,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     preAllocated.remove(p)
                         else:
                             if min(_[0] for _ in preAllocated) > lex[token].value.count(' '): preAllocated=set()
+
+                    elif lex[token].type == 'EQUAL' and optFuncTricks and optFuncTricksDict['collapseToFalseTrue'] and lex[token + 1].type == 'BOOL' and lex[token + 1].value != 'None':
+                        if lex[token + 1].value == 'False':
+                            tmp = findEndOfExpression(token-1)
+                            if lex[tmp].type != 'INS':
+                                lex[token].type = lex[token + 1].type = 'IGNORE'
+                                lex.insert(tmp,makeToken(lex[token],'not ','INS'))
+                        else: # True
+                            lex[token].type = lex[token + 1].type = 'IGNORE'
+
+
+
                     elif optCompilerEval and ((lex[token].type in typeCheckers and lex[token].type != 'PYIS') or (lex[token].type == 'ASSIGN' and 'is' in lex[token].value and determineIfAssignOrEqual(token))) \
                     and ( (lex[token-1].type in {'STRING','NUMBER','BOOL'} and (lex[token+1].type in {'STRING','NUMBER','BOOL'} or isANegativeNumberTokens(token+1)) and lex[token-2].type in typeConditionals+typeNewline+('AND','OR','LPAREN')) or (isANegativeNumberTokens(token-2) and (lex[token+1].type in {'STRING','NUMBER'} or isANegativeNumberTokens(token+1)) and lex[token-3].type in typeConditionals+typeNewline+('AND','OR','LPAREN') ) ):
                         # eval bool conditionals when STRING and/or NUMBER
@@ -6113,12 +6140,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     indentSoon=True
             elif tok.type in typeCheckers:
                 check = True
-                if optimize and optFuncTricks and optFuncTricksDict['collapseToFalseTrue'] and lex[lexIndex+1].type == 'BOOL' and lex[lexIndex+1].value != 'None':
-                    check = False
-                    tok.type = lex[lexIndex + 1].type = 'IGNORE'
-                    if lex[lexIndex+1].value == 'False':
-                        line[-1] = 'not '+line[-1]
-                elif intVsStrDoLen:
+                if intVsStrDoLen:
                     if (lastType in {'STRING','LIST','LISTCOMP','DICT','TUPLE'} or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] in {'STRING','LIST','LISTCOMP','DICT','TUPLE'})) \
                     and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in {'NUMBER','INC'} or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type']=='NUMBER'))):
                         line[-1]=line[-1].replace(lex[lexIndex-1].value,f"len({lex[lexIndex-1].value})")
