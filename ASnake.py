@@ -3100,7 +3100,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex[token].type = 'BOOL'
                             lex[token+1].type = 'IGNORE'
                             newOptimization = True
-                    if optCompilerEval and newOptimization and lex[token-1].type == 'LPAREN' and lex[token+1].type == 'RPAREN' and lex[token-2].type in ('LPAREN','ASSIGN')+typeNewline+typeOperators and lex[token].type not in ('FUNCTION','COMMAGRP'):
+                    if optCompilerEval and newOptimization and lex[token-1].type == 'LPAREN' and lex[token+1].type == 'RPAREN' and lex[token-2].type in ('LPAREN','ASSIGN','DEFEXP')+typeNewline+typeOperators and lex[token].type not in ('FUNCTION','COMMAGRP'):
                         #print(lex[token-2].type,lex[token-1].type,lex[token].type,lex[token].value,lex[token+1].type,888888888888)
                         lex[token+1].type=lex[token-1].type='IGNORE' ; token-=2
 
