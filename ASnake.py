@@ -18,7 +18,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.12.15'
+ASnakeVersion='v0.12.16'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -412,6 +412,21 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     lex.append(makeToken(tok, ':', 'COLON'))
                     lex.append([ii for ii in miniLex(i.value.split(':')[-1])][0])
                     lexIndex += 2
+                elif i.type == 'INDEX':
+                    for ii in miniLex(i.value[:-1]):
+                        if ii.type == 'LISTCOMP':
+                            lex.append([iii for iii in miniLex(ii.value.split(':')[0])][0])
+                            lex.append(makeToken(tok, ':', 'COLON'))
+                            lex.append([iii for iii in miniLex(ii.value.split(':')[-1])][0])
+                            lexIndex += 3
+                        else:
+                            if   ii.type == 'ENDIF': ii.type = 'COLON'
+                            elif ii.type == 'LIST' : ii.type = 'LINDEX'
+                            lex.append(ii)
+                            lexIndex += 1
+                        if debug: print('---', ii)
+                    lex.append(makeToken(i,']','RINDEX')) ; lexIndex+=1
+                    if debug: print('---',lex[-1])
                 else:
                     if i.type == 'ENDIF':
                         i.type = 'COLON'
