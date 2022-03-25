@@ -1347,6 +1347,16 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                         elif inFrom and lex[tmpi].type == 'ID' and lex[token].value == lex[tmpi].value:
                                             search = False
+                                        elif lex[tmpi].type == 'ID' and lex[token].value == lex[tmpi].value and lex[tmpi+1].type == 'COMMA' and lex[tmpi-1].type in typeNewline:
+                                            tmptmpParenScope = 0
+                                            for tt in range(tmpi,len(lex)-1):
+                                                if lex[tt].type == 'ASSIGN' and tmptmpParenScope <= 0:
+                                                    ignores.append(tmpi-1)
+                                                    break
+                                                elif lex[tt].type in typeNewline: break
+                                                elif lex[tt].type == 'FUNCTION' and '(' in lex[tt].value: tmptmpParenScope+=1
+                                                elif lex[tt].type == 'LPAREN': tmptmpParenScope+=1
+                                                elif lex[tt].type == 'RPAREN': tmptmpParenScope-=1
                                         elif lex[tmpi].type == 'FUNCTION' and lex[tmpi].value in {'locals(','globals('} and lex[tmpi+1].type == 'RPAREN' and lex[tmpi+2].type == 'LINDEX' and lex[tmpi+3].type == 'STRING' and lex[tmpi+3].value.replace('"','').replace("'","") == lex[token].value:
                                             tmpAddToIgnoresWhenNL = tmpi
                                         elif lex[tmpi].type in {'FUNCTION','ID'} and lex[tmpi].value in {'ASenumerate','enumerate(','enumerate'} and lex[tmpi-1].type == 'INS':
@@ -1404,9 +1414,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         elif lex[tmpi].type == 'FROM' and inDef:
                                             search=inFrom=True ; inDef=False
                                             ignores[-1].append(tmpi)
-                                        #elif lex[tmpi].type == 'TRY':
-                                        #    if 'try' in lex[tmpi].value: ignores.append([tmpi])
-                                        #    elif 'except' in lex[tmpi].value: ignores[-1].append(tmpi)
                                         elif lex[tmpi-1].type == 'INS' and lex[tmpi-2].type == 'COMMAGRP' and lex[tmpi].type == 'ID' and lex[tmpi].value == lex[token].value and vartype == 'DICT':
                                             search=False # dicts don't seem to play well with stuff like enumerate
                                         elif (not inFrom and not inCase ) and lex[tmpi].type == 'ID' and lex[tmpi].value == lex[token].value and lex[tmpi+1].type != 'ASSIGN':
@@ -1689,7 +1696,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             # checking for: a = a + 1 -> a += 1
                             if token+3 <= len(lex)-1 \
                             and lex[token+1].type == 'ASSIGN' and ':' not in lex[token+1].value \
-                            and lex[token+2].value == lex[token].value \
+                            and lex[token+2].value == lex[token].value and lex[token-1].type in typeNewline \
                             and lex[token+3].type in typeOperators:
                                 tmpcheck=True
                                 tmpbit=tmptype=False
@@ -3902,7 +3909,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if lex[tmpi].type in typeOperators:
                                     break
                     if lastType in typeAssignables+('BUILTINF',) and inFuncArg == False and tok.type!='LISTEND' and lastType!='LIST' \
-                    and tok.type not in ('LBRACKET','RBRACKET','LINDEX') and lex[lexIndex-1].type not in ('LBRACKET','RBRACKET'):
+                    and tok.type not in ('LBRACKET','RBRACKET','LINDEX') and lex[lexIndex-1].type not in ('LBRACKET','RBRACKET') \
+                    and not (lastType == 'ID' and lastValue == 'lambda' and 'lambda' not in reservedIsNowVar):
                             if (inIf or lex[lexIndex-2].type=='LPAREN' or fstrQuote!='') and not (tok.type=='LIST' and lastType=='STRING'):
                                 # if im 'lazy' | if im == 'lazy'
                                 line.append('== ')
