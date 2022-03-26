@@ -2844,11 +2844,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             if lex[t-1].type not in ('MODULO','IGNOREtmpMODULO'):
                                                 tt=-1
                                             else: tt=0
-                                            tmp=[]
+                                            tmp=[] ; tmpIgnoreFirstParen = True
                                             while True:
-                                                #print(lex[t + tt].type,preRparen,tmpRparen)
+                                                #print('-',lex[t + tt].type,preRparen,tmpRparen)
                                                 if lex[t+tt].type not in ('COMMA',)+typeNewline:
-
                                                     if tmpModuloCheck and lex[t + tt].type in {'LPAREN','RPAREN','FUNCTION'}:
                                                         if lex[t+tt].type in {'LPAREN','FUNCTION'}:
                                                             tmpRparen += 1
@@ -2859,15 +2858,21 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             if tmpRparen == preRparen:
                                                                 lex[t + tt].type = 'IGNOREtmp' + lex[t + tt].type
                                                             break
-
-                                                    tmptok=copy(lex[t+tt])
-                                                    lex[t+tt].type='IGNOREtmp' + lex[t + tt].type
-                                                    tmp.append(tmptok)
+                                                    if tmpModuloCheck and tmpIgnoreFirstParen and lex[t+tt].type == 'IGNOREtmpLPAREN':
+                                                        tmpIgnoreFirstParen = False
+                                                    else:
+                                                        tmptok=copy(lex[t+tt])
+                                                        lex[t+tt].type='IGNOREtmp' + lex[t + tt].type
+                                                        tmp.append(tmptok)
                                                     tt+=1
                                                 elif lex[t+tt].type in 'COMMA':
                                                     if not tmpParenUsed:
                                                         t=len(lex)+4 ; tmpModuloCheck=False
-                                                    break
+                                                    if tmpRparen == 0 or tmpRparen == preRparen:
+                                                        break
+                                                    lex[t + tt].type = 'IGNORE'
+                                                    tmpf.append(tmp)
+                                                    tmp = [] ; tt+=1
                                                 else: break
                                             tmpf.append(tmp)
                                             tmpSkip+=tt
@@ -3158,7 +3163,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif optDeadVariableElimination and lex[token].type == 'ID' and lex[token].value != 'print':
                     if ((lex[token + 1].type in typeAssignables and lex[token+1].type!='LIST') or (lex[token + 1].type=='ASSIGN' and lex[token + 1].value in ('=','is','is '))) and lex[token - 1].type in typeNewline + ('CONSTANT', 'TYPE'):
                         delPoint = tmpIndent = None ; check = True ; tmpReplaceWithPass = inCase = False
-                        tmpCurrentIndent = 0
+                        tmpCurrentIndent = 0 ; tmpParenScope=0
                         # tmpIndent is var's indent, tmpCurrentIndent is iterations indent
                         for tmpi in range(token-1, 0, -1):
                             #print(lex[token].value, '-!', lex[tmpi].value, lex[tmpi].type, tmpIndent,check)
@@ -3198,6 +3203,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 else: delPoint=tmpi
                             elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value:
                                 inCase=True
+                            elif lex[tmpi].type == 'LPAREN': tmpParenScope+=1
+                            elif lex[tmpi].type == 'FUNCTION' and '(' in lex[tmpi].value: tmpParenScope+=1
+                            elif lex[tmpi].type == 'RPAREN': tmpParenScope-=1
+                        if tmpParenScope > 0: check=False
                         if delPoint == None or tmpIndent == None: check=False
                         if check:
                             breakOnNextNL=False ; ttenary=inCase=False
