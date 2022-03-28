@@ -1,5 +1,3 @@
-$ pythonVersion = 3.10
-
 result None
 getResult does
 	global result 
@@ -219,16 +217,17 @@ else result is False
 if result is True $worked
 else 'basic asnake case switch' $failed
 
-$start
-xint = 3
-match xint
-case 1 do result is False
-case 2 do result is False
-case 3 do result is True
-case 4 do result is False
-case _ do result is False
-if result is True $worked
-else 'basic python case switch' $failed
+$ ifVersion = 3.10
+	$start
+	xint = 3
+	match xint
+	case 1 do result is False
+	case 2 do result is False
+	case 3 do result is True
+	case 4 do result is False
+	case _ do result is False
+	if result is True $worked
+	else 'basic python case switch' $failed
 
 
 $start
@@ -297,18 +296,31 @@ y = 12
 if y > xstr do $worked
 else 'int vs str compares len' $failed
 
-$start
-y = 4
-if (xstr := "abcdefg") > y do $worked
-else 'walrus str vs int compares len' $failed
+$ ifVersion = 3.8
+	$start
+	y = 4
+	if (xstr := "abcdefg") > y do $worked
+	else 'walrus str vs int compares len' $failed
+
+	$start
+	y = 12
+	if y > (xstr := "hijklmn") do $worked
+	else 'int vs walrus str compares len' $failed
+
+
 
 $start
-y = 12
-if y > (xstr := "hijklmn") do $worked
-else 'int vs walrus str compares len' $failed
+3
+giveTheNumberTwo does return 2
+giveTheNumberTwo
+if result is 3 do $worked
+else 'bare function call shouldnt trigger default expression' $failed
 
-
-
+$start
+3
+giveTheNumberTwo+2
+if result is 4 do $worked
+else 'non-bare function triggers default expression' $failed
 
 
 
