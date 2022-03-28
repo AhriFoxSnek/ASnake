@@ -224,8 +224,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     setUpdateMethods=('.add','.clear','.discard','.difference_update','.intersection_update','.pop','.remove','.symmetric_difference_update','.update')
     pyBuiltinFunctions=('abs', 'delattr', 'hash', 'memoryview', 'set', 'all', 'dict', 'help', 'min', 'setattr', 'any', 'dir', 'hex', 'next', 'slice', 'ascii', 'divmod', 'id', 'object', 'sorted', 'bin', 'enumerate', 'input', 'oct', 'staticmethod', 'bool', 'int', 'open', 'str', 'breakpoint', 'isinstance', 'ord', 'sum', 'bytearray', 'filter', 'issubclass', 'pow', 'super', 'bytes', 'float', 'iter', 'print', 'tuple', 'callable', 'format', 'len', 'property', 'type', 'chr', 'frozenset', 'list', 'range', 'vars', 'classmethod', 'getattr', 'locals', 'repr', 'zip', 'compile', 'globals', 'map', 'reversed', 'complex', 'hasattr', 'max', 'round', 'exec', 'eval', '__import__', 'exit')
     pyReservedKeywords=('False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield')
-    ASnakeKeywords=('nothing', 'minus', 'plus', 'times', 'greater', 'end', 'of', 'until', 'then', 'do', 'does', 'less', 'than', 'equals', 'power', 'remainder', 'loop', 'case', 'match', 'pipe')
-    # ^ match and case are not ASnake keywords, however can be reassigned in Python, so better to leave it in ASnakeKeywords
+    ASnakeKeywords=('nothing', 'minus', 'plus', 'times', 'greater', 'end', 'of', 'until', 'then', 'do', 'does', 'less', 'than', 'equals', 'power', 'remainder', 'loop', 'case', 'match', 'pipe', 'all', 'any')
+    # ^ match, case, all, any
+    # ^ are not ASnake keywords, however can be reassigned in Python, so better to leave it in ASnakeKeywords
     metaPyCompat = {'pythonCompatibility','pycompat','pyCompatibility','pyCompat','pythonCompat'}
     metaPyVersion = {'version','pythonVersion','pyver','PythonVersion','pyVersion'}
     metaIgnoreIndent = {'ignoreIndentation','ignoreIndent','noindent','noIndent','noIndentation'}
@@ -838,6 +839,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if i.type == 'STRING' and i.value[0] == 'f':
                         createFString(i)
                     else:
+                        if i.type != 'ID' and i.value.strip() in reservedIsNowVar:
+                            i.type = 'ID' ; i.value=i.value.strip()
                         lex.append(i)
                         lexIndex+=1
                     if debug: print('--',i)
@@ -1029,7 +1032,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     tmptok.type='ID' ; tmptok.value=tmp[0]
                     lex.append(tmptok) ; lexIndex+=1 ; del tmptok
                 lex.append(tok)
-            elif lex[lexIndex].type != 'ID' and (any(True for x in ASnakeKeywords if x == lex[lexIndex].value.strip()) \
+            elif (any(True for x in ASnakeKeywords if x == lex[lexIndex].value.strip()) \
             or any(True for x in [i for i in convertType]+list(defaultTypes) if x == lex[lexIndex].value)):
                 # !! allows reassignment of reserved keywords !!
                 lex[lexIndex].type = 'ID' ; lex.append(tok) ; reservedIsNowVar.append(lex[lexIndex].value.strip())
