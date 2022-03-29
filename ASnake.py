@@ -1555,8 +1555,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             for tmpii in range(tmpi,0,-1):
                                                                 if lex[tmpii].type == 'LOOP': tmpsafe=False ; break
                                                                 elif lex[tmpii].type in typeNewline: break
-                                                        if vartype!='STRING' and lex[tmpi+1].type=='LINDEX':tmpsafe=False # so it doesn't replace the var in var[index]
-                                                        if vartype in {'LIST','ID'} and lex[tmpi-1].type not in typeCheckers+('INS','EQUAL','LPAREN','BITWISE','ANYOF')+typeMops and (lex[tmpi-1].value.replace('(','') not in pyBuiltinFunctions or tmpIDshow > 1):
+                                                        if vartype!='STRING' and lex[tmpi+1].type=='LINDEX':tmpsafe=False # so it doesn't replace the var in var[index]s
+                                                        if vartype in {'LIST','ID'} and (lex[tmpi-1].type not in typeCheckers+('INS','EQUAL','LPAREN','BITWISE','ANYOF')+typeMops or (lex[tmpi-1].type == 'LPAREN' and lex[tmpi-2].type in {'BUILTINF','FUNCTION'})) and (lex[tmpi-1].value.replace('(','') not in pyBuiltinFunctions or tmpIDshow > 1):
                                                             tmpsafe=False # functions can modify lists in place, therefore replacing it with the list can break behaviour
                                                             for tmpii in range(tmpi,0,-1):
                                                                 if lex[tmpii].type in typeNewline+('BUILTINF','FUNCTION','LPAREN'): break
@@ -3347,9 +3347,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     elif lex[tmpi].type == 'tmpPass': pass
                                     else:
                                         if lex[tmpi].type in {'LPAREN','FUNCTION'}:
-                                            if lex[tmpi].type == 'FUNCTION' and '(' not in lex[tmpi].value:
-                                                tmpParenScope -= 1
-                                            tmpParenScope += 1
+                                            if lex[tmpi].type == 'FUNCTION':
+                                                if '(' in lex[tmpi].value:
+                                                    tmpParenScope += lex[tmpi].value.count('(')
+                                                    tmpParenScope -= lex[tmpi].value.count(')')
+                                            else:
+                                                tmpParenScope += 1
                                         elif lex[tmpi].type == 'RPAREN':
                                             tmpParenScope -= 1
                                         elif lex[tmpi].type in {'LIST','LINDEX'}: tmpListScope+=1
