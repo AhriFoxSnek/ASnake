@@ -3120,7 +3120,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         # math or string evaluation
                         check=False
                         if token+3 < len(lex)-1 and lex[token+3].type == 'PIPE' and lex[token+3].value == 'to': pass
-                        elif isANegativeNumberTokens(token+2) and ((lex[token-1].type in typeOperators and lex[token+2].type in typeOperator \
+                        elif isANegativeNumberTokens(token+2) and ((lex[token-1].type in typeOperators and lex[token+2].type in typeOperators \
                         and orderOfOps[lex[token-1].type] <= orderOfOps[lex[token+2].type]) or lex[token-1].type in typeNewline):
                             check = True
                         elif lex[token-1].type in typeOperators and lex[token+1].type in typeOperators:
@@ -4313,7 +4313,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     # allows for multiline conditional
                     continue
 
-                if tok.type == 'THEN' and ('list' in listcomp and 'x' in listcomp)==False:
+                if tok.type == 'THEN' and not ('list' in listcomp and 'x' in listcomp):
                     if indentSoon and parenScope == 0 and ':' not in line[-1] :
                         if debug: print('!',line[0])
                         if lexIndex+1 < len(lex) and lex[lexIndex+1].type == 'TAB' and 'while' in line[0]:
@@ -4325,7 +4325,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
 
                 if len(code)==0: code.append(''.join(line)) ; line=[]
-                if tok.type == 'TAB' and (lastType not in ('THEN','DEFFUNCT','ENDIF') or code[-1].endswith(':\n')==False) and indentSoon and inReturn==False:
+                if tok.type == 'TAB' and (lastType not in ('THEN','DEFFUNCT','ENDIF') or (not code[-1].endswith(':\n') and lastType != 'ENDIF')) and indentSoon and inReturn==False:
                     line.append(':\n')
                     if lexIndex < len(lex) - 1 and lex[lexIndex + 1].type == 'OF' and switchCase['case'] == True and switchCase['firstIf'] == False:
                         return AS_SyntaxError(
