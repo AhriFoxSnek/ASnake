@@ -4594,6 +4594,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 , lineNumber, data)
 
                         if ':' not in tok.value:
+                            tmpIndexScope=0
                             for tt in range(lexIndex-1,0,-1):
                                 if lex[tt].type == 'COMMAGRP':
                                     try:
@@ -4604,10 +4605,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if not safe: break
                                     except sly.lex.LexError:
                                         safe = False ; break
-                                elif lex[tt].type in {'NUMBER','STRING','PIPE','FUNCTION','PIPEGO','LPAREN'}:
+                                elif lex[tt].type in {'NUMBER','STRING','PIPE','FUNCTION','PIPEGO','LPAREN'} and tmpIndexScope == 0:
                                     safe=False ; break
                                 elif lex[tt].type in typeNewline+('TYPE','CONSTANT')+typeConditionals:
                                     break
+                                elif lex[tt].type in {'LINDEX','LIST'}: tmpIndexScope += 1
+                                elif lex[tt].type in {'RINDEX','LISTEND'}: tmpIndexScope -= 1
                         else: safe=True
 
                         if safe:
