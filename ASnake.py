@@ -3513,7 +3513,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             if '.' in tmpval: line.append(f'{" "*(indent)}printf("%.14f",{tmpval})\n')
             else: line.append(f'{" "*(indent)}printf("%d\\n",{tmpval})\n')
             check=True
-        else: line.append(f'{" "*(indent)}print({tmpval})')
+        else:
+            if tmpval in storedCustomFunctions:
+                line.append(f'{" " * (indent)}print({tmpval}())')
+            else:
+                line.append(f'{" "*(indent)}print({tmpval})')
 
         if check: insertAtTopOfCodeIfItIsNotThere('from libc.stdio cimport printf\n')
 
@@ -5291,10 +5295,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if any(True for i in code if i == tmp)==False:
                                 code.insert(1,tmp)
                         else:
-                            if line == []:
-                                code[-1]=code[-1][:code[-1].rindex(':\n')]+f' -> {tok.value}:\n'
+                            if compileTo == 'Cython' and (lastValue.startswith('cpdoes') or lastValue.startswith('cdoes')):
+                                tmp=code[-1].split()
+                                tmp.insert(1,tok.value)
+                                code[-1] =' '.join(tmp)
                             else:
-                                line[-1]=line[-1].replace(':\n',' -> %s:\n'%tok.value)
+                                if line == []:
+                                    code[-1]=code[-1][:code[-1].rindex(':\n')]+f' -> {tok.value}:\n'
+                                else:
+                                    line[-1]=line[-1].replace(':\n',' -> %s:\n'%tok.value)
                         indentSoon=False
                     elif lastType == 'PIPE': pass
                     elif lexIndex+1 < len(lex) and lex[lexIndex+1].type in typeAssignables:
@@ -5307,9 +5316,24 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 code.insert(1,tmp)
                         else:
                             if compileTo == 'Cython' and inLoop[0]==False and lex[lexIndex+1].value not in storedVarsHistory:
-                                line.append(decideIfIndentLine(indent,f"cdef {tok.value} "))
+                                if lex[lexIndex + 2].type == 'COMMA':
+                                    tmp = []
+                                    for tmpi in range(lexIndex + 1, len(lex) - 1):
+                                        if lex[tmpi].type == 'ID': tmp.append(lex[tmpi].value)
+                                        elif lex[tmpi].type == 'COMMA': pass
+                                        else: break
+                                    for varname in tmp: code.append(f"{' ' * (indent)}cdef {tok.value} {varname}")
+                                else: line.append(decideIfIndentLine(indent,f"cdef {tok.value} "))
                             else:# compileTo == 'Python':
-                                if pythonVersion >= 3.06: lex[lexIndex+1].value=f"{lex[lexIndex+1].value}: {tok.value}"
+                                if pythonVersion >= 3.06:
+                                    if lex[lexIndex+2].type == 'COMMA':
+                                        tmp=[]
+                                        for tmpi in range(lexIndex+1,len(lex)-1):
+                                            if lex[tmpi].type == 'ID': tmp.append(lex[tmpi].value)
+                                            elif lex[tmpi].type == 'COMMA': pass
+                                            else: break
+                                        for varname in tmp: code.append(f"{' '*(indent)}{varname}: {tok.value}")
+                                    else: lex[lexIndex+1].value=f"{lex[lexIndex+1].value}: {tok.value}"
                                 elif lex[lexIndex+2].type in typeNewline:
                                     if tok.value == 'str': tmp=('""','STRING')
                                     elif tok.value == 'int': tmp=('0','NUMBER')
@@ -5369,6 +5393,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 else:
                     isCombined=skip=False
                     combine=[[]] ; endtmpi=lexIndex
+                    if lastType == 'NEWLINE':
+                        tmpExpectedIndent=prettyIndent
+                    else:
+                        for tmpi in range(lexIndex-1,0,-1):
+                            if lex[tmpi].type == 'TAB':
+                                tmpExpectedIndent=lex[tmpi].value.count(' ')+prettyIndent ; break
                     for tmpi in range(lexIndex,len(lex)*2):
                         #print(tmpi,lex[tmpi].type,lex[tmpi].value.replace('\n','\\n'),skip)
                         endtmpi+=1
@@ -5376,9 +5406,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if lex[tmpi].type in ('NEWLINE','FOR','WHILE','LOOP')+typeConditionals: break
                         elif tmpi != lexIndex and lex[tmpi].type == 'TYPEWRAP': break
                         elif lex[tmpi].type == 'TAB':
+                            if lex[tmpi].value.count(' ') < tmpExpectedIndent:
+                                break
                             lex[tmpi].value=f"\n{' '*(prettyIndent*indent)}"
                             combine.append([])
-                        elif lex[tmpi].type == 'ID' and skip==False and lex[tmpi-1].type in ('CONSTANT','THEN','TAB','TYPEWRAP'):
+                        elif lex[tmpi].type == 'ID' and skip==False and lex[tmpi-1].type in {'CONSTANT','THEN','TAB','TYPEWRAP'}:
                             tmptok=copy(tok)
                             tmptok.value=tok.value
                             tmptok.type='TYPE'
