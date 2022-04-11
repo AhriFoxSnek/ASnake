@@ -3233,7 +3233,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                 elif optDeadVariableElimination and lex[token].type == 'ID' and lex[token].value != 'print':
                     if ((lex[token + 1].type in typeAssignables and lex[token+1].type!='LIST') or (lex[token + 1].type=='ASSIGN' and lex[token + 1].value in ('=','is','is '))) and lex[token - 1].type in typeNewline + ('CONSTANT', 'TYPE'):
-                        delPoint = tmpIndent = None ; check = True ; tmpReplaceWithPass = inCase = False
+                        delPoint = tmpIndent = None ; check = True ; tmpReplaceWithPass = inCase = isConstant = False
                         tmpCurrentIndent = 0 ; tmpParenScope=0
                         # tmpIndent is var's indent, tmpCurrentIndent is iterations indent
                         for tmpi in range(token-1, 0, -1):
@@ -3244,7 +3244,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 tmpCurrentIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
                                 inCase=False
                             elif lex[tmpi].type == 'NEWLINE':
-                                if tmpIndent==None: tmpIndent = 0
+                                if tmpIndent==None:
+                                    if isConstant: check = False ; break # constants on global scope should not be eliminated
+                                    tmpIndent = 0
                                 if delPoint==None: delPoint=tmpi
                                 tmpCurrentIndent = 0
                                 inCase=False
@@ -3253,7 +3255,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 inCase=False
                             elif lex[tmpi].type == 'SCOPE' and lex[token].value in lex[tmpi].value :
                                 check=False ; break
-                            elif lex[tmpi].type == 'FROM': break
+                            elif lex[tmpi].type == 'FROM' and not delPoint: break
                             elif not inCase and lex[tmpi].type in ('ID', 'INC', 'BUILTINF','FUNCTION') and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value):
                                 check = False
                             #elif lex[tmpi].type == 'PYDEF' and lex[token].value in lex[tmpi].value.split('(')[-1]:
@@ -3270,13 +3272,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmpIndent = lex[tmpi-1].value.replace('\t', ' ').count(' ')
                                 elif lex[tmpi-1].type == 'NEWLINE': tmpIndent=0
                                 else: tmpIndent=None
-                                if delPoint: break
-                                else: delPoint=tmpi
                             elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value:
                                 inCase=True
                             elif lex[tmpi].type == 'LPAREN': tmpParenScope+=1
                             elif lex[tmpi].type == 'FUNCTION' and '(' in lex[tmpi].value: tmpParenScope+=1
                             elif lex[tmpi].type == 'RPAREN': tmpParenScope-=1
+                            elif lex[tmpi].type == 'CONSTANT' and not delPoint: isConstant = True
                         if tmpParenScope > 0: check=False
                         if delPoint == None or tmpIndent == None: check=False
                         if check:
