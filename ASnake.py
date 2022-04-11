@@ -18,7 +18,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion='v0.12.16'
+ASnakeVersion='v0.12.17'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -103,7 +103,7 @@ class Lexer(Lexer):
     PYPASS  = r"p!(.|\n)+?!p"
     META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n()]*=)(?=[\n \]\)\$\[+]))|(([^+\-/*^~<>&\n()[\],=]*|(\={2}))((=.*)|(?=\n)|$|(?=,))))'
     FUNCMOD = r'@.*'
-    PYDEF   = r'c?def +([\w.\[\d:,\] ]* )?\w+ *\(((?!: *return).)*\)*( *((-> *)?\w* *):?)'
+    PYDEF   = r'(c|cp)?def +([\w.\[\d:,\] ]* )?\w+ *\(((?!: *return).)*\)*( *((-> *)?\w* *):?)'
     PYCLASS = r'class ([a-z]|[A-Z])\w*(\(.*\))?:?'
     STRLIT  = r'(r|f)?\"\"\"[\w\W]+?\"\"\"|(r|f)?\'\'\'[\w\W]+?\'\'\''
     INDEX   = r'''((((\w[\w\d_]*)|(\)( |\t)*)|(?!.*("|')))(\[(((.(?! \w))*?:[^#:\n\[]*?)|(([^,])*?)|.*\(.*\))[^\[,\n]*\])+(?= *[\.+)-\\*\n=\w]| *))|\[ *\])'''
@@ -137,7 +137,7 @@ class Lexer(Lexer):
     GREATER = r'>|((is )?greater (than )?)'
     ASSIGN  = r'''=|is( |(?=("|'|{|\[|\()))|(\+|-|\*\*?|\/\/?|:|%|>>|<<|\^|~|\||&)='''
     ENDIF   = r': *'
-    DEFFUNCT= r'does(?= |\n|\t)'
+    DEFFUNCT= r'(c|cp)?does(?= |\n|\t)'
     SCOPE   = r'(global|local|nonlocal) (\w* *,?)*'
     THEN    = r'then\s|do\s|then do\s|, then\s|, do\s|, then do\s|;|(:(?=\n)+)'
     WITHAS  = r'(with|(?![^\w\d])as) '
@@ -3909,7 +3909,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
 
                     if debug: print(f"{impure =}") #; print(storedCustomFunctions)
-                    line.append(decideIfIndentLine(indent,f'def {tok.value}({tmpf}):\n'))
+                    tmpc=''
+                    if compileTo == 'Cython':
+                        if lex[lexIndex+1].value.startswith('cdoes'):
+                            tmpc = 'c'
+                        elif lex[lexIndex+1].value.startswith('cpdoes'):
+                            tmpc = 'cp'
+                    line.append(decideIfIndentLine(indent,f'{tmpc}def {tok.value}({tmpf}):\n'))
                     startOfLine=True ; indent+=prettyIndent ; indentSoon=True
                     if lexIndex+tmp+3 < len(lex) and (lex[lexIndex+tmp+2].type not in typeNewline or lex[lexIndex+tmp+3].type not in typeNewline): indentSoon=False
                     else:
@@ -5989,6 +5995,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.type == 'IGNORE':
                 pass
             elif tok.type == 'PYDEF': # support for Python style function define
+                if tok.value.startswith('cdef') and compileTo != 'Cython': tok.value=tok.value[1:] # jumpy
+                elif tok.value.startswith('cpdef') and compileTo != 'Cython': tok.value=tok.value[2:]
                 funcName = tok.value.split('def')[1].split('(')[0].replace(' ', '') # get function name
                 if funcName not in storedCustomFunctions:
                     # create entry in storedCustomFunctions
