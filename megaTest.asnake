@@ -324,4 +324,12 @@ else 'non-bare function triggers default expression' $failed
 
 
 
+$start
+z = (1,2)
+int ix , iy = z
+if ix is 1 and iy is 2 do $worked
+else 'type declaration on unpack' $failed
+
+
+
 f"Failed={failed} Working={working} out of {max}" to print
