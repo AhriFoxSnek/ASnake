@@ -6717,7 +6717,7 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                 s = monotonic()
                 cythonCompileText = check_output(f'{py3Command} ASsetup.py build_ext --inplace', shell=True).decode()
                 error=False
-                print('# C compile time:',monotonic()-s)
+                print('# C compile time:',round(monotonic()-s,2))
             except CalledProcessError as e:
                 cythonCompileText = e.output.decode()
                 error=True
