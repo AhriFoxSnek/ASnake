@@ -1227,8 +1227,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         # meta
         pyCompatibility=False
 
-        orderOfOps = {'RPAREN': 7, 'LPAREN': 6, 'EXPONENT': 5, 'BITWISE': 4, 'MODULO': 4, 'TIMES': 4, 'DIVIDE': 4,
-                      'RDIVIDE': 4, 'PLUS': 1, 'MINUS': 1} # Python operator precedence
+        orderOfOps = {'RPAREN': 6, 'LPAREN': 5, 'EXPONENT': 4,  'MODULO': 3, 'TIMES': 3, 'DIVIDE': 3,
+                      'RDIVIDE': 3, 'PLUS': 2, 'MINUS': 2, 'BITWISE': 1} # Python operator precedence
 
         if optMathEqual:
             optMathEqualSignal = []
@@ -1760,7 +1760,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if optMathEqual and lex[token] not in optMathEqualSignal:
                             # checking for: a = a + 1 -> a += 1
                             if token+3 <= len(lex)-1 \
-                            and lex[token+1].type == 'ASSIGN' and ':' not in lex[token+1].value \
+                            and lex[token+1].type == 'ASSIGN' and lex[token+1].value.strip() in {'=','is'} \
                             and lex[token+2].value == lex[token].value and lex[token-1].type in typeNewline \
                             and lex[token+3].type in typeOperators:
                                 tmpcheck=True
