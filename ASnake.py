@@ -3120,10 +3120,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         # math or string evaluation
                         check=False
                         if token+3 < len(lex)-1 and lex[token+3].type == 'PIPE' and lex[token+3].value == 'to': pass
-                        elif isANegativeNumberTokens(token+2) and ((lex[token-1].type in typeOperators and lex[token+2].type in typeOperators \
+                        elif isANegativeNumberTokens(token+2) and ((lex[token-1].type in orderOfOps and lex[token+2].type in orderOfOps \
                         and orderOfOps[lex[token-1].type] <= orderOfOps[lex[token+2].type]) or lex[token-1].type in typeNewline):
                             check = True
-                        elif lex[token-1].type in typeOperators and lex[token+1].type in typeOperators:
+                        elif lex[token-1].type in orderOfOps and lex[token+1].type in orderOfOps:
                             # helps follow the order of operations for more accuracy
                             if orderOfOps[lex[token-1].type] <= orderOfOps[lex[token+1].type]:
                                 check=True
@@ -3932,7 +3932,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     code.append(''.join(line)) ; line=[] ; continue
                 elif inFuncArg: pass # dont write to line if function from argument
                 elif not startOfLine and ((tok.value in storedCustomFunctions) or (tok.value in pyBuiltinFunctions and tok.value not in storedVarsHistory and tok.value not in typeTypes and lex[lexIndex+1].type in typeNewline+typeOperators)) \
-                and '(' not in tok.value and lastType!='FOR' and functionPassing==False:
+                and '(' not in tok.value and lastType!='FOR' and functionPassing==False and not (lastType == 'RETURN' and lastValue.strip() == 'del'):
                     #vvv adding () to function name if it doesn't have one
                     tok.value=f'{tok.value}()' ; tok.type='FUNCTION'
                     if lexIndex+1 < len(lex) and lex[lexIndex+1].type == 'PIPE' and 'into' not in lex[lexIndex+1].value:
@@ -6558,7 +6558,11 @@ if __name__ == '__main__':
     comment=optimize=pep=fancy=True
 
     args = argParser.parse_args()
-    if args.file == None or not os.path.isfile(args.file.name):
+    import sys
+    if not sys.stdin.isatty():
+        data = sys.stdin.read()
+        ASFile = False
+    elif args.file == None or not os.path.isfile(args.file.name):
         if args.eval:
             data = args.eval
             ASFile = False
