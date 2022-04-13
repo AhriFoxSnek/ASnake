@@ -2065,6 +2065,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if lex[tmpi].type == lex[token].type: tmpscope+=1 ; tmpLeftScope+=1
                                 elif lex[token].type == 'LPAREN' and lex[tmpi].type == 'RPAREN': tmpscope-=1
                                 elif lex[token].type == 'LIST' and lex[tmpi].type == 'LISTEND': tmpscope -= 1
+                                elif lex[tmpi].type == 'FOR': tmp=0 ; break
                                 if tmpscope == 0: tmp=tmpi ; break
                                 else:
                                     if not hasComma and lex[tmpi].type == 'COMMA': hasComma=True
