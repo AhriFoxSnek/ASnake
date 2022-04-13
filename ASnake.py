@@ -1227,7 +1227,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         # meta
         pyCompatibility=False
 
-        orderOfOps = {'RPAREN': 7, 'LPAREN': 6, 'EXPONENT': 5, 'MODULO': 4, 'TIMES': 4, 'DIVIDE': 4,
+        orderOfOps = {'RPAREN': 7, 'LPAREN': 6, 'EXPONENT': 5, 'BITWISE': 4, 'MODULO': 4, 'TIMES': 4, 'DIVIDE': 4,
                       'RDIVIDE': 4, 'PLUS': 1, 'MINUS': 1} # Python operator precedence
 
         if optMathEqual:
