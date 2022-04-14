@@ -474,6 +474,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         newString+=char
 
     def isANegativeNumberTokens(lexIndex):
+        # arg should be suspected minus
         if lex[lexIndex].type == 'MINUS' and lex[lexIndex+1].type == 'NUMBER' \
         and lex[lexIndex-1].type not in {'ID','RPAREN','BUILTINF','NUMBER','STRING','RINDEX','LISTEND','RBRACKET'}:
             return True
@@ -3150,21 +3151,25 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if token > len(lex)-1: break
                     if lex[token].type == 'IGNORE':
                         del lex[token] ; token-=2
-                    if optCompilerEval and lex[token].type in {'STRING','NUMBER'}:
+                    if optCompilerEval and lex[token].type in {'STRING','NUMBER'}: # jumpy
                         # math or string evaluation
                         check=False
                         if token+3 < len(lex)-1 and lex[token+3].type == 'PIPE' and lex[token+3].value == 'to': pass
                         elif isANegativeNumberTokens(token+2) and ((lex[token-1].type in orderOfOps and lex[token+2].type in orderOfOps \
-                        and orderOfOps[lex[token-1].type] <= orderOfOps[lex[token+2].type]) or lex[token-1].type in typeNewline):
+                        and orderOfOps[lex[token-1].type] <= orderOfOps[lex[token+1].type]) or lex[token-1].type in typeNewline):
                             check = True
                         elif lex[token-1].type in orderOfOps and lex[token+1].type in orderOfOps:
                             # helps follow the order of operations for more accuracy
-                            if orderOfOps[lex[token-1].type] <= orderOfOps[lex[token+1].type]:
+                            if (lex[token-1].type == 'LPAREN' or orderOfOps[lex[token-1].type] <= orderOfOps[lex[token+1].type]) \
+                            and not ((lex[token+3].type in orderOfOps and orderOfOps[lex[token+3].type] >= orderOfOps[lex[token+1].type]) or (isANegativeNumberTokens(token+2) and lex[token+4].type in orderOfOps and orderOfOps[lex[token+4].type] >= orderOfOps[lex[token+1].type])) \
+                            and not (token+3 < len(lex) and lex[token+1].type == 'EXPONENT' and lex[token+3].type == 'EXPONENT') and not (token+3 < len(lex) and lex[token+1].type == 'EXPONENT' and isANegativeNumberTokens(token+2) and lex[token+4].type == 'EXPONENT'):
                                 check=True
-                            #print(lex[token-1].type,lex[token+1].type,'~',check,orderOfOps[lex[token-1].type],lex[token].type,orderOfOps[lex[token+1].type])
-                        elif token+3 < len(lex)-1 and lex[token+3].type not in typeOperators or lex[token-1].type not in ('ASSIGN','LPAREN')+typeNewline:
-                                check=True
-                                #print(lex[token-1].type in typeOperators , lex[token-1].type, lex[token+1].type in typeOperators,lex[token+1].type)
+                                #print('#2',lex[token].value,orderOfOps[lex[token-1].type] , orderOfOps[lex[token+1].type])
+                        elif token+3 < len(lex)-1 and lex[token+3].type not in typeOperators and not isANegativeNumberTokens(token+2) or lex[token-1].type not in ('ASSIGN','LPAREN','FUNCTION')+typeNewline:
+                            check=True
+                        if token-2 > 0 and lex[token-1].type == 'MINUS' and lex[token-2].type in typeOperators and lex[token-2].type in orderOfOps and lex[token+1].type in orderOfOps and orderOfOps[lex[token+1].type] < orderOfOps[lex[token-1].type]:
+                            check = False
+
                         if check:
                             if lex[token].type == 'NUMBER' and lex[token+1].type in typeOperators and (lex[token+2].type == 'NUMBER' or (lex[token+2].type == 'LPAREN' and lex[token+3].type == 'NUMBER') or isANegativeNumberTokens(token+2)):
                                 tmpscope=0 ; tmpf=[] ; fail=False
@@ -3177,13 +3182,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if tmpscope>0: fail=True
                                         while tmpf[-1].type in typeOperators+('LPAREN',): tmpf=tmpf[:-1]
                                         break
+
                                 if len(tmpf) == 0 : break
-                                if fail == False:
+                                if not fail:
+                                    if lex[token-1].type == 'MINUS' and lex[token-2].type != 'NUMBER':
+                                        tmpf.insert(0,lex[token - 1])
+                                        lex[token - 1].type = 'IGNORE'
+                                        lentmpf = len(tmpf)-1
+                                    else:
+                                        lentmpf = len(tmpf)
                                     try:
                                         tmp=compilerNumberEval(tmpf)
                                         if debug: print(f"! compile-time-eval: {' '.join([lex[die].value for die in range(token, token + len(tmpf))])} --> {tmp}")
                                         lex[token].value=tmp
-                                        for die in range(token+1,token+len(tmpf)):
+                                        for die in range(token+1,token+lentmpf):
                                             lex[die].type='IGNORE'
                                         newOptimization=True
                                     except (TypeError, ZeroDivisionError): pass
@@ -6679,7 +6691,8 @@ if __name__ == '__main__':
     if (compileTo == 'Cython' and justRun) == False:
         code=build(data,comment=comment,optimize=optimize,debug=debug,compileTo=compileTo,pythonVersion=pythonVersion,enforceTyping=enforceTyping)
     else: code=''
-    print('# build time:',round(monotonic()-s,4))
+    if fancy or compileAStoPy:
+        print('# build time:',round(monotonic()-s,4))
     if pep or headless:
         s=monotonic()
         code=REsub(r"""\n\n+(?=([^"'\\]*?(\\.|("|')([^"'\\]*?\\.)*?[^"'\\]*?("|')))*?[^"']*?$)""",'\n',code)
@@ -6816,5 +6829,5 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
             else: tmp=f'import {ASFile}'
             execPy(tmp,run=runCode,execTime=True,pep=False,headless=False,fancy=False,runtime=runtime,windows=WINDOWS,runCommand=args.run_command)
         else:
-            execPy(code,run=runCode,execTime=True,pep=pep,headless=headless,fancy=fancy,runtime=runtime,windows=WINDOWS,runCommand=args.run_command)
+            execPy(code,run=runCode,execTime=fancy,pep=pep,headless=headless,fancy=fancy,runtime=runtime,windows=WINDOWS,runCommand=args.run_command)
 
