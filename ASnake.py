@@ -1450,7 +1450,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             elif lex[token].value in tmpVarList:
                                                 tmp=True
                                             if tmp:
-                                                ignores.append(tmpi-1) ; break # jumpy
+                                                ignores.append(tmpi-1) ; break
                                         elif lex[tmpi].type in {'FUNCTION','ID'} and lex[tmpi].value in {'ASenumerate','enumerate(','enumerate'} and lex[tmpi-1].type == 'INS':
                                             for tt in range(tmpi,0,-1):
                                                 if lex[tt].type in typeNewline: break
@@ -2770,14 +2770,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     safe=True ; tmpCurrent=None ; tmpAfterIn=False
                                     # tmpCurrent is the type of loop
                                     # tmpAfterIn is when iterable token gathering begins
+                                    tmpListScope=0
                                     for tmpi in range(token,len(lex)-1):
                                         if lex[tmpi].type in {'FOR','LOOP'}:
                                             tmpCurrent = lex[tmpi].type
                                             tmpIterables.append([])
                                             tmpAfterIn = False
+                                        elif lex[tmpi].type in {'LIST','LINDEX'}: tmpListScope+=1
+                                        elif lex[tmpi].type in {'LISTEND', 'RINDEX'}: tmpListScope -= 1
 
                                         if tmpCurrent == 'LOOP':
-                                            if lex[tmpi].type == 'ID' and lex[tmpi+1].type in typeNewline+('LOOP',):
+                                            if lex[tmpi].type == 'ID' and lex[tmpi+1].type in typeNewline+('LOOP',) and tmpListScope != 0:
                                                 tmpIterables[-1]=[lex[tmpi].value]+tmpIterables[-1]
                                             else:
                                                 if lex[tmpi].type in typeNewline+('LOOP',):
@@ -2797,11 +2800,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         tmpIterables[-1].append(makeToken(lex[tmpi], 'range(', 'FUNCTION'))
                                                         tmpIterables[-1].append(copy(lex[tmpi]))
                                                         tmpIterables[-1].append(makeToken(lex[tmpi], ')', 'RPAREN'))
-                                                    else:
+                                                    elif tmpListScope != 0:
                                                         tmpIterables[-1].append(copy(lex[tmpi]))
                                         elif tmpCurrent == 'FOR':
                                             if not tmpAfterIn:
-                                                if lex[tmpi-1].type == 'FOR' and lex[tmpi].type == 'ID' and lex[tmpi+1].type == 'INS':
+                                                if lex[tmpi-1].type == 'FOR' and lex[tmpi].type == 'ID' and lex[tmpi+1].type == 'INS' and tmpListScope != 0:
                                                     tmpIterables[-1].append(lex[tmpi].value)
                                                 elif lex[tmpi].type == 'INS' and 'in' in lex[tmpi].value:
                                                     tmpAfterIn = True
@@ -2821,12 +2824,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         tmpIterables[-1].append(makeToken(lex[tmpi], ')', 'RPAREN'))
                                                     elif lex[tmpi].type == 'ENDIF':
                                                         pass
-                                                    else:
+                                                    elif tmpListScope != 0:
                                                         tmpIterables[-1].append(copy(lex[tmpi]))
 
                                     # safety checks
                                     tmpIterables = [_ for _ in tmpIterables if _]
-                                    if len(tmpIterables) < 3: safe=False # is only always faster when there are more than two nested loops
+                                    if len(tmpIterables) <= 2: safe=False # is only always faster when there are more than two nested loops
 
                                     if safe:
                                         tmpIndents = [tmpIndent+(prettyIndent*i) for i in range(len(tmpIterables))]
@@ -2841,7 +2844,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     tmpIndents.pop()
                                                 if tmp == tmpIndents[-1]:
                                                     #print(lex[tmpi-3].value,lex[tmpi-2].value,lex[tmpi-1].value)
-                                                    #print("FOK");
                                                     safe = False ; break
                                                 #print(tmp,tmpIndents)
                                             #else:
@@ -6059,7 +6061,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.type == 'IGNORE':
                 pass
             elif tok.type == 'PYDEF': # support for Python style function define
-                if tok.value.startswith('cdef') and compileTo != 'Cython': tok.value=tok.value[1:] # jumpy
+                if tok.value.startswith('cdef') and compileTo != 'Cython': tok.value=tok.value[1:]
                 elif tok.value.startswith('cpdef') and compileTo != 'Cython': tok.value=tok.value[2:]
                 funcName = tok.value.split('def')[1].split('(')[0].replace(' ', '') # get function name
                 if funcName not in storedCustomFunctions:
