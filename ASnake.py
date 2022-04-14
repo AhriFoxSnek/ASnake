@@ -17,6 +17,7 @@ from re import match as REmatch
 from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
+from sys import stdin
 
 ASnakeVersion='v0.12.17'
 
@@ -1232,11 +1233,31 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
         if optMathEqual:
             optMathEqualSignal = []
+        if optConstantPropagation:
+            functionsWithGlobals = {} # keeps track of vars being global in functions
+            # example: { 'functionName' : ['var1','var2'] }
+            for token in range(0,len(lex)):
+                if lex[token].type == 'SCOPE' and lex[token].value.startswith('global'):
+                    tmpVars = lex[token].value.split('global')[1].split(',')
+                    tmpVars = [i.strip() for i in tmpVars]
+                    tmpf = False
+                    for tmpi in range(token - 1, 0, -1):
+                        if lex[tmpi].type == 'PYDEF':
+                            tmpf = lex[tmpi].value.split('(')[0][3:].strip();
+                            break
+                        elif lex[tmpi].type == 'DEFFUNCT':
+                            tmpf = lex[tmpi - 1].value;
+                            break
+                    if tmpf:
+                        functionsWithGlobals[tmpf] = tmpVars[:]
+
         definedFuncs=set()
         wasImported={}
         doNotModThisToken=[]
         newOptimization=True
         optimizeRound=0
+
+
         while newOptimization: # continue to optimize until there is nothing left
             if debug:
                 #print(' '.join([t.value for t in lex]))
@@ -1419,6 +1440,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 elif lex[tt].type == 'RPAREN': tmptmpParenScope-=1
                                         elif lex[tmpi].type == 'FUNCTION' and lex[tmpi].value in {'locals(','globals('} and lex[tmpi+1].type == 'RPAREN' and lex[tmpi+2].type == 'LINDEX' and lex[tmpi+3].type == 'STRING' and lex[tmpi+3].value.replace('"','').replace("'","") == lex[token].value:
                                             tmpAddToIgnoresWhenNL = tmpi
+                                        elif lex[tmpi].type == 'FUNCTION' and lex[tmpi].value.replace('(','').replace(')','').strip() in functionsWithGlobals:
+                                            tmp=False
+                                            tmpVarList = functionsWithGlobals[lex[tmpi].value.replace('(','').replace(')','').strip()]
+                                            if not isinstance(tmpf[0],str):
+                                                for v in tmpf:
+                                                    if v.type in {'ID','FUNCTION'} and v.value.replace('(','').replace(')','').strip() in tmpVarList:
+                                                        tmp=True ; break
+                                            elif lex[token].value in tmpVarList:
+                                                tmp=True
+                                            if tmp:
+                                                ignores.append(tmpi-1) ; break # jumpy
                                         elif lex[tmpi].type in {'FUNCTION','ID'} and lex[tmpi].value in {'ASenumerate','enumerate(','enumerate'} and lex[tmpi-1].type == 'INS':
                                             for tt in range(tmpi,0,-1):
                                                 if lex[tt].type in typeNewline: break
@@ -2990,7 +3022,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         definedFuncs.add(lex[token-1].value)
                     elif lex[token].type == 'PYDEF':
                         definedFuncs.add(lex[token].value.split('(')[0][3:].strip())
-
                     elif optLoopAttr and preAllocated and lex[token].type in {'TAB','NEWLINE'}:
                         if lex[token].type == 'NEWLINE' and token+1 < len(lex)-1 and lex[token+1].type!='TAB':
                             for p in tuple(_ for _ in preAllocated):
@@ -6559,8 +6590,7 @@ if __name__ == '__main__':
     comment=optimize=pep=fancy=True
 
     args = argParser.parse_args()
-    import sys
-    if not sys.stdin.isatty():
+    if not stdin.isatty():
         data = sys.stdin.read()
         ASFile = False
     elif args.file == None or not os.path.isfile(args.file.name):
@@ -6569,7 +6599,6 @@ if __name__ == '__main__':
             ASFile = False
             runCode = True
         else:
-            import sys
             tmp=[i for i in os.listdir() if i.endswith('.asnake')]
             if not tmp:
                 tmp='myScript.asnake'
