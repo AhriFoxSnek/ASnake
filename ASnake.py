@@ -99,7 +99,7 @@ class Lexer(Lexer):
     # Regular expression rules for tokens
     SHEBANG = r'#(!| *cython:) *.*'
     COMMENT = r'''(?=(\t| ))*?#.*?(!#|(?=\n|$))'''
-    TAB     = r'\n(>>>|\.\.\.)?([\t| ]+)'
+    TAB     = r'\n(>>>|\.\.\.)?((\t| )+)'
     NEWLINE = r'\n'
     PYPASS  = r"p!(.|\n)+?!p"
     META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n()]*=)(?=[\n \]\)\$\[+]))|(([^+\-/*^~<>&\n()[\],=]*|(\={2}))((=.*)|(?=\n)|$|(?=,))))'
@@ -1526,9 +1526,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         # ^^ no global var pls
                                         elif len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TRY' and 'try' in lex[tmpi].value])>len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TRY' and 'except' in lex[tmpi].value]): search=False
                                         # ^^ fixes it in cases where the constant is defined in the except
-                                        elif tmpIDshow > 1 and isinstance(tmpf[0],str) == False and len(tmpf) > 1 and vartype!="LIST": search=False
+                                        elif tmpIDshow > 1 and isinstance(tmpf[0],str) == False and (len(tmpf)-2 > 1 and not(len(tmpf)-2==2 and tmpf[2].type=='MINUS' and tmpf[1].type=='NUMBER') ) and vartype!="LIST": search=False
                                         # ^^ when a constant involves operations, its better to compute it once and share the value rather than compute the value in many places.
-
+                                        #print(search,lex[token].value,tmpIDshow > 1,len([_ for _ in tmpf if _.type not in {'LPAREN','RPAREN'}])==2,tmpf[2].type=='MINUS' , tmpf[1].type in {'ID','NUMBER'})
                                     if search or linkType:
                                         inFrom=False # dont replace constants inside of FROM (function args)
                                         tmpindent=0 # keeping track if constant is in indented block
@@ -3153,35 +3153,46 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         del lex[token] ; token-=2
                     if optCompilerEval and lex[token].type in {'STRING','NUMBER'}: # jumpy
                         # math or string evaluation
+                        bitwiseOrderOps = {'~': 5, '<<': 4, '>>': 4, '&': 3, '^': 2, '|': 1}
+                        tmpTypeSafe = typeNewline + ('RPAREN', 'ASSIGN', 'FUNCTION', 'LPAREN')
                         check=False
                         # these blocks help follow the order of operations for more accuracy
-                        if token+3 < len(lex)-1 and lex[token+3].type == 'PIPE' and lex[token+3].value == 'to': pass
-                        elif isANegativeNumberTokens(token+2) and ((lex[token-1].type in orderOfOps and lex[token+2].type in orderOfOps \
-                        and orderOfOps[lex[token-1].type] < orderOfOps[lex[token+2].type]) or lex[token-1].type in typeNewline):
-                            # for negative numbers on right
-                            check = True
-                            #print('#1',lex[token].value)
-                        elif lex[token-1].type in orderOfOps and lex[token+1].type in orderOfOps:
-                            # 'normal'
-                            if (lex[token-1].type == 'LPAREN' or orderOfOps[lex[token-1].type] <= orderOfOps[lex[token+1].type]) \
-                            and not ((lex[token+3].type in orderOfOps and orderOfOps[lex[token+3].type] >= orderOfOps[lex[token+1].type]) or (isANegativeNumberTokens(token+2) and lex[token+4].type in orderOfOps and orderOfOps[lex[token+4].type] >= orderOfOps[lex[token+1].type])) \
+                        if token+3 < len(lex)-1 and ((lex[token+3].type == 'PIPE' and lex[token+3].value == 'to') or lex[token+1].type in typeNewline or lex[token+2].type in typeNewline): pass
+                        elif lex[token-1].type in orderOfOps and lex[token+1].type in orderOfOps and not (lex[token-1].type == 'MINUS' and lex[token-2].type in tuple(orderOfOps)+tmpTypeSafe):
+                            if (lex[token-1].type == 'LPAREN' or (orderOfOps[lex[token-1].type] <= orderOfOps[lex[token+1].type]) or (lex[token-1].type=='MINUS' and lex[token-2].type in orderOfOps and (lex[token-2].type=='LPAREN' or orderOfOps[lex[token-2].type] < orderOfOps[lex[token+1].type])) ) \
+                            and ((lex[token+3].type in typeNewline+('RPAREN',) or (isANegativeNumberTokens(token+2) and lex[token+4].type in typeNewline+('RPAREN',))) or not ((lex[token+3].type in orderOfOps and (orderOfOps[lex[token+3].type] >= orderOfOps[lex[token+1].type])) or (isANegativeNumberTokens(token+2) and lex[token+4].type in orderOfOps and orderOfOps[lex[token+4].type] >= orderOfOps[lex[token+1].type]))) \
                             and not (token+3 < len(lex) and lex[token+1].type == 'EXPONENT' and lex[token+3].type == 'EXPONENT') and not (token+4 < len(lex) and lex[token+1].type == 'EXPONENT' and isANegativeNumberTokens(token+2) and lex[token+4].type == 'EXPONENT'):
-                                if lex[token-1].type in orderOfOps and orderOfOps[lex[token-1].type]==orderOfOps[lex[token+1].type]:
-                                    if lex[token-1].type == 'MINUS' and lex[token+1] == 'PLUS':
-                                        check = True
-                                    elif lex[token-1].type == 'DIVIDE' and lex[token+1] == 'TIMES':
-                                        check = True
-                                    elif lex[token-1].type == 'MODULO' and lex[token+1] == 'DIVIDE':
-                                        check = True
+                                # 'normal'
+                                # print('#1', lex[token].value)
+                                tmppre=-1
+                                if lex[token-1].type == 'MINUS' and lex[token-2].type in orderOfOps and lex[token-2].type != 'LPAREN':
+                                    tmppre = -2
+                                if lex[tmppre].type in orderOfOps:
+                                    if orderOfOps[lex[tmppre].type]==orderOfOps[lex[token+1].type]:
+                                        if lex[tmppre].type == 'MINUS' and lex[token+1] == 'PLUS':
+                                            check = True
+                                        elif lex[tmppre].type == 'DIVIDE' and lex[token+1] == 'TIMES':
+                                            check = True
+                                        elif lex[tmppre].type == 'MODULO' and lex[token+1] == 'DIVIDE':
+                                            check = True
+                                        elif lex[tmppre].type == 'BITWISE' and lex[token+1].type == 'BITWISE':
+                                            if bitwiseOrderOps[lex[token + 1].value] < bitwiseOrderOps[lex[tmppre].value]:
+                                                check = True
+                                        #print('#1.1', lex[token].value)
+                                    elif (orderOfOps[lex[token-1].type] <= orderOfOps[lex[token+1].type]) or (lex[token-1].type=='MINUS' and lex[token-2].type in orderOfOps and (lex[token-2].type=='LPAREN' or orderOfOps[lex[token-2].type] < orderOfOps[lex[token+1].type])):
+                                        if isANegativeNumberTokens(token+2) and lex[token+4].type in orderOfOps and orderOfOps[lex[token+1].type] <= orderOfOps[lex[token+4].type]:
+                                            check = True
+                                        elif lex[token+3].type in orderOfOps and orderOfOps[lex[token+1].type] <= orderOfOps[lex[token+3].type]:
+                                            check = True
+                                        else:
+                                            check = True
+                                        #print('#1.2', lex[token].value)
                                 else:
                                     check=True
-                                #print('#2',lex[token].value)
-                        elif token+3 < len(lex)-1 and lex[token+3].type not in typeOperators and not isANegativeNumberTokens(token+2) or lex[token-1].type not in ('ASSIGN','LPAREN','FUNCTION')+typeNewline:
-                            # for short three token
-                            check=True
-                            #print('#3', lex[token].value)
-                        elif lex[token-1].type in typeNewline+('FUNCTION',) and lex[token+1].type in orderOfOps:
-                            # generalized else , but handles bitwise
+                                    #print('#1.3',lex[token].value)
+                        elif (lex[token-1].type in tmpTypeSafe or (lex[token-1].type=='MINUS' and lex[token-2].type in tmpTypeSafe)) and lex[token+1].type in orderOfOps:
+                            # when last token isnt operator, checks ahead and also handles bitwise
+                            #print('#2', lex[token].value)
                             if isANegativeNumberTokens(token+2) and lex[token+4].type in orderOfOps:
                                 tmp=token+4
                             elif lex[token+2].type == 'NUMBER' and lex[token+3].type in orderOfOps:
@@ -3189,36 +3200,52 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             else:
                                 tmp=0
                             if tmp:
-                                if lex[tmp].type == 'BITWISE' and lex[token+1].type == 'BITWISE':
-                                    bitwiseOrderOps = {'~': 5, '<<': 4, '>>': 4, '&': 3, '^': 2, '|': 1}
+                                if lex[tmp].type == 'EXPONENT' and lex[token+1].type == 'EXPONENT':
+                                    pass
+                                elif lex[tmp].type == 'BITWISE' and lex[token+1].type == 'BITWISE':
                                     if bitwiseOrderOps[lex[token+1].value] > bitwiseOrderOps[lex[tmp].value]:
                                         check = True
-                                        #print('#4.1', lex[token].value)
-                                else:
-                                    if orderOfOps[lex[token+1].type] >= orderOfOps[lex[tmp].type]:
-                                        check = True
-                                        #print('#4.2', lex[token].value)
+                                        #print('#2.1', lex[token].value)
+                                elif lex[tmp].type in typeNewline+('RPAREN',) or orderOfOps[lex[token+1].type] >= orderOfOps[lex[tmp].type]:
+                                    check = True
+                                    #print('#2.2', lex[token].value)
+                            else:
+                                # simple three token eval
+                                check = True
                         if token-2 > 0 and lex[token-1].type == 'MINUS' and lex[token-2].type in typeOperators and lex[token-2].type in orderOfOps and lex[token+1].type in orderOfOps and orderOfOps[lex[token+1].type] < orderOfOps[lex[token-1].type]:
                             check = False
                         if check and lex[token-1].type == 'BITWISE' and lex[token+1].type == 'BITWISE':
-                            bitwiseOrderOps={'~':5,'<<':4,'>>':4,'&':3,'^':2,'|':1}
                             if bitwiseOrderOps[lex[token-1].value] > bitwiseOrderOps[lex[token+1].value]:
                                 check=False
 
                         if check:
                             if lex[token].type == 'NUMBER' and lex[token+1].type in typeOperators and (lex[token+2].type == 'NUMBER' or (lex[token+2].type == 'LPAREN' and lex[token+3].type == 'NUMBER') or isANegativeNumberTokens(token+2)):
-                                tmpscope=0 ; tmpf=[] ; fail=False
+                                tmpscope=0 ; tmpf=[] ; fail=False ;
+                                tmpLastOperator=False
                                 for tmpi in range(token,len(lex)):
-                                    if lex[tmpi].type in typeOperators+('LPAREN','RPAREN','NUMBER') and tmpscope>=0:
-                                        if lex[tmpi].type=='LPAREN': tmpscope+=1
+                                    #print(lex[tmpi].type,[l.value for l in tmpf])
+                                    if lex[tmpi] in {'LPAREN','RPAREN'}:
+                                        while tmpf[-1].type in typeOperators+('LPAREN',): tmpf=tmpf[:-1]
+                                        break
+                                    #if lex[tmpi].type in typeOperators+('LPAREN','RPAREN','NUMBER') and tmpscope>=0:
+                                    elif lex[tmpi].type in typeOperators+('NUMBER',):
+                                        if lex[tmpi].type=='LPAREN':
+                                            tmpscope+=1
+
                                         elif lex[tmpi].type=='RPAREN': tmpscope-=1
-                                        if tmpscope>=0: tmpf.append(lex[tmpi])
+                                        if tmpscope>=0:
+                                            if tmpscope == 0 and lex[tmpi].type in orderOfOps and lex[tmpi].type not in {'LPAREN','RPAREN'} and not (lex[tmpi].type=='MINUS' and lex[tmpi].type in orderOfOps):
+                                                if tmpLastOperator and orderOfOps[lex[tmpi].type] >= orderOfOps[tmpLastOperator]:
+                                                    break
+                                                else: tmpLastOperator = lex[tmpi].type
+                                            tmpf.append(lex[tmpi])
                                     else:
                                         if tmpscope>0: fail=True
                                         while tmpf[-1].type in typeOperators+('LPAREN',): tmpf=tmpf[:-1]
                                         break
+                                #print('--',[l.value for l in tmpf])
 
-                                if len(tmpf) == 0 : break
+                                if len(tmpf) <= 1 : break
                                 if not fail:
                                     if lex[token-1].type == 'MINUS' and lex[token-2].type != 'NUMBER':
                                         tmpf.insert(0,lex[token - 1])
@@ -3231,7 +3258,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if debug: print(f"! compile-time-eval: {' '.join([lex[die].value for die in range(token, token + len(tmpf))])} --> {tmp}")
                                         lex[token].value=tmp
                                         for die in range(token+1,token+lentmpf):
+                                            #print(lex[die].type)
                                             lex[die].type='IGNORE'
+                                        if lex[token-1].type == 'MINUS' and lex[token-2].type == 'LPAREN' and lex[token+1].type == 'RPAREN':
+                                            lex[token-2].type = lex[token+1].type = 'IGNORE'
                                         newOptimization=True
                                     except (TypeError, ZeroDivisionError): pass
                             while lex[token].type == 'STRING' and lex[token+1].type == 'PLUS' and lex[token+2].type == 'STRING' \
@@ -3279,9 +3309,16 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex[token].type = 'BOOL'
                             lex[token+1].type = 'IGNORE'
                             newOptimization = True
-                    if optCompilerEval and newOptimization and lex[token-1].type == 'LPAREN' and lex[token+1].type == 'RPAREN' and lex[token-2].type in ('LPAREN','ASSIGN','DEFEXP')+typeNewline+typeOperators and lex[token].type not in ('FUNCTION','COMMAGRP'):
+                    if optCompilerEval \
+                    and ((lex[token-1].type == 'LPAREN' and lex[token+1].type == 'RPAREN' and lex[token-2].type in ('LPAREN','ASSIGN','DEFEXP')+typeNewline+typeOperators and lex[token].type not in ('FUNCTION','COMMAGRP')) \
+                    or (lex[token-1].type == 'MINUS' and lex[token-2].type == 'LPAREN' and lex[token+1].type == 'RPAREN' and lex[token-3].type in ('LPAREN','ASSIGN','DEFEXP')+typeNewline+typeOperators and lex[token].type not in ('FUNCTION','COMMAGRP'))):
                         #print(lex[token-2].type,lex[token-1].type,lex[token].type,lex[token].value,lex[token+1].type,888888888888)
-                        lex[token+1].type=lex[token-1].type='IGNORE' ; token-=2
+                        if lex[token-1].type == 'MINUS':
+                            lex[token-2].type='IGNORE'
+                        else:
+                            lex[token-1].type='IGNORE'
+                        lex[token+1].type='IGNORE'
+                        token-=2
 
                     token+=1
 
@@ -3314,9 +3351,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                 elif optDeadVariableElimination and lex[token].type == 'ID' and lex[token].value != 'print':
                     if ((lex[token + 1].type in typeAssignables and lex[token+1].type!='LIST') or (lex[token + 1].type=='ASSIGN' and lex[token + 1].value in ('=','is','is '))) and lex[token - 1].type in typeNewline + ('CONSTANT', 'TYPE'):
-                        delPoint = tmpIndent = None ; check = True ; tmpReplaceWithPass = inCase = isConstant = False
+                        delPoint = tmpIndent = None ; check = True ; tmpReplaceWithPass = inCase = isConstant = outOfBlock= False
                         tmpCurrentIndent = 0 ; tmpParenScope=0
                         # tmpIndent is var's indent, tmpCurrentIndent is iterations indent
+                        # outOfBlock signifies that if we are in a function or class, we are safe from previous classes
                         for tmpi in range(token-1, 0, -1):
                             #print(lex[token].value, '-!', lex[tmpi].value, lex[tmpi].type, tmpIndent,check)
                             if lex[tmpi].type == 'TAB':
@@ -3338,16 +3376,23 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 check=False ; break
                             elif lex[tmpi].type == 'FROM' and not delPoint: break
                             elif not inCase and lex[tmpi].type in ('ID', 'INC', 'BUILTINF','FUNCTION') and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value):
-                                check = False
-                            #elif lex[tmpi].type == 'PYDEF' and lex[token].value in lex[tmpi].value.split('(')[-1]:
-                            #    check = False ; break
+                                check = False ; break
+                            elif lex[tmpi].type in {'PYDEF','DEFFUNCT'} and not outOfBlock and tmpIndent:
+                                if lex[tmpi].type == 'PYDEF':
+                                    if lex[tmpi-1].type == 'NEWLINE':
+                                        outOfBlock=True
+                                    elif lex[tmpi-1].type == 'TAB' and lex[tmpi-1].value.count(' ') < tmpIndent:
+                                        outOfBlock = True
                             elif (lex[tmpi].type in typeConditionals or (lex[tmpi].type == 'TRY' and 'try' in lex[tmpi].value)) and delPoint:
                                 # prevents dead variables defined in conditionals from breaking syntax
                                 tmpReplaceWithPass = True
                                 if lex[tmpi].type == 'IF':
                                     inCase = False
-                            elif lex[tmpi].type == 'PYCLASS' and delPoint:
-                                check=False
+                            elif lex[tmpi].type == 'PYCLASS' and delPoint and tmpIndent:
+                                if not outOfBlock and ((lex[tmpi-1].type == 'NEWLINE' and tmpIndent > 0) \
+                                or (lex[tmpi-1].type == 'TAB' and lex[tmpi-1].value.count(' ') < tmpIndent)):
+                                    check=False ; break
+
                             elif lex[tmpi].type == 'TYPEWRAP':
                                 if lex[tmpi-1].type == 'TAB':
                                     tmpIndent = lex[tmpi-1].value.replace('\t', ' ').count(' ')
