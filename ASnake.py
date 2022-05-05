@@ -3660,7 +3660,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         if not forLoop:
             loopSyntaxCount = 0
         for tmpi in range(lexIndex, len(lex)):
-            if not forLoop and loopSyntaxCount < 3:
+            if not forLoop and loopSyntaxCount <= 3 and not expressionStart:
                 if lex[tmpi].type in typeNewline+('FUNCTION',):
                     if lex[tmpi].type == 'FUNCTION': expressionStart = tmpi-1
                     else: expressionStart = tmpi ; tmpFirstIndent = False
@@ -3670,7 +3670,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if loopSyntaxCount > 2:
                     if lex[lexIndex+1].value in storedVarsHistory: return False # for when it isn't a iteration variable
                     recordIter = False
-                    iterVar = lex[tmpi].value
+                    if lex[tmpi].type == 'ID':
+                        iterVar = lex[tmpi].value
                     tmpIter.append(copy(lex[tmpi-1]))
                     if expressionStart == None: expressionStart = tmpi
                     if lex[tmpi].type == 'TAB': tmpindent = lex[tmpi].value.replace('\t', ' ').count(' ')
@@ -3681,7 +3682,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             if lex[tmpi].type in typeNewline:
                 if tmpFirstIndent:
                     recordIter = tmpFirstIndent = False
-                    expressionStart = tmpi
+                    if forLoop: expressionStart = tmpi
                     if lex[tmpi].type == 'TAB': tmpindent = lex[tmpi].value.replace('\t',' ').count(' ')
                 else:
                     if tmpindent and lex[tmpi].type == 'TAB' and lex[tmpi].value.replace('\t',' ').count(' ') == tmpindent:
@@ -3721,6 +3722,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                    # break
 
         if not forLoop:
+            if not iterVar: return False
             if lex[lexIndex + 1].type == 'NUMBER' or (
                     lex[lexIndex + 1].value in storedVarsHistory and 'type' in storedVarsHistory[
                     lex[lexIndex + 1].value] and storedVarsHistory[lex[lexIndex + 1].value]['type'] == 'NUMBER'):
@@ -3752,6 +3754,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             # list( is needed for globals in functions. in instances where its known function is pure, we should get rid of it
             if lex[expressionStart+1].type == 'FUNCTION' and lex[expressionStart+2].type != 'COMMAGRP' and lex[expressionStart+3].type == 'RPAREN' and lex[expressionStart+4].type in typeNewline:
                 if expressionStart + 3 + 2 < len(lex)-1 and lex[expressionStart + 3 + 2].type == 'LOOP': return False
+                elif forLoop and not (lex[expressionStart+2].type == 'ID' and lex[expressionStart+2].value == iterVar):
+                    return False
                 lex[expressionStart+1].type = lex[expressionStart+2].type = 'IGNORE'
                 tmpf = lex[expressionStart + 1].value.replace("(","")
                 tmpList = 'list(' ; tmpParen = 2
