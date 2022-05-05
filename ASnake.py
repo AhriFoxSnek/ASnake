@@ -2781,7 +2781,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         elif lex[tmpi].type in {'LISTEND', 'RINDEX'}: tmpListScope -= 1
 
                                         if tmpCurrent == 'LOOP':
-                                            if lex[tmpi].type == 'ID' and lex[tmpi+1].type in typeNewline+('LOOP',) and tmpListScope != 0:
+                                            if lex[tmpi].type == 'ID' and lex[tmpi+1].type in typeNewline+('LOOP',) and tmpListScope == 0:
                                                 tmpIterables[-1]=[lex[tmpi].value]+tmpIterables[-1]
                                             else:
                                                 if lex[tmpi].type in typeNewline+('LOOP',):
@@ -2801,11 +2801,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         tmpIterables[-1].append(makeToken(lex[tmpi], 'range(', 'FUNCTION'))
                                                         tmpIterables[-1].append(copy(lex[tmpi]))
                                                         tmpIterables[-1].append(makeToken(lex[tmpi], ')', 'RPAREN'))
-                                                    elif tmpListScope != 0:
+                                                    elif tmpListScope == 0:
                                                         tmpIterables[-1].append(copy(lex[tmpi]))
                                         elif tmpCurrent == 'FOR':
                                             if not tmpAfterIn:
-                                                if lex[tmpi-1].type == 'FOR' and lex[tmpi].type == 'ID' and lex[tmpi+1].type == 'INS' and tmpListScope != 0:
+                                                if lex[tmpi-1].type == 'FOR' and lex[tmpi].type == 'ID' and lex[tmpi+1].type == 'INS' and tmpListScope == 0:
                                                     tmpIterables[-1].append(lex[tmpi].value)
                                                 elif lex[tmpi].type == 'INS' and 'in' in lex[tmpi].value:
                                                     tmpAfterIn = True
@@ -2825,7 +2825,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         tmpIterables[-1].append(makeToken(lex[tmpi], ')', 'RPAREN'))
                                                     elif lex[tmpi].type == 'ENDIF':
                                                         pass
-                                                    elif tmpListScope != 0:
+                                                    elif tmpListScope == 0:
                                                         tmpIterables[-1].append(copy(lex[tmpi]))
 
                                     # safety checks
@@ -2849,7 +2849,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 #print(tmp,tmpIndents)
                                             #else:
                                                 #print('\t',lex[tmpi].value)
-                                    #print('!!!!!!',safe)
+
 
                                     if safe:
                                         for i in tmpIterables:
@@ -3730,7 +3730,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tmpIter.append(makeToken(lex[lexIndex], ')', 'RPAREN'))
             else:
                 tmpIter = [copy(lex[lexIndex + 1])]
-
+        
         if isAppending and tmpVal and tmpVal in storedVarsHistory and 'type' in storedVarsHistory[tmpVal] \
         and storedVarsHistory[tmpVal]['type'] in ('LIST', 'LISTCOMP') and 'line' in storedVarsHistory[tmpVal]:
             for ii in range(tmpi,len(lex)-1):
