@@ -3670,7 +3670,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if loopSyntaxCount > 2:
                     if lex[lexIndex+1].value in storedVarsHistory: return False # for when it isn't a iteration variable
                     recordIter = False
-                    if lex[tmpi].type == 'ID':
+                    if lex[tmpi].type in {'ID','IGNORE'}:
                         iterVar = lex[tmpi].value
                     tmpIter.append(copy(lex[tmpi-1]))
                     if expressionStart == None: expressionStart = tmpi
