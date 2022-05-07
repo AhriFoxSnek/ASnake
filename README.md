@@ -11,7 +11,12 @@ pip install -e .
 After that, ASnake and all it's compiler flags can be callable via:
 ```console
 python -m ASnake
-python -m ASnake -e "Hello world!"
+```
+Here are some examples:
+```console
+python -m ASnake -e "'Hello world!'"
+python -m ASnake --help
+python -m ASnake --compile --run test.asnake
 ```
 
 You can also checkout the website https://asnake.org !
