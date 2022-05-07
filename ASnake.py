@@ -4111,6 +4111,21 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     line.append(f'range({tok.value})') # converts bare numbers into ranges when in for loop
                 elif tok.type == 'DICT' and lex[lexIndex+1].type == 'FSTR' and fstrQuote!='':
                     line.append(tok.value)
+                elif tok.type == 'BOOL' and lexIndex>0 and lex[lexIndex-1].type == 'ID':
+                    # var True
+                    if inIf:
+                        if optimize and optIfTrue and tok.value=='True' and ((lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] == 'BOOL') or lex[lexIndex-1].type == 'OF'):
+                            tok.value='' ; tok.type='IGNORE'
+                        else:
+                            line.append(f'== {tok.value}')
+                    else:
+                        storeVar(lex[lexIndex-1],lex[lexIndex],lex[lexIndex+1],position=lexIndex)
+                        line.append(f'= {tok.value}')
+                elif inIf and tok.type == 'BOOL' and optimize and optIfTrue and tok.value=='True' and lastType in ('EQUAL','ASSIGN') and ':' not in lastValue and lex[lexIndex-2].type=='ID' and lex[lexIndex-2].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-2].value]['type'] == 'BOOL':
+                    # var is True
+                    tok.type='IGNORE'
+                    lex[lexIndex-1].type='IGNORE'
+                    line=line[:-1]
                 else:
                     if tok.type == 'LIST' and lastType == 'ID' and lex[lexIndex+1].type != 'LISTEND' and lastValue in storedVarsHistory:
                         # convert LIST into LINDEX ... RINDEX if there are no COMMA
@@ -6131,21 +6146,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if 'yield' not in tok.value and lastType not in typeNewline:
                         line.append('\n') ; startOfLine=True
                     inIf=True ; inReturn=True
-                if tok.type in {'BOOL','LIST','SET'} and lexIndex>0 and lex[lexIndex-1].type == 'ID':
-                # var = True
-                    if inIf:
-                        if tok.type=='BOOL' and optimize and optIfTrue and tok.value=='True' and ((lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] == 'BOOL') or lex[lexIndex-1].type == 'OF'):
-                            tok.value='' ; tok.type='IGNORE'
-                        else:
-                            tok.value=f'== {tok.value}'
-                    else:
-                        storeVar(lex[lexIndex-1],lex[lexIndex],lex[lexIndex+1],position=lexIndex)
-                        tok.value=f'= {tok.value}'
-                elif inIf and tok.type == 'BOOL' and optimize and optIfTrue and tok.value=='True' and lastType in ('EQUAL','ASSIGN') and ':' not in lastValue and lex[lexIndex-2].type=='ID' and lex[lexIndex-2].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-2].value]['type'] == 'BOOL':
-                    # optIfTrue
-                    tok.value='' ; tok.type='IGNORE'
-                    lex[lexIndex-1].type='IGNORE'
-                    line=line[:-1]
+
                 if tok.type == 'COMMAGRP' and tok.value.endswith('('): parenScope+=1
 
 
