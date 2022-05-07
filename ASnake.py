@@ -19,7 +19,7 @@ from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 from sys import stdin
 
-ASnakeVersion='v0.12.17'
+ASnakeVersion='v0.12.18'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -1311,11 +1311,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if lex[token].value == 'print' or lex[token-1].type == 'COMMA': tmpi=None
                             if optMathEqual and token+3 < len(lex) and lex[token+2].value == lex[token].value and lex[token+3].type in typeOperators: tmpi=None
                             # ^ optMathEqual comes online after constant folding, which messes stuff up. so if we detect it, then dont perform folding
-                            # v if in from for asnake function def, or inside conditional, then ignore
+                            # v if in from for asnake function def, inside conditional, or constant then ignore
                             if tmpi != None:
                                 for t in range(token,0,-1):
                                     #print('---',lex[t].type)
-                                    if lex[t].type in typeConditionals+('LPAREN','LOOP','FUNCTION','FROM','FSTR'):
+                                    if lex[t].type in typeConditionals+('LPAREN','LOOP','FUNCTION','FROM','FSTR','CONSTANT'):
                                         tmpi=None ; break
                                     elif lex[t].type in typeNewline: break
 
