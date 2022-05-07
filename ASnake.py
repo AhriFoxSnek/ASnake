@@ -6732,6 +6732,7 @@ if __name__ == '__main__':
                 tmp='myScript.asnake'
             else: tmp=tmp[0]
             if not args.update:
+                import sys
                 print(f'ASnake Compile Error:\n\tCouldn\'t open file. Make sure to provide a path for a file, and that the path is correct.\nSuggestion:\n\t{sys.argv[0]} -r {tmp}')
                 exit()
             else: ASFile = False
