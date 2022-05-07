@@ -410,25 +410,33 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         lex.append(makeToken(tok, '[', 'LINDEX'))
         tmpscope = 1
         for i in miniLex(''.join(tmpf[1:]) + ' '):
+            i.lineno = lineNumber
             if i.type not in typeNewline:
                 if i.type == 'LISTCOMP':
                     lex.append(makeToken(tok, ':', 'COLON'))
+                    lex[-1].lineno = lineNumber
                     lex.append([ii for ii in miniLex(i.value.split(':')[-1])][0])
+                    lex[-1].lineno = lineNumber
                     lexIndex += 2
                 elif i.type == 'INDEX':
                     for ii in miniLex(i.value[:-1]):
                         if ii.type == 'LISTCOMP':
                             lex.append([iii for iii in miniLex(ii.value.split(':')[0])][0])
+                            lex[-1].lineno = lineNumber
                             lex.append(makeToken(tok, ':', 'COLON'))
+                            lex[-1].lineno = lineNumber
                             lex.append([iii for iii in miniLex(ii.value.split(':')[-1])][0])
+                            lex[-1].lineno = lineNumber
                             lexIndex += 3
                         else:
                             if   ii.type == 'ENDIF': ii.type = 'COLON'
                             elif ii.type == 'LIST' : ii.type = 'LINDEX'
                             lex.append(ii)
+                            lex[-1].lineno = lineNumber
                             lexIndex += 1
                         if debug: print('---', ii)
                     lex.append(makeToken(i,']','RINDEX')) ; lexIndex+=1
+                    lex[-1].lineno = lineNumber
                     if debug: print('---',lex[-1])
                 else:
                     if i.type == 'ENDIF':
@@ -446,6 +454,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     elif fstringMode and i.type == 'RBRACKET':
                         return
                     lex.append(i)
+                    lex[-1].lineno = lineNumber
                     lexIndex += 1
                 if debug: print('--', i)
         if lex[-1].type == 'LISTEND': lex[-1].type = 'RINDEX'
@@ -796,6 +805,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     lex.append(tmptok) ; del tmptok ; lexIndex+=1
                 for i in miniLex(tmpval+' '):
                     if i.type not in typeNewline: # genius, you can go crazy with whitespace in listcomps
+                        i.lineno = lineNumber
                         lex.append(i)
                         lexIndex+=1
                         if debug: print('--',i)
@@ -826,6 +836,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if len([i for i in tmp if (i[0] in ("'",'"') and i[-1] in ("'",'"'))])==0:
                     for t in tmp:
                         for i in miniLex(t+' '):
+                            i.lineno = lineNumber
                             lex.append(i)
                             lexIndex+=1
                             if debug: print('--',i)
@@ -843,6 +854,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     else:
                         if i.type != 'ID' and i.value.strip() in reservedIsNowVar:
                             i.type = 'ID' ; i.value=i.value.strip()
+                        i.lineno = lineNumber
                         lex.append(i)
                         lexIndex+=1
                     if debug: print('--',i)
@@ -951,6 +963,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         for t in miniLex(inlineReplace[tmp]+' '):#inlineReplace[tok.value.split('=')[0].replace(' ','').replace('$','')]+' '):
                             if t.type == 'ID' and t.value in defaultTypes and t.value not in reservedIsNowVar:
                                 t.type = 'TYPE'
+                            t.lineno = lineNumber
                             lex.append(t) ; lexIndex+=1
                             if debug: print('--',t)
                         #print(tok.value.lstrip('$'+tmp)) ; exit()
@@ -958,6 +971,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tok.value=tok.value.lstrip('$'+tmp)
                     for t in miniLex(tok.value.rsplit('$')[0]+' '):
                         tok.value=tok.value.replace(t.value,'')
+                        t.lineno = lineNumber
                         lex.append(t) ; lexIndex+=1
                         if debug: print('---',t)
                 lexIndex-=1 # i dont know why but i think this works
@@ -981,6 +995,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif lex[lexIndex].type == 'IF' or check:
                 tmptok=copy(tok)
                 for t in miniLex(''.join(tmptok.value.split(':')[:1])):
+                    t.lineno = lineNumber
                     lex.append(t) ; lexIndex += 1
                     if debug: print('--', t)
 
@@ -992,6 +1007,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tmptok.value=''.join(tok.value.split(':')[1:]).strip()
                 if tmptok.value not in ('',' '):
                     tmptok.type=[i for i in miniLex(tmptok.value+' ')][0].type
+                    tmptok.lineno=lineNumber
                     lex.append(tmptok)
             else: lex.append(tok)
         elif tok.type in {'NEWLINE','COMMENT'}:
@@ -1046,11 +1062,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             lex[lexIndex].type='IGNORE'
             for t in miniLex(lex[lexIndex].value + ' ' + tok.value):
                 lex.append(t)
+                lex[-1].lineno = lineNumber
                 lexIndex+=1
             lexIndex -= 1
             crunch = True
         elif tok.type == 'FUNCTION' and tok.value[-1]=='(' and tok.value[:-1].strip() in pyReservedKeywords and tok.value[:-1].strip() not in reservedIsNowVar:
             for t in miniLex(tok.value.replace('(',' (')+' '):
+                t.lineno = lineNumber
                 if debug: print('---',t)
                 lex.append(t)
                 lexIndex+=1
@@ -4114,7 +4132,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif tok.type == 'BOOL' and lexIndex>0 and lex[lexIndex-1].type == 'ID':
                     # var True
                     if inIf:
-                        if optimize and optIfTrue and tok.value=='True' and ((lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] == 'BOOL') or lex[lexIndex-1].type == 'OF'):
+                        if optimize and optIfTrue and tok.type == 'BOOL' and tok.value=='True' and ((lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] == 'BOOL') or lex[lexIndex-1].type == 'OF'):
                             tok.value='' ; tok.type='IGNORE'
                         else:
                             line.append(f'== {tok.value}')
@@ -5996,7 +6014,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         # just storing var in history if it assigns to index without an assignment token
                         if lex[lexIndex-1].type in ('ID','INDEX','COMMAGRP'): tmpi=1
                         elif lexIndex-2>0 and lex[lexIndex-2].type in ('ID','INDEX','COMMAGRP','BUILTINF'): tmpi=2
-                        else: return AS_SyntaxError(f'Assignment needs a var ID',f'myVar is {tok.value}',lineNumber,data)
+                        else:
+                            tmp=True
+                            tmpListScope=0
+                            for tmpi in range(lexIndex-2,0,-1):
+                                if lex[tmpi].type in {'LINDEX','LIST'}: tmpListScope+=1
+                                elif lex[tmpi].type in {'RINDEX','LISTEND'}: tmpListScope-=1
+                                elif lex[tmpi].type in typeNewline and tmpListScope == 0:
+                                    tmp=False ; break
+                            if tmp:
+                                return AS_SyntaxError(f'Assignment needs a var ID',f'myVar is {tok.value}',lineNumber,data)
+                        # jumpy
                         if lex[lexIndex-tmpi].value in storedVarsHistory:
                             storedVarsHistory[lex[lexIndex-tmpi].value]['value'] = 'INDEX'
                         else: storeVar(lex[lexIndex-tmpi],tok,lex[lexIndex+1],position=lexIndex)
@@ -6146,7 +6174,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if 'yield' not in tok.value and lastType not in typeNewline:
                         line.append('\n') ; startOfLine=True
                     inIf=True ; inReturn=True
-
                 if tok.type == 'COMMAGRP' and tok.value.endswith('('): parenScope+=1
 
 
