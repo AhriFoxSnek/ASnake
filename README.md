@@ -17,6 +17,7 @@ Here are some examples:
 python -m ASnake -e "'Hello world!'"
 python -m ASnake --help
 python -m ASnake --compile --run test.asnake
+python -m ASnake -e "loop 12 do 'the code goes inside the strings dummy, don\'t you know bash?'"
 ```
 
 You can also checkout the website https://asnake.org !
