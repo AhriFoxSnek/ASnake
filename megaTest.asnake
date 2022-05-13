@@ -85,6 +85,11 @@ if True loop 12 xyz
 if result is 11 $worked
 else 'Loop is new-expression/new-line' $failed
 
+$start
+loop 12 n f"{n}"
+if result is '11' $worked
+else 'Fstring DefExp after loop' $failed
+
 
 $start
 a is 3 if True else 6
