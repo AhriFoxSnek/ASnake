@@ -142,7 +142,7 @@ class Lexer(Lexer):
     SCOPE   = r'(global|local|nonlocal) (\w* *,?)*'
     THEN    = r'then\s|do\s|then do\s|, then\s|, do\s|, then do\s|;|(:(?=\n)+)'
     WITHAS  = r'(with|(?![^\w\d])as) '
-    WHILE   = r'while|until'
+    WHILE   = r'while '
     NOTHING = r'(pass|nothing,?)(?= |$|\n)'
     MATCH   = r'match +'
     OF      = r'((case)|(of))( |(?=[\W\d]))'
@@ -199,7 +199,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     # metaInformation will override various meta variables, allowing metas to be overridden before code is ran.
 
     miniLex = Lexer().tokenize
-
     codeDict={'RDIVIDE':'//','DIVIDE':'/','PLUS':'+','MINUS':'-','TIMES':'*','LPAREN':'(','RPAREN':')',
     'ELIF':'elif','ELSE':'else','IF':'if','WHILE':'while','GREATEQ':'>=','GREATER':'>','LESS':'<',
     'LESSEQ':'<=','EQUAL':'==','ASSIGN':'=','NOTHING':'pass','NOTEQ':'!=','BUILTINF':'.','OF':'elif',
@@ -5177,7 +5176,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmpf=[]
                         # for when a iterable is supplied and not an ID
                         if forthingin == '_' and lex[lexIndex+1].type in ('LPAREN','LBRACKET','LIST'):
-                            endtmpi=0 ; tmpscope=0
+                            tmpscope=0
                             start=lex[lexIndex+1].type
                             convert={'LPAREN':'RPAREN','LBRACKET':'RBRACKET','LIST':'LISTEND'}
                             for tmpii in range(lexIndex+1,len(lex)):
@@ -5188,7 +5187,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     if lex[tmpii+1].type == 'ID' and lex[tmpii+1].type not in typeOperators+typeCheckers:
                                         forthingin=lex[tmpii+1].value ; lex[tmpii+1].type='IGNORE'
                                     lex[tmpii].type = 'IGNORE'
-                                    endtmpi=tmpii ; noRange=True ; search=False ; break
+                                    noRange=True ; search=False ; break
                                 lex[tmpii].type = 'IGNORE'
                         # end
                         while tmpi < len(lex)-1 and search:
@@ -6059,7 +6058,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif tok.type == 'WITHAS' and not lastIndent[4]: lastIndent[4] = indent
                 elif tok.type == 'RPAREN': parenScope=parenScope-1 if parenScope > 0 else 0
                 elif tok.type == 'FSTR': # idFSTR
-                    if startOfLine and lastType in typeNewline+('ELSE','DEFFUNCT'):
+                    if startOfLine and (lastType in typeNewline+('ELSE','DEFFUNCT') or inLoop[0]):
                         check=True # if pipe then dont assume print , else do
                         tmp=False
                         for t in range(lexIndex + 1, len(lex)):
