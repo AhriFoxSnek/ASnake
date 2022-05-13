@@ -18,6 +18,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 from sys import stdin
+from subprocess import check_output, CalledProcessError, STDOUT
 
 ASnakeVersion='v0.12.18'
 
@@ -6023,7 +6024,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmp=False ; break
                             if tmp:
                                 return AS_SyntaxError(f'Assignment needs a var ID',f'myVar is {tok.value}',lineNumber,data)
-                        # jumpy
+
                         if lex[lexIndex-tmpi].value in storedVarsHistory:
                             storedVarsHistory[lex[lexIndex-tmpi].value]['value'] = 'INDEX'
                         else: storeVar(lex[lexIndex-tmpi],tok,lex[lexIndex+1],position=lexIndex)
@@ -6653,7 +6654,6 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runti
                         pyCall = 'python'
             else: # windows
                 if runtime == 'PyPy':
-                    from subprocess import check_output, CalledProcessError, STDOUT
                     try:
                         pyCall = check_output(['WHERE','pypy'], stderr=STDOUT).decode().split('/')[-1].strip()
                     except CalledProcessError:
@@ -6717,6 +6717,7 @@ if __name__ == '__main__':
     comment=optimize=pep=fancy=True
 
     args = argParser.parse_args()
+
     if not stdin.isatty():
         data = sys.stdin.read()
         ASFile = False
@@ -6772,15 +6773,30 @@ if __name__ == '__main__':
     if not fancy and not compileAStoPy: pep = False
 
     if args.update:
-        from requests import get
+        try:
+            from requests import get
+        except ModuleNotFoundError:
+            print('Update failed. Module requests required. Please do something like:\n\tpython -m pip install requests') ; exit()
         if os.path.isfile('ASnake.py'):
             ASnek = get("https://raw.githubusercontent.com/AhriFoxSnek/ASnake/main/ASnake.py")
+            if 'ASnake.py' in os.listdir():
+                tmpPath='ASnake.py'
+                tmpPrevious="previous_ASnake.py"
+            else:
+                from sys import executable
+                tmp = check_output(f"""{executable} -c "from ASnake import __file__ ; print(__file__)" """,stderr=STDOUT).decode()
+                if 'ModuleNotFoundError' in tmp:
+                    pass
+                else:
+                    tmpPath = tmp
+                    tmpPrevious = '/'.join(tmp.split('/')[:-1])+"previous_ASnake.py"
             try:
-                os.remove("previous_ASnake.py")
+                os.remove(tmpPrevious)
             except:
                 pass
-            os.rename("ASnake.py", "previous_ASnake.py")
-            with open("ASnake.py", 'wb') as file:
+            os.rename(tmpPath, tmpPrevious)
+            
+            with open(tmpPath, 'wb') as file:
                 file.write(ASnek.content)
             print('# Downloaded latest ASnake.')
             if ASFile == False and not args.eval:
@@ -6844,7 +6860,6 @@ if __name__ == '__main__':
             if "'" in fileName:
                 fileName=fileName.replace("'","\\'")
 
-            from subprocess import check_output, CalledProcessError, STDOUT
             if args.run_command:
                 p3Command=args.run_command
             elif WINDOWS:
