@@ -20,7 +20,7 @@ from unicodedata import category as unicodeCategory
 from sys import stdin
 from subprocess import check_output, CalledProcessError, STDOUT
 
-ASnakeVersion='v0.12.18'
+ASnakeVersion='v0.12.19'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -98,6 +98,8 @@ class Lexer(Lexer):
     #ignore_comment = r'(?=(\t| ))*?#.+?(#|(?=\n|$))'
 
     # Regular expression rules for tokens
+    # THIS IS RELATIVELY COMMON FOR LEXERS DUMMIES, REGEX != BAD
+    # simplifying expressions tends to be good though
     SHEBANG = r'#(!| *cython:) *.*'
     COMMENT = r'''(?=(\t| ))*?#.*?(!#|(?=\n|$))'''
     TAB     = r'\n(>>>|\.\.\.)?((\t| )+)'
@@ -141,7 +143,7 @@ class Lexer(Lexer):
     ENDIF   = r': *'
     DEFFUNCT= r'(c|cp)?does(?= |\n|\t)'
     SCOPE   = r'(global|local|nonlocal) (\w* *,?)*'
-    THEN    = r'then\s|do\s|then do\s|, then\s|, do\s|, then do\s|;|(:(?=\n)+)'
+    THEN    = r'then(?=\s)+|do(?=\s)|then do(?=\s)|, then(?=\s)|, do(?=\s)|, +then +do(?=\s)|;|(:(?=\n)+)'
     WITHAS  = r'(with|(?![^\w\d])as) '
     WHILE   = r'while '
     NOTHING = r'(pass|nothing,?)(?= |$|\n)'
@@ -728,12 +730,19 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         while lexIndex > 0 and lex[lexIndex].type == 'NEWLINE':
                             lexIndex -= 1
                             lex.pop()
+                        currentTab = tabBackup[0]
+                        lastIndent = tabBackup[1]
+                    elif lex[lexIndex].type == 'THEN':
+                        while lexIndex > 0 and lex[lexIndex].type == 'THEN':
+                            lexIndex -= 1
+                            lex.pop()
                     elif ignoreIndentation and lex[lexIndex].type == 'END':
                         lex.pop() ; lexIndex-=1
                         if lex[lexIndex].type == 'TAB':
                             lex.pop() ; lexIndex-=1
                     if ignoreIndentation and tok.type == 'THEN':
                         tok.type='TAB'
+
                     # ---- this section converts 2 spaces to 4 (prettyIndent). very important
                     if tok.type == 'TAB':
                         if ignoreIndentation:
@@ -1000,7 +1009,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if debug: print('--', t)
 
                 tmptok=copy(tok)
-                tmptok.type = 'THEN' ; tmptok.value = 'then '
+                tmptok.type = 'THEN' ; tmptok.value = 'then'
                 lex.append(tmptok) ; lexIndex+=1
 
                 tmptok=copy(tok)
@@ -1040,7 +1049,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     lex.append(tok)
                 else:
                     if lexIndex>0 and lex[lexIndex].type == 'IGNORENL': lexIndex-=1 # newline is not real if IGNORENL \
-                    else: inFrom=False ; lex.append(tok) # newline
+                    else:
+                        if lex[lexIndex].type == 'THEN': lex.pop() ; lexIndex-=1
+                        if lex[lexIndex].type != 'NEWLINE':
+                            # so repeated NEWLINE doesn't override last backup
+                            tabBackup = [currentTab, lastIndent[:]]
+                        lastIndent=[0]
+                        currentTab=0
+                        inFrom=False ; lex.append(tok) # newline
         elif tok.type == 'ASSIGN':
             if lex[lexIndex].type == 'LISTCOMP':
                 tmp=lex[lexIndex].value.split(':') ; tmp[-1]=tmp[-1].replace(' ','')
