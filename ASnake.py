@@ -143,7 +143,7 @@ class Lexer(Lexer):
     ENDIF   = r': *'
     DEFFUNCT= r'(c|cp)?does(?= |\n|\t)'
     SCOPE   = r'(global|local|nonlocal) (\w* *,?)*'
-    THEN    = r'then(?=\s)+|do(?=\s)|then do(?=\s)|, then(?=\s)|, do(?=\s)|, +then +do(?=\s)|;|(:(?=\n)+)'
+    THEN    = r'((then|do|then +do|, +then|, +do|, +then +do)(?=\s))|;|(:(?=\n)+)'
     WITHAS  = r'(with|(?![^\w\d])as) '
     WHILE   = r'while '
     NOTHING = r'(pass|nothing,?)(?= |$|\n)'
