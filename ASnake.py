@@ -879,11 +879,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             lex.append(tok)
         elif tok.type == 'META':
             if tok.value.replace('$', '').replace(' ', '').startswith('def'):
+                if tok.value == '$def':
+                    return AS_SyntaxError(f'Meta $def must be given a name and = to assign.',f'$ def thing = 2 + 2', tok.lineno, data)
                 # hacky thing to make def an alias of inline. do dont make it elif
-                if tok.value[tok.value.index('def')+3]==' ':
+                if 'def' in tok.value and (tok.value[4]==' ' or tok.value[tok.value.index('def')+3]==' '):
                     tok.value='$ inline '+tok.value.split('def',1)[-1]
             metaCall = tok.value.replace('$', '').replace(' ', '')
             if metaCall.startswith('inline'):
+                if '=' not in tok.value:
+                    return AS_SyntaxError(f'Meta $def must be given a name and = to assign.', f'$ def thing = 2 + 2',tok.lineno, data)
                 name=''.join(tok.value.split('=')[0].split('inline')[1]).replace(' ','')
                 value='='.join(tok.value.split('=')[1:])
                 inlineReplace[name] = ''.join(value)
