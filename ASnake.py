@@ -20,7 +20,7 @@ from unicodedata import category as unicodeCategory
 from sys import stdin
 from subprocess import check_output, CalledProcessError, STDOUT
 
-ASnakeVersion='v0.12.19'
+ASnakeVersion='v0.12.20'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -133,7 +133,7 @@ class Lexer(Lexer):
     STRRAW  = r"""f?r((f?\"(\\"|.)+?\")|(f?\'(\\'|.)+?\'))"""
     IMPORT  = r"""(^|(?! )|from +[^'"\n ]*) ?c?import [^\n;]*"""
     EQUAL   = r'==|equals?(?= |\t)'
-    NOTEQ   = r'!=|isnt|isn\'t|not equal|unequal'
+    NOTEQ   = r'!=|isnt|isn\'t|not +equal|unequal'
     LESSEQ  = r'(<=)|(=<)'
     GREATEQ = r'(>=)|(=>)'
     BITWISE = r'(\^|~|\||&|(<<)|(>>))(?!=)'
@@ -887,7 +887,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             metaCall = tok.value.replace('$', '').replace(' ', '')
             if metaCall.startswith('inline'):
                 if '=' not in tok.value:
-                    return AS_SyntaxError(f'Meta $def must be given a name and = to assign.', f'$ def thing = 2 + 2',tok.lineno, data)
+                    return AS_SyntaxError(f'Meta $inline must be given a name and = to assign.', f'$ def thing = 2 + 2',tok.lineno, data)
                 name=''.join(tok.value.split('=')[0].split('inline')[1]).replace(' ','')
                 value='='.join(tok.value.split('=')[1:])
                 inlineReplace[name] = ''.join(value)
@@ -1266,6 +1266,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
         # meta
         pyCompatibility=False
+        ogPyIs=pyIs
 
         orderOfOps = {'RPAREN': 6, 'LPAREN': 5, 'EXPONENT': 4,  'MODULO': 3, 'TIMES': 3, 'DIVIDE': 3,
                       'RDIVIDE': 3, 'PLUS': 2, 'MINUS': 2, 'BITWISE': 1} # Python operator precedence
@@ -3454,6 +3455,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     if lex[tmpi+1].type != 'ASSIGN' or (lex[tmpi+1].value.strip() not in {'=','is'} or determineIfAssignOrEqual(tmpi+1)):
                                         # only check False on non-assigns
                                         check=False ; break
+                                    elif pyIs and lex[tmpi+1].type == 'ASSIGN' and '=' not in lex[tmpi+1].value:
+                                        check = False ; break
                                 elif not inCase and lex[tmpi].type == 'NRANGE':
                                     tmp=False
                                     if '...' in lex[tmpi].value:
@@ -3550,6 +3553,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 else: lex[l].type='LIST'
             elif lex[l].type == 'IGNORE': del lex[l] ; l-=1
             l+=1
+        pyIs=ogPyIs
         del wasImported
 
 
@@ -5408,6 +5412,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     elif lex[lexIndex-tmpi].type == 'END': skipIf=True
                     tmpi+=1
                 line.append('\n') ; startOfLine=True
+                code.append(''.join(line)) ; line=[]
+
             elif tok.type == 'FROM': # idFROM
                 if lastType in typeNewline and lex[lexIndex+1].type == 'ASSIGN':
                     return AS_SyntaxError('from is a reserved keyword, dont use it for assignment', f'customVarName = "something"', lineNumber,data)
@@ -6400,12 +6406,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if lex[lexIndex+1].type not in typeNewline or lex[lexIndex-1].type not in typeNewline:
                             if lastType == 'INC': line.append('== ')
                             line.append(decideIfIndentLine(indent,tmp))
-                        if inIf: indent-=prettyIndent
+                        if inIf: indent = lastIndent[1] - prettyIndent
+
                         startOfLine=True
                         if code[-1].endswith('= '):
                             code.insert(-1,f'{tok.value[2:]}{tok.value[0]}=1\n')
                         else:
-                            if lastType == 'IF': #in ('IF','WHILE'):
+                            if lastType == 'IF':
                                 code.insert(-1,decideIfIndentLine(indent,f'{tok.value[2:]}{tok.value[0]}=1\n'))
                             elif lastType == 'WHILE':
                                 # increment at start
@@ -6413,7 +6420,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 incWrap = [f'{tok.value[2:]}{tok.value[0]}=1\n',incWrap[1]+1]
                             else:
                                 line.insert(0,decideIfIndentLine(indent,f'{tok.value[2:]}{tok.value[0]}=1\n'))
-                        if inIf: indent+=prettyIndent
+                        if inIf: indent = lastIndent[1]
                 elif tok.value.endswith('++') or tok.value.endswith('--'):
                     bigWrap=True
                     tmp=tok.value[:-2]+' '
