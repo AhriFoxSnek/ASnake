@@ -20,7 +20,7 @@ from unicodedata import category as unicodeCategory
 from sys import stdin
 from subprocess import check_output, CalledProcessError, STDOUT
 
-ASnakeVersion='v0.12.20'
+ASnakeVersion='v0.12.21'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -965,29 +965,35 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.value.split('=')[0].replace(' ','').replace('$','') in inlineReplace or any(i for i in inlineReplace if f'${i}' in tok.value):
                 if debug: print('inlineReplace',inlineReplace)
                 while '$ ' in tok.value: tok.value = tok.value.replace('$ ', '$')
-                while tok.value!='' and len([i for i in inlineReplace if f'${i}' in tok.value]) > 0:
-                    tmp=tok.value.split()[0]
-                    if ',' in tmp: tmp=tmp.split(',')[0]
-                    tmp=tmp.strip()
-                    tmp=[i for i in inlineReplace if f'${i}' == tmp]
-                    if debug: print(tok.value)
-                    if len(tmp)>0:
-                        tmp=tmp[0]
-                        for t in miniLex(inlineReplace[tmp]+' '):#inlineReplace[tok.value.split('=')[0].replace(' ','').replace('$','')]+' '):
-                            if t.type == 'ID' and t.value in defaultTypes and t.value not in reservedIsNowVar:
-                                t.type = 'TYPE'
+                def inlineReplaceFunc(tok):
+                    nonlocal lexIndex
+                    while tok.value!='' and len([i for i in inlineReplace if f'${i}' in tok.value]) > 0:
+                        tmp=tok.value.split()[0]
+                        if ',' in tmp: tmp=tmp.split(',')[0]
+                        tmp=tmp.strip()
+                        tmp=[i for i in inlineReplace if f'${i}' == tmp]
+                        if debug: print(tok.value)
+                        if len(tmp)>0:
+                            tmp=tmp[0]
+                            for t in miniLex(inlineReplace[tmp]+' '):#inlineReplace[tok.value.split('=')[0].replace(' ','').replace('$','')]+' '):
+                                if t.type == 'ID' and t.value in defaultTypes and t.value not in reservedIsNowVar:
+                                    t.type = 'TYPE'
+                                elif t.type == 'META':
+                                    inlineReplaceFunc(t)
+                                else:
+                                    t.lineno = lineNumber
+                                    lex.append(t) ; lexIndex+=1
+                                    if debug: print('--',t)
+                            #print(tok.value.lstrip('$'+tmp)) ; exit()
+                            while tok.value[0]==' ': tok.value=tok.value[1:]
+                            tok.value=tok.value.lstrip('$'+tmp)
+                        for t in miniLex(tok.value.rsplit('$')[0]+' '):
+                            tok.value=tok.value.replace(t.value,'')
                             t.lineno = lineNumber
                             lex.append(t) ; lexIndex+=1
-                            if debug: print('--',t)
-                        #print(tok.value.lstrip('$'+tmp)) ; exit()
-                        while tok.value[0]==' ': tok.value=tok.value[1:]
-                        tok.value=tok.value.lstrip('$'+tmp)
-                    for t in miniLex(tok.value.rsplit('$')[0]+' '):
-                        tok.value=tok.value.replace(t.value,'')
-                        t.lineno = lineNumber
-                        lex.append(t) ; lexIndex+=1
-                        if debug: print('---',t)
-                lexIndex-=1 # i dont know why but i think this works
+                            if debug: print('---',t)
+                    lexIndex-=1 # i dont know why but i think this works
+                inlineReplaceFunc(tok)
             else: lex.append(tok)
         elif tok.type == 'LISTCOMP':
             check=False # checks for    if thing > 4: doStuff
@@ -3245,7 +3251,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     if bitwiseOrderOps[lex[token+1].value] > bitwiseOrderOps[lex[tmp].value]:
                                         check = True
                                         #print('#2.1', lex[token].value)
-                                elif lex[tmp].type in typeNewline+('LPAREN',) or orderOfOps[lex[token+1].type] > orderOfOps[lex[tmp].type]:
+                                elif lex[tmp].type in typeNewline+('LPAREN',) or orderOfOps[lex[token+1].type] >= orderOfOps[lex[tmp].type]:
                                     check = True
                                     #print('#2.2', lex[token].value)
                             else:
@@ -5653,91 +5659,116 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if (lexIndex+3 < len(lex) or lexIndex+2 < len(lex)) and (lex[lexIndex+1].type == 'ID' or lex[lexIndex+2].type == 'ID'):
                     if compileTo != 'Cython' or (compileTo=='Cython' and ((lex[lexIndex+2].type == 'ASSIGN' and lex[lexIndex+3].type not in ('STRING','LIST','DICT','NUMBER','SET')  or lex[lexIndex+3].value.startswith('f')) or (lex[lexIndex+1].type == 'ID' and lex[lexIndex+2].type not in ('STRING','LIST','DICT','NUMBER','SET') or lex[lexIndex+2].value.startswith('f')) or (lex[lexIndex+2].type == 'ID' and lex[lexIndex+3].type not in ('STRING','LIST','DICT','NUMBER','SET','ASSIGN') or lex[lexIndex+3].value.startswith('f')))):
                         # ^^ when Cython, check if it can be compile-time-constant, else defaults to our implementation
-                        tmpval=copy(lex[lexIndex+1])
-                        if lex[lexIndex+2].type=='ASSIGN': tmpi=3
-                        elif lex[lexIndex+1].type=='TYPE':
-                            if lex[lexIndex+4].type=='ASSIGN': tmpi=5
-                            else: tmpi=4
+                        if pythonVersion > 3.04 and pythonVersion < 3.08: # old implementation
+                            # deprecate ?
+                            tmpval=copy(lex[lexIndex+1])
+                            if lex[lexIndex+2].type=='ASSIGN': tmpi=3
+                            elif lex[lexIndex+1].type=='TYPE':
+                                if lex[lexIndex+4].type=='ASSIGN': tmpi=5
+                                else: tmpi=4
 
-                            if lex[lexIndex+1].value in convertType: tmpf=convertType[lex[lexIndex+1].value]
-                            else: tmpf=lex[lexIndex+1].value
-                            storedVarsHistory[lex[lexIndex+2].value]={'value': lex[lexIndex+2].value+'[0]', 'type': tmpf}
-                            if pythonVersion > 3.04:
-                                insertAtTopOfCodeIfItIsNotThere('from typing import Tuple\n')
-                                lex[lexIndex+1].type=lex[lexIndex+2].type='IGNORE'
-                                if lex[lexIndex+3].type != 'ASSIGN':
-                                    lex[lexIndex+3].value=f"{lex[lexIndex+2].value} : Tuple[{lex[lexIndex+1].value}] = ({lex[lexIndex+3].value}"
+                                if lex[lexIndex+1].value in convertType: tmpf=convertType[lex[lexIndex+1].value]
+                                else: tmpf=lex[lexIndex+1].value
+                                storedVarsHistory[lex[lexIndex+2].value]={'value': lex[lexIndex+2].value+'[0]', 'type': tmpf}
+                                if pythonVersion > 3.04:
+                                    insertAtTopOfCodeIfItIsNotThere('from typing import Tuple\n')
+                                    lex[lexIndex+1].type=lex[lexIndex+2].type='IGNORE'
+                                    if lex[lexIndex+3].type != 'ASSIGN':
+                                        lex[lexIndex+3].value=f"{lex[lexIndex+2].value} : Tuple[{lex[lexIndex+1].value}] = ({lex[lexIndex+3].value}"
+                                    else:
+                                        lex[lexIndex+3].value=f"{lex[lexIndex+2].value} : Tuple[{lex[lexIndex+1].value}] = ({lex[lexIndex+4].value}"
+                                        lex[lexIndex+4].type='IGNORE'
                                 else:
-                                    lex[lexIndex+3].value=f"{lex[lexIndex+2].value} : Tuple[{lex[lexIndex+1].value}] = ({lex[lexIndex+4].value}"
-                                    lex[lexIndex+4].type='IGNORE'
+                                    if lex[lexIndex + 3].type != 'ASSIGN':
+                                        lex[lexIndex + 3].value = f"{lex[lexIndex + 2].value} = ({lex[lexIndex + 3].value}"
+                                    else:
+                                        lex[lexIndex + 3].value = f"{lex[lexIndex + 2].value} = ({lex[lexIndex + 4].value}"
+                                        lex[lexIndex + 2].type = lex[lexIndex + 4].type = 'IGNORE'
+                                lex[lexIndex+3].type='BUILTINF'
+                                tmpval=copy(lex[lexIndex+2])
+                            else: tmpi=2
+
+                            if lex[lexIndex+tmpi+1].type == 'LISTCOMP': pass
+                            elif tmpi>3:
+                                for tmptok in range(lexIndex,len(lex)-1):
+                                    if lex[tmptok].type in typeNewline:
+                                        lex[tmptok].value+=')' ; break
                             else:
-                                if lex[lexIndex + 3].type != 'ASSIGN':
-                                    lex[lexIndex + 3].value = f"{lex[lexIndex + 2].value} = ({lex[lexIndex + 3].value}"
-                                else:
-                                    lex[lexIndex + 3].value = f"{lex[lexIndex + 2].value} = ({lex[lexIndex + 4].value}"
-                                    lex[lexIndex + 2].type = lex[lexIndex + 4].type = 'IGNORE'
-                            lex[lexIndex+3].type='BUILTINF'
-                            tmpval=copy(lex[lexIndex+2])
-                        else: tmpi=2
-
-                        if lex[lexIndex+tmpi+1].type == 'LISTCOMP': pass
-                        elif tmpi>3:
-                            for tmptok in range(lexIndex,len(lex)-1):
-                                if lex[tmptok].type in typeNewline:
-                                    lex[tmptok].value+=')' ; break
-                        else:
-                            tmptok=copy(tok)
-                            tmptok.type='constLPAREN' ; tmptok.value='('
-                            lex.insert(lexIndex+tmpi,tmptok) ; del tmptok
-                            if lex[lexIndex+tmpi].type != 'ASSIGN' and lex[lexIndex+tmpi-1].type!='ASSIGN': # tmp-1 dubious, solved a bug
                                 tmptok=copy(tok)
-                                tmptok.type='ASSIGN' ; tmptok.value='='
+                                tmptok.type='constLPAREN' ; tmptok.value='('
                                 lex.insert(lexIndex+tmpi,tmptok) ; del tmptok
-                        bigWrap=True ; constWrap=True ; miniLineNumber=lineNumber
-                        tmpInFunction = False ; tmpParenScope = 0
-                        while lexIndex+tmpi < len(lex)-1:
-                            if lex[lexIndex+tmpi].type == 'ID' and lex[lexIndex+tmpi].value == tmpval.value:
-                                if not tmpInFunction or tmpParenScope <= 0 or (lex[lexIndex+tmpi+1].type!='ASSIGN' and tmpInFunction):
-                                    lex[lexIndex+tmpi].value=f'{lex[lexIndex+tmpi].value}[0]'
-                                if lex[lexIndex+tmpi+1].type == 'ASSIGN' and not tmpInFunction:
-                                    return AS_SyntaxError(f'Cannot reassign to constant variable {tmpval.value}',None,miniLineNumber,data,'Compile time error')
-                            elif lex[lexIndex+tmpi].type in ('INDEX','LIST'):
-                                if tmpval.value+',' in lex[lexIndex+tmpi].value:
-                                   tmp=list(lex[lexIndex+tmpi].value)
-                                   tmp.insert(lex[lexIndex+tmpi].value.index(tmpval.value+',')+len(tmpval.value),'[0]')
-                                   lex[lexIndex+tmpi].value=''.join(tmp)
-                                elif ','+tmpval.value in lex[lexIndex+tmpi].value:
-                                   tmp=list(lex[lexIndex+tmpi].value)
-                                   tmp.insert(lex[lexIndex+tmpi].value.index(','+tmpval.value)+len(tmpval.value)+1,'[0]')
-                                   lex[lexIndex+tmpi].value=''.join(tmp)
-                                elif lex[lexIndex+tmpi].type == 'INDEX' and any(True for _ in {':','['} if _+tmpval.value in lex[lexIndex+tmpi].value):
-                                    # detection in indexes to avoid false variable names
-                                    tmp = [_ for _ in {':','['} if _+tmpval.value in lex[lexIndex+tmpi].value][0]
-                                    lex[lexIndex + tmpi].value = lex[lexIndex + tmpi].value.replace(tmp+tmpval.value,tmp+tmpval.value+'[0]')
-                            elif lex[lexIndex+tmpi].type == 'FUNCTION' or (lex[lexIndex+tmpi].type == 'ID' and lex[lexIndex+tmpi].value == 'print'):
-                                tmpInFunction = True
-                                if lex[lexIndex+tmpi].type == 'FUNCTION':
-                                    if lex[lexIndex+tmpi].value == 'globals(' and lex[lexIndex+tmpi+3].type == 'STRING' and lex[lexIndex+tmpi+3].value.replace('"','').replace("'","") == tmpval.value:
-                                        return AS_SyntaxError(f'Cannot reassign to constant variable {tmpval.value}','Avoiding globals assignment. The compiler has trouble keeping track of it. It is also confusing for humans.', miniLineNumber, data, 'Compile time error')
-                                    if lex[lexIndex+tmpi].value[-1] == '(': tmpParenScope+=1
-                            elif lex[lexIndex + tmpi].type == 'LPAREN':
-                                tmpParenScope+=1
-                            elif lex[lexIndex + tmpi].type == 'RPAREN':
-                                tmpParenScope-=1
-                            elif lex[lexIndex+tmpi].type == 'COMMAGRP' and tmpval.value in lex[lexIndex+tmpi].value:
-                                tmp=lex[lexIndex+tmpi].value.split(',')
-                                for t in range(0,len(tmp)):
-                                    if tmp[t] in (tmpval.value,'-'+tmpval.value):
-                                        tmp[t]+='[0]'
-                                lex[lexIndex+tmpi].value=','.join(tmp)
-                            miniLineNumber+=lex[lexIndex+tmpi].value.count('\n')
-                            tmpi+=1
+                                if lex[lexIndex+tmpi].type != 'ASSIGN' and lex[lexIndex+tmpi-1].type!='ASSIGN': # tmp-1 dubious, solved a bug
+                                    tmptok=copy(tok)
+                                    tmptok.type='ASSIGN' ; tmptok.value='='
+                                    lex.insert(lexIndex+tmpi,tmptok) ; del tmptok
+                            bigWrap=True ; constWrap=True ; miniLineNumber=lineNumber
+                            tmpInFunction = False ; tmpParenScope = 0
+                            while lexIndex+tmpi < len(lex)-1:
+                                if lex[lexIndex+tmpi].type == 'ID' and lex[lexIndex+tmpi].value == tmpval.value:
+                                    if not tmpInFunction or tmpParenScope <= 0 or (lex[lexIndex+tmpi+1].type!='ASSIGN' and tmpInFunction):
+                                        lex[lexIndex+tmpi].value=f'{lex[lexIndex+tmpi].value}[0]'
+                                    if lex[lexIndex+tmpi+1].type == 'ASSIGN' and not tmpInFunction:
+                                        return AS_SyntaxError(f'Cannot reassign to constant variable {tmpval.value}',None,miniLineNumber,data,'Compile time error')
+                                elif lex[lexIndex+tmpi].type in ('INDEX','LIST'):
+                                    if tmpval.value+',' in lex[lexIndex+tmpi].value:
+                                       tmp=list(lex[lexIndex+tmpi].value)
+                                       tmp.insert(lex[lexIndex+tmpi].value.index(tmpval.value+',')+len(tmpval.value),'[0]')
+                                       lex[lexIndex+tmpi].value=''.join(tmp)
+                                    elif ','+tmpval.value in lex[lexIndex+tmpi].value:
+                                       tmp=list(lex[lexIndex+tmpi].value)
+                                       tmp.insert(lex[lexIndex+tmpi].value.index(','+tmpval.value)+len(tmpval.value)+1,'[0]')
+                                       lex[lexIndex+tmpi].value=''.join(tmp)
+                                    elif lex[lexIndex+tmpi].type == 'INDEX' and any(True for _ in {':','['} if _+tmpval.value in lex[lexIndex+tmpi].value):
+                                        # detection in indexes to avoid false variable names
+                                        tmp = [_ for _ in {':','['} if _+tmpval.value in lex[lexIndex+tmpi].value][0]
+                                        lex[lexIndex + tmpi].value = lex[lexIndex + tmpi].value.replace(tmp+tmpval.value,tmp+tmpval.value+'[0]')
+                                elif lex[lexIndex+tmpi].type == 'FUNCTION' or (lex[lexIndex+tmpi].type == 'ID' and lex[lexIndex+tmpi].value == 'print'):
+                                    tmpInFunction = True
+                                    if lex[lexIndex+tmpi].type == 'FUNCTION':
+                                        if lex[lexIndex+tmpi].value == 'globals(' and lex[lexIndex+tmpi+3].type == 'STRING' and lex[lexIndex+tmpi+3].value.replace('"','').replace("'","") == tmpval.value:
+                                            return AS_SyntaxError(f'Cannot reassign to constant variable {tmpval.value}','Avoiding globals assignment. The compiler has trouble keeping track of it. It is also confusing for humans.', miniLineNumber, data, 'Compile time error')
+                                        if lex[lexIndex+tmpi].value[-1] == '(': tmpParenScope+=1
+                                elif lex[lexIndex + tmpi].type == 'LPAREN':
+                                    tmpParenScope+=1
+                                elif lex[lexIndex + tmpi].type == 'RPAREN':
+                                    tmpParenScope-=1
+                                elif lex[lexIndex+tmpi].type == 'COMMAGRP' and tmpval.value in lex[lexIndex+tmpi].value:
+                                    tmp=lex[lexIndex+tmpi].value.split(',')
+                                    for t in range(0,len(tmp)):
+                                        if tmp[t] in (tmpval.value,'-'+tmpval.value):
+                                            tmp[t]+='[0]'
+                                    lex[lexIndex+tmpi].value=','.join(tmp)
+                                miniLineNumber+=lex[lexIndex+tmpi].value.count('\n')
+                                tmpi+=1
 
-                        if (lex[lexIndex+2].type=='ASSIGN' and lex[lexIndex+4].type == 'LISTCOMP'):
-                            tmpf=copy(lex[lexIndex+1]);tmpf.value+='[0]'
-                            storeVar(tmpf,lex[lexIndex+4],lex[lexIndex+5],position=lexIndex+4)
-                            lex[lexIndex+1].value+=' = ('
-                            lex[lexIndex+2].type='IGNORE'
+                            if (lex[lexIndex+2].type=='ASSIGN' and lex[lexIndex+4].type == 'LISTCOMP'):
+                                tmpf=copy(lex[lexIndex+1]);tmpf.value+='[0]'
+                                storeVar(tmpf,lex[lexIndex+4],lex[lexIndex+5],position=lexIndex+4)
+                                lex[lexIndex+1].value+=' = ('
+                                lex[lexIndex+2].type='IGNORE'
+                        else:
+                            # newer method
+                            if (lex[lexIndex+1].type == 'ID' or (lex[lexIndex+2].type == 'ID' and lex[lexIndex+1].type == 'TYPE')) and lex[lexIndex+2].type in typeAssignables+('ASSIGN',):
+                                insertAtTopOfCodeIfItIsNotThere('from typing import Final\n')
+                                if lex[lexIndex+1].type == 'TYPE': tmp = 2
+                                else: tmp = 1
+
+                                tmpType=None
+                                if lex[lexIndex-1].type == 'TYPE':
+                                    tmpType=lex[lexIndex-1].value
+                                    lex[lexIndex - 1].type = 'IGNORE'
+                                elif tmp == 2:
+                                    tmpType=lex[lexIndex+1].value
+                                    lex[lexIndex + 1].type = 'IGNORE'
+
+                                tmpName=lex[lexIndex+tmp].value
+                                lex[lexIndex+tmp].value = lex[lexIndex+tmp].value + ': Final'
+                                if tmpType:
+                                    lex[lexIndex + tmp].value+=f'[{tmpType}]'
+                                    if tmpType in convertType: tmpType = convertType[tmpType]
+                                    storedVarsHistory[tmpName]={'type': tmpType}
+                                else:
+                                    storedVarsHistory[tmpName] = {}
                     elif compileTo == 'Cython':
                         if lex[lexIndex+1].type == 'TYPE': lex[lexIndex+1].type='IGNORE'
                         line.append(decideIfIndentLine(indent,"DEF "))
@@ -6313,7 +6344,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         indentSoon=True
                         lex.insert(lexIndex+1,makeToken(tok,'do','THEN'))
 
-            elif tok.type == 'META':
+            elif tok.type == 'META': # idMETA
                 tmpf=tok.value.split('=')[0].replace(' ','').replace('$','') # needs replace instead of strip()
                 if tmpf in {'defexp','defaultExpression','defaultPrint','expPrint','defprint'}:
 
