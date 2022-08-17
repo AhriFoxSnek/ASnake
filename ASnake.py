@@ -1880,7 +1880,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         and lex[token-1].type in typeNewline+('TYPE',) and lex[token+2].type!='ID':
                             safe=True
                             if lex[token+1].type == 'ASSIGN':
-                                if any(True for i in ('+', '-', '/', '*', ':') if i in lex[token+1].value):
+                                if any(True for i in {'+', '-', '/', '*', ':'} if i in lex[token+1].value):
                                     safe=False
                                 tmpi=2
                             else: tmpi=1
@@ -1889,7 +1889,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 # get forward conditionals indent
                                 tmpIndent=0
                                 for tmpii in range(token+1,len(lex)-1):
-                                    if lex[tmpii].type in typeNewline:
+                                    if lex[tmpii].type == 'IF' and lex[tmpii-1].type in typeNewline:
                                         if lex[tmpii].type == 'THEN' and lex[tmpii+1].type not in {'TAB','NEWLINE'}:
                                             tmpIndent=-1 # negative 1 should signify that it is on same indent
                                             break
@@ -1918,13 +1918,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                 tmpf=[] ; tmpval=lex[token].value
                                 for t in range(token+tmpi,len(lex)-1):
-                                    if lex[t].type in typeNewline:
+                                    if lex[t].type in typeNewline and lex[t+1].type == 'IF':
                                         tmpi=t+1
                                         if (lex[t].type == 'TAB' and lex[t].value.replace('\t',' ').count(' ') < tmpIndent) \
                                         or (lex[t].type == 'NEWLINE' and tmpIndent > 0):
                                             tmpf=[] # if the assignment is on a higher indent, cancel this optimization
                                         break
-                                    elif lex[t].type == 'ASSIGN' and any(True for i in ('+', '-', '/', '*', ':') if i in lex[t].value): tmpf=[] ; break
+                                    elif lex[t].type == 'ASSIGN' and any(True for i in {'+', '-', '/', '*', ':'} if i in lex[t].value): tmpf=[] ; break
                                     elif lex[t].type == 'LISTCOMP': tmpf=[] ; break
                                     elif lex[t].type == 'INC': tmpf=[] ; break
                                     else: tmpf.append([lex[t].value,lex[t].type])
@@ -1942,13 +1942,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 tmptok=copy(lex[t])
                                                 tmptok.value=tt[0] ; tmptok.type=tt[1]
                                                 lex.insert(t+1,tmptok)
-                                        if lex[t].type in typeNewline: break
+                                        if lex[t].type in typeNewline:
+                                            break
+
                                     if search:
                                         if debug: print(f'! walrus-ing: {lex[token].value}')
                                         for t in range(token,tmpi):
                                             #print(lex[t].type,lex[t].value)
                                             lex[t].type='IGNORE'
-                                        if token-1>0 and lex[token-1].type in ('CONSTANT','TYPE'):
+                                        if token-1>0 and lex[token-1].type in {'CONSTANT','TYPE'}:
                                             lex[token-1].type='IGNORE'
                                         if token-3>0 and lex[token-3].type == 'CONSTANT':
                                             lex[token-3].type='IGNORE'
@@ -3608,9 +3610,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     return AS_SyntaxError(f'{var1.value} is of type {storedVarsHistory[var1.value]["type"]}, can\'t inherit {var2.value}\'s type {storedVarsHistory[var2.value]["type"]}.',f'{var1.value} should only be of type {storedVarsHistory[var1.value]["type"]}',lineNumber,data,'Enforced Static Type Error:')
                 else:
                     storedVarsHistory[var1.value]={'value':storedVarsHistory[var2.value]['value'],'type':storedVarsHistory[var2.value]['type']}
+
             else:
                 if var2.value[0]=='(' and var2.value[-1]==')': var2.value=var2.value[1:-1]
-                storedVarsHistory[var1.value]={'value':var2.value,'type':var2.type}
+                if var1.value not in storedVarsHistory:
+                    storedVarsHistory[var1.value]={'value':var2.value,'type':var2.type}
+                else:
+                    storedVarsHistory[var1.value]['value'] = var2.value
+                    storedVarsHistory[var1.value]['type'] = var2.type # jumpy
             if notInDef: insideDef = ''
             if insideDef != '': storedVarsHistory[var1.value]['insideFunction'] = insideDef
         if staticType != None:
@@ -4548,8 +4555,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     startOfLine=True
                 elif 'list' in listcomp and 'x' in listcomp:
                     if listcomp['list'].split('[')[0] in storedVarsHistory:
-                        if storedVarsHistory[listcomp['list'].split('[')[0]]['type'] == 'NUMBER' and 'value' in storedVarsHistory[listcomp['list'].split('[')[0]]:
-                            listcomp['list']=f'range(0,{storedVarsHistory[listcomp["list"].split("[")[0]]["value"]})'
+                        tmpName=listcomp['list'].split('[')[0]
+                        if storedVarsHistory[tmpName]['type'] == 'NUMBER' and 'value' in storedVarsHistory[tmpName]:
+                            listcomp['list']=f'range(0,{storedVarsHistory[tmpName]["value"]})'
+                        elif 'staticType' in storedVarsHistory[tmpName] and storedVarsHistory[ltmpName]['staticType'] == 'int':
+                            listcomp['list'] = f'range(0,{tmpName})'
                     if len(line) > 0 and line[-1] == '[':
                         line.append(f'{listcomp["x"]} for {listcomp["x"]} in {listcomp["list"]} ]')
                     elif 'if' in ''.join(line) and 'else' not in ''.join(line):
@@ -5080,7 +5090,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             else: tmp=None
                         if tmp!=None and lastIndent[2] == [] and all(True if f'cdef {tmp} {forthingin}\n' not in i else False for i in code) and forthingin not in storedVarsHistory:
                             line.append(decideIfIndentLine(indent,f'cdef {tmp} {forthingin}\n')) ; startOfLine=True
-                            storedVarsHistory[forthingin]={'type':tmp,'staticType':True}
+                            storedVarsHistory[forthingin]={'type':convertType[tmp],'staticType':tmp}
 
                     if lex[lexIndex+1].type == 'MINUS' and lex[lexIndex+2].type in ('ID','NUMBER','BUILTINF'):
                         lex[lexIndex+1]=copy(lex[lexIndex+2])
@@ -5118,7 +5128,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if all(True if f'cdef {tmp} {forthingin}\n' not in i else False for i in code) and forthingin not in storedVarsHistory:
                                 line.append(decideIfIndentLine(indent, f'cdef {tmp} {forthingin}\n'));
                                 startOfLine = True
-                                storedVarsHistory[forthingin] = {'type': tmp, 'staticType': True}
+                                storedVarsHistory[forthingin] = {'type': tmp, 'staticType': tmp}
                         line.append(f'for {forthingin} in range({lex[lexIndex + 1].value}, {"".join(tmpf)}):')
                         # ^ handles 1 to 12 type of nrange
                     elif (((lex[lexIndex+1].type == 'NUMBER' or lex[lexIndex+1].value.isdigit()) and '.' not in lex[lexIndex+1].value and lex[lexIndex+3].type not in typeOperators) \
@@ -5194,7 +5204,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 number1=int(storedVarsHistory[tmp[0]]['value'])
                         if isinstance(tmp[-1],int) or tmp[-1].isdigit():
                             number2=int(tmp[-1])
-                        elif tmp[-1] in storedVarsHistory and storedVarsHistory[tmp[-1]]['type']=='NUMBER':
+                        elif tmp[-1] in storedVarsHistory and (storedVarsHistory[tmp[-1]]['type']=='NUMBER'):
                             if 'value' in storedVarsHistory[tmp[-1]]:
                                 number2=int(storedVarsHistory[tmp[-1]]['value'])
                         if number1 != None and number2 != None and number1 > number2:
@@ -5230,7 +5240,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             forthingin=lex[lexIndex+tmpi].value
                                             search=False ; lex[lexIndex+tmpi].type='IGNORE'
                                     else:
-                                        if (lex[lexIndex+tmpi].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+tmpi].value]['type']=='NUMBER') \
+                                        if (lex[lexIndex+tmpi].value in storedVarsHistory and (storedVarsHistory[lex[lexIndex+tmpi].value]['type']=='NUMBER' or ('staticType' in storedVarsHistory[lex[lexIndex+tmpi].value] and storedVarsHistory[lex[lexIndex+tmpi].value]['staticType'] == 'int'))) \
                                         or (lex[lexIndex+tmpi].value.replace('[0]','') in storedVarsHistory and storedVarsHistory[lex[lexIndex+tmpi].value.replace('[0]','')]['type']=='NUMBER')\
                                         or (lex[lexIndex+tmpi].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+tmpi].value]['type'] in ('LIST','TUPLE','LISTCOMP','SET','COMMAGRP')+typeAssignables):
                                             if lex[lexIndex+tmpi].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+tmpi].value]['type'] in ('LIST','TUPLE','LISTCOMP','SET','COMMAGRP')+typeAssignables:
@@ -5765,8 +5775,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex[lexIndex+tmp].value = lex[lexIndex+tmp].value + ': Final'
                                 if tmpType:
                                     lex[lexIndex + tmp].value+=f'[{tmpType}]'
-                                    if tmpType in convertType: tmpType = convertType[tmpType]
-                                    storedVarsHistory[tmpName]={'type': tmpType}
+                                    if tmpType in convertType: tmpType2 = convertType[tmpType]
+                                    storedVarsHistory[tmpName]={'type': tmpType2,'staticType':tmpType}
                                 else:
                                     storedVarsHistory[tmpName] = {}
                     elif compileTo == 'Cython':
