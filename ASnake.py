@@ -1897,18 +1897,23 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             tmpIndent=lex[tmpii].value.count(' ') ; break
                                         elif lex[tmpii].type == 'NEWLINE':
                                             tmpIndent=0 ; break
+                                    elif lex[tmpii].type == 'ID' and lex[tmpii].value == lex[token].value and lex[tmpii+1].type in typeAssignables+('ASSIGN',):
+                                        safe=False
+                                    elif lex[tmpii].type in {'WHILE','LOOP'}:
+                                        safe=False
 
                                 # check behind
-                                tmpFirstTNewline=False
-                                for tmpii in range(token-1,0,-1):
-                                    if lex[tmpii].type in typeNewline:
-                                        if tmpIndent != -1 and lex[tmpii].type == 'TAB' and lex[tmpii].value.count(' ') > tmpIndent or ( lex[tmpii].value.count(' ') == tmpIndent and lex[tmpii+1].type in typeConditionals):
-                                           safe = False ; break
-                                        elif tmpFirstTNewline:
-                                            break
-                                        else:
-                                            tmpFirstTNewline = True
-                                    elif lex[tmpii].type == 'OF': safe = False
+                                if safe:
+                                    tmpFirstTNewline=False
+                                    for tmpii in range(token-1,0,-1):
+                                        if lex[tmpii].type in typeNewline:
+                                            if tmpIndent != -1 and lex[tmpii].type == 'TAB' and lex[tmpii].value.count(' ') > tmpIndent or ( lex[tmpii].value.count(' ') == tmpIndent and lex[tmpii+1].type in typeConditionals):
+                                               safe = False ; break
+                                            elif tmpFirstTNewline:
+                                                break
+                                            else:
+                                                tmpFirstTNewline = True
+                                        elif lex[tmpii].type == 'OF': safe = False
 
 
                             if safe:
@@ -1916,7 +1921,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if lex[token - 1].type == 'TYPE': tmp = 2
                                 if lex[token - tmp].type == 'TAB': tmpIndent = lex[token - tmp].value.replace('\t',' ').count(' ')
 
-                                tmpf=[] ; tmpval=lex[token].value
+                                tmpf=[] ; tmpval=lex[token].value ; tmpAddTotmpf=True
                                 for t in range(token+tmpi,len(lex)-1):
                                     if lex[t].type in typeNewline and lex[t+1].type == 'IF':
                                         tmpi=t+1
@@ -1927,7 +1932,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     elif lex[t].type == 'ASSIGN' and any(True for i in {'+', '-', '/', '*', ':'} if i in lex[t].value): tmpf=[] ; break
                                     elif lex[t].type == 'LISTCOMP': tmpf=[] ; break
                                     elif lex[t].type == 'INC': tmpf=[] ; break
-                                    else: tmpf.append([lex[t].value,lex[t].type])
+                                    elif lex[t].type == 'NEWLINE': tmpAddTotmpf=False
+                                    elif tmpAddTotmpf: tmpf.append([lex[t].value,lex[t].type])
                                 if tmpf != [] and lex[tmpi].type == 'IF':
                                     search=False
                                     for t in range(tmpi,len(lex)-1):
@@ -4161,7 +4167,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             line.append(decideIfIndentLine(indent,tok.value))
                 elif lexIndex-2 > 0 and lex[lexIndex-1].type in ('ID','INTOED') and lex[lexIndex-2].type == 'PIPE' and (lexIndex-4 < 0 or lex[lexIndex-4].type != 'LOOP'):
                     return AS_SyntaxError(f'{tok.value} after function pipe makes no sense. Pipes start with a datatype and then chain onto functions.',f'{tok.value} to str to print', lineNumber, data)
-                elif (tok.type == 'NUMBER' or (tok.value in storedVarsHistory and storedVarsHistory[tok.value]['type']=='NUMBER')) and lastType == 'INS' and lexIndex-3>0 and lex[lexIndex-2].type=='ID' and lex[lexIndex-3].type=='FOR' \
+                elif (tok.type == 'NUMBER' or (tok.value in storedVarsHistory and 'type' in storedVarsHistory[tok.value] and storedVarsHistory[tok.value]['type']=='NUMBER')) and lastType == 'INS' and lexIndex-3>0 and lex[lexIndex-2].type=='ID' and lex[lexIndex-3].type=='FOR' \
                 and (lexIndex+2 < len(lex) and (lex[lexIndex+1].type not in {'PIPE','LINDEX','INDEX'} and lex[lexIndex+2].value != 'range')):
                     line.append(f'range({tok.value})') # converts bare numbers into ranges when in for loop
                 elif tok.type == 'DICT' and lex[lexIndex+1].type == 'FSTR' and fstrQuote!='':
@@ -4558,7 +4564,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmpName=listcomp['list'].split('[')[0]
                         if storedVarsHistory[tmpName]['type'] == 'NUMBER' and 'value' in storedVarsHistory[tmpName]:
                             listcomp['list']=f'range(0,{storedVarsHistory[tmpName]["value"]})'
-                        elif 'staticType' in storedVarsHistory[tmpName] and storedVarsHistory[ltmpName]['staticType'] == 'int':
+                        elif 'staticType' in storedVarsHistory[tmpName] and storedVarsHistory[tmpName]['staticType'] == 'int':
                             listcomp['list'] = f'range(0,{tmpName})'
                     if len(line) > 0 and line[-1] == '[':
                         line.append(f'{listcomp["x"]} for {listcomp["x"]} in {listcomp["list"]} ]')
@@ -4736,7 +4742,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 else:
                     safe=True
                     if optimize and optListPlusListToExtend and lastValue in storedVarsHistory and (
-                            storedVarsHistory[lastValue]['type'] in ('LIST', 'LISTCOMP') or (
+                            ('type' in storedVarsHistory[lastValue] and storedVarsHistory[lastValue]['type'] in ('LIST', 'LISTCOMP')) or (
                             'staticType' in storedVarsHistory[lastValue] and storedVarsHistory[lastValue]['staticType'] == 'list' )):
                         if '+' in tok.value or (lex[lexIndex+1].type == 'ID' and lex[lexIndex+1].value == lastValue and lex[lexIndex+2].type=='PLUS'):
                             if '+' not in tok.value:
