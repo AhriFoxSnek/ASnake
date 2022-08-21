@@ -134,8 +134,8 @@ class Lexer(Lexer):
     IMPORT  = r"""(^|(?! )|from +[^'"\n ]*) ?c?import [^\n;]*"""
     EQUAL   = r'==|equals?(?= |\t)'
     NOTEQ   = r'!=|isnt|isn\'t|not +equal|unequal'
-    LESSEQ  = r'(<=)|(=<)'
-    GREATEQ = r'(>=)|(=>)'
+    LESSEQ  = r'(<=)|(=<)|≤'
+    GREATEQ = r'(>=)|(=>)|≥'
     BITWISE = r'(\^|~|\||&|(<<)|(>>))(?!=)'
     LESS    = r'<|((is )?less (than )?)|(lesser (than )?)'
     GREATER = r'>|((is )?greater (than )?)'
