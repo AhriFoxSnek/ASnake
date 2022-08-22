@@ -288,15 +288,19 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         if lineno != None: tmptok.lineno=lineno
         return tmptok
 
-    def convertEmojiToAscii(tokValue):
+    def convertEmojiToAscii(tok):
+        if any(True for c in tok.value if unicodeCategory(c) in {'Zs', 'Cf', 'Cc'}):
+            return AS_SyntaxError(f'Whitespace character in {tok.value} is not permitted.', None, tok.lineno, data)
         tmp = ''
         if compileTo == 'Cython':
             cutoff = 256  # cython likes ascii only
         else:
             cutoff = 9000  # is first emoji
-        for c in tokValue:
+        for c in tok.value:
             if ord(c) > cutoff or unicodeCategory(c) not in {'Lu', 'Ll', 'Lt', 'Lm', 'Lo', 'Nl', 'Other_ID_Start', 'Other_ID_Continue'}:
-                if tmp:
+                if c == '.':
+                    tmp += '.'
+                elif tmp:
                     tmp += str(ord(c)) + 'e'
                 else:
                     tmp += 'e' + str(ord(c)) + 'e'
@@ -380,8 +384,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             tmptok.value = tmptok.value.replace("'", '"', 1)
                             tmptok.value = tmptok.value[:tmptok.value.rfind("'")] + '"'
                     elif tmptok.type == 'ID' and tmptok.value.isascii() == False:
-                        if any(True for c in tmptok.value if unicodeCategory(c) in {'Zs', 'Cf', 'Cc'}):
-                            return AS_SyntaxError(f'Whitespace character in {tmptok.value} is not permitted.', None, None, data)
                         tmptok.value = convertEmojiToAscii(tmptok.value)
                     elif tmptok.type == 'INDEX' and lex[-1].type != 'TYPE' and '[' in tmptok.value:
                         indexTokenSplitter(tmptok,True) ; tmpSkip = True
@@ -565,6 +567,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     return AS_SyntaxError(
                         f"Don't pipe to function that calls parenthesis.",
                         '12 to str', lineNumber, data)
+                elif tok.type in {'ID','BUILTINF'} and not tok.value.isascii():
+                    tok.value=convertEmojiToAscii(tok)
                 tmpValue = f'{tok.value}('
                 if lex[lexIndex].value.strip() == 'to':
                     if pipeWrap:
@@ -687,7 +691,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.value.isascii() == False:
                 if any(True for c in tok.value if unicodeCategory(c) in {'Zs', 'Cf', 'Cc'}):
                     return AS_SyntaxError(f'Whitespace character in {tok.value} is not permitted.', None, tok.lineno, data)
-                tok.value=convertEmojiToAscii(tok.value)
+                tok.value=convertEmojiToAscii(tok)
             lex.append(tok)
         elif tok.type == 'TYPEWRAP':
             tok.value=tok.value.replace(':','').replace(' ','')
@@ -3623,7 +3627,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     storedVarsHistory[var1.value]={'value':var2.value,'type':var2.type}
                 else:
                     storedVarsHistory[var1.value]['value'] = var2.value
-                    storedVarsHistory[var1.value]['type'] = var2.type # jumpy
+                    storedVarsHistory[var1.value]['type'] = var2.type
             if notInDef: insideDef = ''
             if insideDef != '': storedVarsHistory[var1.value]['insideFunction'] = insideDef
         if staticType != None:
@@ -4040,6 +4044,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         newtmp=[]
                         kwargs=None
                         noKwargs=True if len([i for i in tmpf if '*' not in i.value])==0 else False # cython no likely * kwargs
+                        tmpLastToken=makeToken(tmpf[0],'pass','TMP')
                         for i in tmpf:
                             if len(i.value) > 0 and i.type!='COMMA':
                                 if i.value[-1]==',': i.value=i.value[:-1]
@@ -4055,7 +4060,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     else: i.value='**'+i.value
                                     kwargs=None
 
-                                if i.value in convertType:
+                                if not assign and i.type in {'ID','TYPE'} and (tmpLastToken.type not in {'COMMA','TMP','TYPE'} and tmpLastToken.value not in convertType):
+                                    tmp=' '.join([ii.value for ii in tmpf])
+                                    return AS_SyntaxError(f'{tmp}\n\tfrom syntax must have commas to seperate arguments','from thingy, str name, int number = 12,', lineNumber, data)
+
+                                elif i.value in convertType:
                                     tmptype=i
                                     if compileTo=='Cython' and tmptype.value=='bool' and noKwargs:
                                         insertAtTopOfCodeIfItIsNotThere(f'cdef extern from "stdbool.h":\n{" "*prettyIndent}ctypedef bint bool')
@@ -4077,6 +4086,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif i.type == 'COMMA' and kwargs!=None:
                                 newtmp.append('*')
                                 kwargs=None
+                            tmpLastToken=i
+                        del tmpLastToken
                         newtmp=[i for i in newtmp if i != ' ']
                         tmpf=', '.join(newtmp)
 
@@ -5675,7 +5686,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if (lexIndex+3 < len(lex) or lexIndex+2 < len(lex)) and (lex[lexIndex+1].type == 'ID' or lex[lexIndex+2].type == 'ID'):
                     if compileTo != 'Cython' or (compileTo=='Cython' and ((lex[lexIndex+2].type == 'ASSIGN' and lex[lexIndex+3].type not in ('STRING','LIST','DICT','NUMBER','SET')  or lex[lexIndex+3].value.startswith('f')) or (lex[lexIndex+1].type == 'ID' and lex[lexIndex+2].type not in ('STRING','LIST','DICT','NUMBER','SET') or lex[lexIndex+2].value.startswith('f')) or (lex[lexIndex+2].type == 'ID' and lex[lexIndex+3].type not in ('STRING','LIST','DICT','NUMBER','SET','ASSIGN') or lex[lexIndex+3].value.startswith('f')))):
                         # ^^ when Cython, check if it can be compile-time-constant, else defaults to our implementation
-                        if pythonVersion > 3.04 and pythonVersion < 3.08: # old implementation
+                        if pythonVersion >= 3.04 and pythonVersion < 3.08: # old implementation
                             # deprecate ?
                             tmpval=copy(lex[lexIndex+1])
                             if lex[lexIndex+2].type=='ASSIGN': tmpi=3
