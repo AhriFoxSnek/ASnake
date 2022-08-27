@@ -6301,7 +6301,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if tmpFuncArgs:
                     # extracts out function argument variables and types
                     tmpFuncArgs = tmpFuncArgs.group()[1:-1]
-                    tmpREChecks=(r'[^,]+\[(?:.*,?)*\](?:,|$)',r'[^,]+\((?:.*,?)*\)(?:,|$)',r'[^,]+\{(?:.*,?)*\}(?:,|$)',r'[^,]+(?:,|,?.*?$)')
+                    tmpREChecks=(r'[^,]+\[.*\](?:,|$)',r'[^,]+\((?:.*,?)*\)(?:,|$)',r'[^,]+\{(?:.*,?)*\}(?:,|$)',r'[^,]+(?:,|,?.*?$)')
                     tmpf=[]
                     for REcheck in tmpREChecks:
                         tmp=REfindall(REcheck, tmpFuncArgs)
@@ -6679,6 +6679,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     pass
                 else:
                     line.append(decideIfIndentLine(indent, f'{expPrint[-1]}(')) ; rParen+=1 ; bigWrap=True
+            elif tok.type == 'HEXDEC':
+                tok.type='NUMBER' ; line.append(decideIfIndentLine(indent,tok.value))
             elif tok.type in codeDict:
                 if tok.type == 'DEFFUNCT': notInDef=False
                 elif lastType == 'BUILTINF' and tok.type in {'AND','OR'} and not startOfLine:
