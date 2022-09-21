@@ -4849,7 +4849,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 # not a variable assign
                                                 safe=False ; break
                                         if not safe: break
-                                    except sly.lex.LexError:
+                                    except LexError:
                                         safe = False ; break
                                 elif lex[tt].type in {'NUMBER','STRING','PIPE','FUNCTION','PIPEGO','LPAREN'} and tmpIndexScope == 0:
                                     safe=False ; break
@@ -5502,7 +5502,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif lastType in typeCheckers:
                     line.append(tok.value)
                 elif lastType not in typeNewline+('CONSTANT','DEFFUNCT','TYPEWRAP'):
-                    return AS_SyntaxError('Invalid token before type declaration.',f'{tok.value} {lex[lexIndex+1].value} = value',lineNumber,data)
+                    return AS_SyntaxError(f'Invalid token \'{lastType}\' before type declaration.',f'{tok.value} {lex[lexIndex+1].value} = value',lineNumber,data)
                 elif lex[lexIndex+1].type == 'ID' and lex[lexIndex+2].type == 'LISTCOMP':
                     tok.type='ID' ; line.append(tok.value)
                 elif tok.value  == 'range' and lex[lexIndex+1].type == 'NRANGE': tok.type='IGNORE' ; continue
@@ -5812,6 +5812,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if tmpType:
                                     lex[lexIndex + tmp].value+=f'[{tmpType}]'
                                     if tmpType in convertType: tmpType2 = convertType[tmpType]
+                                    elif '[' in tmpType and tmpType.split('[')[0] in convertType: tmpType2 = convertType[tmpType.split('[')[0]] # for stuff like tuple[str]
                                     storedVarsHistory[tmpName]={'type': tmpType2,'staticType':tmpType}
                                 else:
                                     storedVarsHistory[tmpName] = {}
