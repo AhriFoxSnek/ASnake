@@ -20,7 +20,7 @@ from unicodedata import category as unicodeCategory
 from sys import stdin
 from subprocess import check_output, CalledProcessError, STDOUT
 
-ASnakeVersion='v0.12.22'
+ASnakeVersion='v0.12.23'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -631,6 +631,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     for tmpi in range(lexIndex-1, 0, -1):
                         if lex[tmpi].type in typeNewline+('ASSIGN',):
                             if lex[tmpi].type == 'ASSIGN' and ':' in lex[tmpi].value:
+                                pass
+                            elif lex[tmpi].type == 'ASSIGN' and 'is' in lex[tmpi].value and lex[tmpi-1].type in typeAssignables and lex[tmpi-1].type not in {'ID','BUILTINF','RINDEX'}:
                                 pass
                             else:
                                 lex[lexIndex].type = 'RPAREN' ; lex[lexIndex].value = ')'
