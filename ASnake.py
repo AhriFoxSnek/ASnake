@@ -6304,7 +6304,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if tmpFuncArgs:
                     # extracts out function argument variables and types
                     tmpFuncArgs = tmpFuncArgs.group()[1:-1]
-                    tmpREChecks=(r'[^,]+\[.*\](?:,|$)',r'[^,]+\((?:.*,?)*\)(?:,|$)',r'[^,]+\{(?:.*,?)*\}(?:,|$)',r'[^,]+(?:,|,?.*?$)')
+                    tmpREChecks=(r'[^,]+\[.*\](?:,|$)',r'[^,]+?\((?:.*?,?)*?\)(?: *,|$)',r'[^,]+\{(?:.*,?)*\}(?:,|$)',r'[^,]+(?:,|,?.*?$)')
                     tmpf=[]
                     for REcheck in tmpREChecks:
                         tmp=REfindall(REcheck, tmpFuncArgs)
