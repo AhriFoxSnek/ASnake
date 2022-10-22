@@ -20,7 +20,7 @@ from unicodedata import category as unicodeCategory
 from sys import stdin
 from subprocess import check_output, CalledProcessError, STDOUT
 
-ASnakeVersion='v0.12.23'
+ASnakeVersion='v0.12.24'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -4559,7 +4559,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                 if tok.type == 'THEN' and not ('list' in listcomp and 'x' in listcomp):
                     if indentSoon and parenScope == 0 and ':' not in line[-1] :
-                        if debug: print('!',line[0])
                         if lexIndex+1 < len(lex) and lex[lexIndex+1].type == 'TAB' and 'while' in line[0]:
                             continue
                         else: line.append(':\n')
@@ -5460,6 +5459,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     elif lex[lexIndex-tmpi].type == 'END': skipIf=True
                     tmpi+=1
                 line.append('\n') ; startOfLine=True
+                if combineLines:
+                    if isinstance(line, str): line = [line]  # so weird
+                    line.insert(0, code[-1])
+                    code.pop()
+                    combineLines = False
                 code.append(''.join(line)) ; line=[]
 
             elif tok.type == 'FROM': # idFROM
@@ -6340,16 +6344,22 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 #    storedCustomFunctions[tmp]['type']=None
             elif tok.type == 'PYPASS':
                 line.append(tok.value[2:][:-2])
-            elif tok.type == 'TRY':
+            elif tok.type == 'TRY': # idTRY
                 if ':' not in tok.value: tok.value+=':'
-                else: tok.value+='\n'#indentSoon=True
-                if tok.value.startswith('except') and lastType not in ('NEWLINE','TAB'):
-                    if lastType!='THEN':
-                        line.append('\n') ; startOfLine=True
-                    indent-=prettyIndent
-                    if indent<0: indent=0
-                line.append(decideIfIndentLine(indent,f'{tok.value}\n'))
-                indent+=prettyIndent ; startOfLine=True
+                tmp = False
+                if tok.value.startswith('except'):
+                    if tok.value[:-1].strip() == 'except' and (lex[lexIndex+1].type not in typeNewline+('NOTHING',) or (lex[lexIndex+1].type == 'NOTHING' and lex[lexIndex+2].type == 'PIPE')):
+                        tok.value=tok.value[:-1] ; tmp=True
+                    if lastType not in ('NEWLINE','TAB'):
+                        if lastType!='THEN':
+                            line.append('\n') ; startOfLine=True
+                        if startOfLine: indent-=prettyIndent
+                        if indent<0: indent=0
+                line.append(decideIfIndentLine(indent, f'{tok.value}'))
+                if not tmp: startOfLine = True
+                else: indentSoon=True
+                indent += prettyIndent
+
             elif tok.type == 'NRANGE':
                 if lastType == 'ID':
                     if lex[lexIndex-2].type in typeNewline+('TYPE','CONST'):
@@ -6692,8 +6702,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     line.append(decideIfIndentLine(indent,f'{tok.value} '))
                 else:
                     line.append(decideIfIndentLine(indent,f'{codeDict[tok.type]} '))
-
-            if lastType=='TRY': indentSoon=False
 
             lastType=tok.type
             lastValue=tok.value
