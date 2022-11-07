@@ -20,7 +20,7 @@ from unicodedata import category as unicodeCategory
 from sys import stdin
 from subprocess import check_output, CalledProcessError, STDOUT
 
-ASnakeVersion='v0.12.24'
+ASnakeVersion='v0.12.25'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -1580,6 +1580,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             inCase=False
                                         elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value:
                                             inCase=True
+                                        elif lex[tmpi].type == 'FOR' and lex[tmpi-1].type not in {'LINDEX','LIST'} and lex[tmpi+1].value == lex[token].value:
+                                            search=False
                                     if search:
                                         if len([True for tmpi in range(token,0,-1) if lex[tmpi].type in {'SCOPE','META'} and lex[token].value in lex[tmpi].value])>0: search=False
                                         # ^^ no global var pls
@@ -5044,7 +5046,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         else: lastIndent[2].append(indent)
                         if debug: print(indent,lastIndent[2])
                 if startOfLine==False and lastType=='INDEX': line[-1]=f" {line[-1]}"
-            elif tok.type == 'FOR':
+            elif tok.type == 'FOR': #idFOR
+                if lex[lexIndex+1].value in storedVarsHistory: # reassigns
+                    del storedVarsHistory[lex[lexIndex+1].value]
                 tmpFound = False
                 if optimize and optLoopToMap and lastType in typeNewline:
                     tmpFound=optLoopToMap_Function(lexIndex)
