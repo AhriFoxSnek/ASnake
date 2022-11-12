@@ -25,7 +25,7 @@ ASnakeVersion='v0.12.25'
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
     if text != None:
-       showError.append(f'{errorType}:\n\t{text}')
+        showError.append(f'{errorType}:\n\t{text}')
     else:
         showError.append(f'{errorType}.')
     if suggestion != None:
@@ -1158,8 +1158,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     # optimize section
     if optimize == True:
 
-        for tok in lex: # removes wording for the compilerNumberEval function
-            if tok.type in {'TIMES', 'PLUS', 'DIVIDE', 'MINUS'}:
+        for tok in lex: # a prephase for optimization phase
+            if tok.type in {'TIMES', 'PLUS', 'DIVIDE', 'MINUS'}: # removes wording for the compilerNumberEval function
                 tok.value = codeDict[tok.type]
 
         def compilerNumberEval(toks):
@@ -2305,10 +2305,16 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if lex[token].value[0] in ('(','[') and lex[token].value[-1] in (')',']'):
                                 lex[token].value=lex[token].value[1:-1] ; lex[token].value='{%s}'%lex[token].value
                     elif lex[token].type == 'IMPORT':
-                        if optFromFunc:
-                            importName=lex[token].value.replace('import','').replace(' ','')+'.'
-                            if 'from' not in lex[token].value and importName not in wasImported:
+                        tmp = lex[token].value.split()
+                        if optFromFunc and not any(True for _ in tmp if _ == 'from'): # no from allowed
+                            if len(tmp) > 2 and tmp[2] == 'as':
+                                importName = tmp[3]+'.'
+                            else:
+                                importName = tmp[1]+'.'
+                            if importName not in wasImported:
                                 wasImported[importName]=[]
+                                if len(tmp) > 2 and tmp[2] == 'as': # indicate the original import name so it may switch to it later
+                                    wasImported[importName]=[f"AS!{tmp[1]+'.'}"]
                     elif lex[token].type in ('BUILTINF','FUNCTION','COMMAGRP') or (lex[token].type == 'TYPE' and lex[token+1].type=='LPAREN'): # COMMAGRP might be dubious, but it does solve some cases for optFromFunc
                         if optFromFunc:
                             tmpf = [i for i in wasImported if i in lex[token].value]
@@ -3407,23 +3413,31 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if optFromFunc and optRounds == 0 and lex[token].type == 'IMPORT':
                     # optFromFunc should only run once
                     # this is its import name (ie random.): wasImported,lex[token].value.replace('import ','')+'.'
-                    importedName = lex[token].value.replace('import', '').strip() + '.'
+                    tmpImportNameSplit = lex[token].value.split()
+                    if len(tmpImportNameSplit) > 2 and tmpImportNameSplit[2] == 'as':
+                        tmpImportedName = tmpImportNameSplit[3]+'.'
+                        for impv in wasImported[tmpImportedName]:
+                            if 'AS!' in impv: importedName = impv[3:] ; break
+                        del wasImported[tmpImportedName][wasImported[tmpImportedName].index('AS!'+importedName)]
+                        wasImported[importedName] = wasImported[tmpImportedName]
+                        del wasImported[tmpImportedName] ; del tmpImportedName
+                    else:
+                        importedName = tmpImportNameSplit[1]+'.'
                     if debug: print('import: ',lex[token].value.split()[1], wasImported[importedName] if importedName in wasImported else '[]')
-                    if importedName in wasImported:
+                    if 'from' == tmpImportNameSplit[0]:
+                        if len(wasImported) > 0 and importedName in wasImported:
+                            for fromImport in wasImported[importedName]:
+                                if fromImport not in tmpImportNameSplit[3:]:
+                                    lex[token].value=lex[token].value+', %s'%fromImport
+                            del wasImported[importedName]
+                    elif importedName in wasImported:
                         if len(wasImported[importedName]) > 0:
-                            lex[token].value=lex[token].value.replace('import','').replace(' ','')
-                            tmpf=[i for i in wasImported if i[:-1] in lex[token].value][0]
+                            tmpf=[i for i in wasImported if i == importedName][0]
                             if len(wasImported[tmpf]) > 1 or wasImported[tmpf][0] != '':
-                                lex[token].value='from %s import %s'%(lex[token].value,', '.join([wasImported[tmpf][i] for i in range(0,len(wasImported[tmpf]))]))
-                            else: lex[token].value=f'from {lex[token].value} import *'
-                    elif 'from ' in lex[token].value:
-                        if len(wasImported) > 0:
-                            importName = lex[token].value.split('import')[0].replace('from ','').replace(' ','')+'.'
-                            if importName in wasImported:
-                                for fromImport in wasImported[importName]:
-                                    if fromImport not in lex[token].value.split('import')[-1]:
-                                        lex[token].value=lex[token].value+', %s'%fromImport
-
+                                lex[token].value='from %s import %s'%(importedName[:-1], ', '.join([wasImported[tmpf][i] for i in range(0,len(wasImported[tmpf]))]))
+                            else: lex[token].value=f'from {importedName} import *'
+                            del wasImported[importedName]
+                    
                 elif optDeadVariableElimination and lex[token].type == 'ID' and lex[token].value != 'print':
                     if ((lex[token + 1].type in typeAssignables and lex[token+1].type!='LIST') or (lex[token + 1].type=='ASSIGN' and lex[token + 1].value in ('=','is','is '))) and lex[token - 1].type in typeNewline + ('CONSTANT', 'TYPE'):
                         delPoint = tmpIndent = None ; check = True ; tmpReplaceWithPass = inCase = isConstant = outOfBlock= False
