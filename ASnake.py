@@ -20,7 +20,7 @@ from unicodedata import category as unicodeCategory
 from sys import stdin
 from subprocess import check_output, CalledProcessError, STDOUT
 
-ASnakeVersion='v0.12.25'
+ASnakeVersion='v0.12.26'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -517,8 +517,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tmpParenScope += 1
             elif lex[tmpi].type == 'RPAREN':
                 tmpParenScope -= 1
-            elif lex[tmpi].type in typeCheckers+typeMops and tmpParen == 0:
-                return tmpi+1
+            #elif lex[tmpi].type in typeCheckers+typeMops and tmpParen == 0:
+            #    return tmpi+1
 
 
 
@@ -1077,9 +1077,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if lex[lexIndex].type != 'NEWLINE':
                             # so repeated NEWLINE doesn't override last backup
                             tabBackup = [currentTab, lastIndent[:]]
-                        lastIndent=[0]
-                        currentTab=0
-                        inFrom=False ; lex.append(tok) # newline
+                            lastIndent = [0] ; currentTab = 0 ; inFrom = False
+                            lex.append(tok)  # newline
+                        else: lexIndex -= 1 # if it is repeated NEWLINE then don't append
         elif tok.type == 'ASSIGN':
             if lex[lexIndex].type == 'LISTCOMP':
                 tmp=lex[lexIndex].value.split(':') ; tmp[-1]=tmp[-1].replace(' ','')
@@ -1597,7 +1597,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         inLoop=[False,0]
                                         inCase=False # similar to inFrom ; do not replace constants in OF case statements
 
-                                        tmpFoundIndent=False
+                                        tmpFoundIndent=tmpFoundThen=False
                                         for tmpi in range(token-1,0,-1):
                                             if lex[tmpi].type == 'TAB':
                                                 if not tmpFoundIndent:
@@ -1609,11 +1609,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     if lex[tmpi+1].type == 'TYPEWRAP':
                                                         tmpindent-=1
                                                     break
-                                            # don't check THENs for indent
                                             elif lex[tmpi].type == 'NEWLINE':
-                                                if lex[tmpi+1].type == 'TYPEWRAP':
-                                                    tmpindent-=1
+                                                if lex[tmpi + 1].type == 'TYPEWRAP':
+                                                    tmpindent -= 1
                                                 break
+                                            # don't check THENs for indent
+                                            elif lex[tmpi].type == 'THEN':
+                                                tmpFoundThen=True
+                                            elif tmpFoundThen and lex[tmpi].type in typeConditionals and lex[tmpi-1].type in typeNewline: search=False # if its in a conditional that is a no no
+
 
                                         if len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TYPEWRAP' and (lex[tmpi-1].type=='NEWLINE' or (lex[tmpi-1].type in typeNewline and lex[tmpi-1].value.count(' '*prettyIndent)<tmpindent))])>0:
                                             linkType=False # if there is a typewrap defining the types, then we shouldnt mess with it
@@ -3299,32 +3303,25 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                         if check:
                             if lex[token].type == 'NUMBER' and lex[token+1].type in typeOperators and (lex[token+2].type == 'NUMBER' or (lex[token+2].type == 'LPAREN' and lex[token+3].type == 'NUMBER') or isANegativeNumberTokens(token+2)):
-                                tmpscope=0 ; tmpf=[] ; fail=False ;
-                                tmpLastOperator=False
-                                for tmpi in range(token,len(lex)):
-                                    #print(lex[tmpi].type,[l.value for l in tmpf])
-                                    if lex[tmpi] in {'LPAREN','RPAREN'}:
-                                        while tmpf[-1].type in typeOperators+('LPAREN',): tmpf=tmpf[:-1]
-                                        break
-                                    #if lex[tmpi].type in typeOperators+('LPAREN','RPAREN','NUMBER') and tmpscope>=0:
-                                    elif lex[tmpi].type in typeOperators+('NUMBER',):
-                                        if lex[tmpi].type=='LPAREN':
-                                            tmpscope+=1
 
-                                        elif lex[tmpi].type=='RPAREN': tmpscope-=1
-                                        if tmpscope>=0:
-                                            if tmpscope == 0 and lex[tmpi].type in orderOfOps and lex[tmpi].type not in {'LPAREN','RPAREN'} and not (lex[tmpi].type=='MINUS' and lex[tmpi].type in orderOfOps):
-                                                if tmpLastOperator and orderOfOps[lex[tmpi].type] >= orderOfOps[tmpLastOperator]:
-                                                    break
-                                                else: tmpLastOperator = lex[tmpi].type
-                                            tmpf.append(lex[tmpi])
+                                tmpf=[] ; tmpscope=0 ; tmpLastOperator=fail=False
+                                for tmpi in range(token,len(lex)-1):
+                                    if lex[tmpi].type in typeOperators+('NUMBER','LPAREN','RPAREN'):
+                                        if   lex[tmpi].type == 'LPAREN': tmpscope-=1 ; tmpLastOperator=False
+                                        elif lex[tmpi].type == 'RPAREN': tmpscope+=1 ; tmpLastOperator=False
+                                        elif lex[tmpi].type in typeOperators:
+                                            if tmpLastOperator and orderOfOps[lex[tmpi].type] >= orderOfOps[tmpLastOperator]:
+                                                break
+                                            else:
+                                                tmpLastOperator = lex[tmpi].type
+                                        tmpf.append(lex[tmpi])
                                     else:
-                                        if tmpscope>0: fail=True
-                                        while tmpf[-1].type in typeOperators+('LPAREN',): tmpf=tmpf[:-1]
+                                        if tmpf[-1].type in typeOperators: del tmpf[-1]
                                         break
-                                #print('--',[l.value for l in tmpf])
+                                if tmpscope != 0: fail=True
+                                #print(tmpscope, '--',[l.value for l in tmpf])
 
-                                if len(tmpf) <= 1 : break
+                                if len(tmpf) <= 1 : fail = True
                                 if not fail:
                                     tmpLeftHasMinus=False
                                     if lex[token-1].type == 'MINUS' and (lex[token-2].type in tmpTypeSafe and lex[token-2].type != 'RPAREN'):
@@ -3344,7 +3341,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             lex[token-2].type = lex[token+1].type = 'IGNORE'
                                         if tmpLeftHasMinus: lex[token-1].type = 'IGNORE'
                                         newOptimization=True
-                                    except (TypeError, ZeroDivisionError): pass
+                                    except (TypeError, ZeroDivisionError, SyntaxError): pass # SyntaxError means the expression sent to compilerNumberEval made no sense
                             while lex[token].type == 'STRING' and lex[token+1].type == 'PLUS' and lex[token+2].type == 'STRING' \
                             and lex[token].value.startswith("'''")==False and lex[token].value.startswith('"""')==False and lex[token+2].value.startswith("'''")==False and lex[token+2].value.startswith('"""')==False:
                                 if lex[token+3].type in typeOperators and orderOfOps[lex[token+3].type] > orderOfOps[lex[token+1].type]: break
