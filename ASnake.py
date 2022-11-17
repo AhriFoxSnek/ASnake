@@ -1054,7 +1054,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     tok.type='SHEBANG'
                     keepAtTop.append(tok) ; lexIndex-=1
                 else:
-                    skip=False
+                    skip=False ; tmp=0
                     if tok.value[-1]=='#':
                         for tmpi in range(lexIndex,0,-1):
                             if lex[tmpi].type in typeNewline:
@@ -1242,6 +1242,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'dictlistFunctionToEmpty':True,
                             'boolTonotnot':True,
                             'microPythonConst':True,
+                            'EvalnotBoolInversion':True, # Only provides performance to pypy, but its easy enough to leave it default
                             }
         optConstantPropagation=True
         optMathEqual=True
@@ -1422,8 +1423,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             elif lex[t].type == 'RBRACKET': tmpBracketScope-=1
 
                                 if tmpf == []: tmpf=None
-                                if tmpf!=None and len(tmpf)>2 and tmpf[0].type in {'ID','BUILTINF'} and tmpf[1].type == 'LINDEX' and (tmpf[-1].type == 'RINDEX' or tmpf[-2].type == 'RINDEX'):
-                                    tmpf=None # thing[index] folding is slower than using var reference from var=thing[index]
+                                if tmpf!=None and len(tmpf)>2:
+                                    if tmpf[0].type in {'ID','BUILTINF'} and tmpf[1].type == 'LINDEX' and (tmpf[-1].type == 'RINDEX' or tmpf[-2].type == 'RINDEX'):
+                                        tmpf=None # thing[index] folding is slower than using var reference from var=thing[index]
+                                    elif optListPlusListToExtend and tmpf[0].type == 'FUNCTION' and tmpf[0].value.startswith('list') and tmpf[1].type == 'STRING' and tmpf[2].type == 'RPAREN':
+                                        tmpf=None # in cases where optListPlusListToExtend is viable, constant propagation is slower
                                 if valueStop==None: valueStop=len(lex)-1
 
                                 if tmpf != None: # we got a expression now
@@ -2162,6 +2166,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     pyIs = True
                             else:
                                 pyIs = True
+
+
+                    elif optFuncTricks and optFuncTricksDict['EvalnotBoolInversion'] and lex[token].type == 'INS' and lex[token].value.strip() == 'not' and lex[token+1].type == 'BOOL':
+                        if lex[token+1].value.strip() == 'True':
+                            lex[token+1].value = 'False' ; lex[token].type = 'IGNORE'
+                        elif lex[token+1].value.strip() == 'False':
+                            lex[token+1].value = 'True'  ; lex[token].type = 'IGNORE'
+
 
                     elif lex[token].type in {'LPAREN','LIST'} and lex[token-1].type == 'INS' and lex[token-1].value.strip() == 'in':
                         if optInSet:
@@ -3492,6 +3504,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lex[tmpi].type == 'CONSTANT' and not delPoint: isConstant = True
                         if tmpParenScope > 0: check=False
                         if delPoint == None or tmpIndent == None: check=False
+                        if (token-1<=0): check=True ; delPoint = tmpIndent = 0
                         if check:
                             breakOnNextNL=False ; ttenary=inCase=False
                             for tmpi in range(token + 1, len(lex) - 1):
