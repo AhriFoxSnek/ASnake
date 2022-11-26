@@ -1236,7 +1236,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         optFuncTricksDict={ 'randint':True,
                             'listString':True,
                             'TupleSetUnpack':True,
-                            'collapseToFalseTrue':True,
                             'EvalLen':True,
                             'optCythonTypeFromConversionFunction':True,
                             'dictlistFunctionToEmpty':True,
@@ -1257,7 +1256,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         optNestedLoopItertoolsProduct=True
         optSplitMultiAssign=True
         # v these are done in main phase v
-        optIfTrue=True
+        optIfTrue=True # hybrid
         optSortedToSort=True
         optListPlusListToExtend=True
         optLoopToMap=True
@@ -3128,8 +3127,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         else:
                             if min(_[0] for _ in preAllocated) > lex[token].value.count(' '): preAllocated=set()
 
-                    elif lex[token].type == 'EQUAL' and optFuncTricks and optFuncTricksDict['collapseToFalseTrue'] and lex[token + 1].type == 'BOOL' and lex[token + 1].value != 'None':
-                        if lex[token + 1].value == 'False':
+                    elif optIfTrue and lex[token].type in {'EQUAL','NOTEQ'} and lex[token + 1].type == 'BOOL' and lex[token + 1].value != 'None':
+                        if (lex[token+1].value == 'False' and lex[token].type == 'EQUAL') or (lex[token+1].value == 'True' and lex[token].type == 'NOTEQ'):
                             tmp = findEndOfExpression(token-1)
                             if lex[tmp].type != 'INS':
                                 lex[token].type = lex[token + 1].type = 'IGNORE'
@@ -6070,7 +6069,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         elif lex[lexIndex+1].type == 'INS': tok.value+=' '
 
                     if tok.type == 'FUNCTION' and optimize:
-                        if optFuncTricks and optLoopAttr and optFuncTricksDict['collapseToFalseTrue'] \
+                        if optIfTrue and optLoopAttr \
                         and tok.value == 'ASlen' and lex[lexIndex+1].type == 'LPAREN':
                             tok.value+='(' ; lex.remove(lex[lexIndex+1]) # optLoopAttr makes function without '(' at end, so add it
 
@@ -6092,7 +6091,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tok.type='BUILTINF' ; tok.value=f'\n{" "*tmpCount}{lex[lexIndex-tmp].value}.sort('
                                     if lex[lexIndex + 1].type == 'COMMAGRP': lex[lexIndex+1].value=''.join(lex[lexIndex+1].value.split(',')[1:])
                                     else: lex[lexIndex+1].type = 'IGNORE'
-                        elif optFuncTricks and optFuncTricksDict['collapseToFalseTrue'] and tok.value in {'len(','ASlen('} \
+                        elif optIfTrue and tok.value in {'len(','ASlen('} \
                         and lex[lexIndex+1].type == 'ID' and lex[lexIndex+1].value in storedVarsHistory and lex[lexIndex+2].type == 'RPAREN' and lex[lexIndex+3].type in ('GREATER','EQUAL','ASSIGN') \
                         and lex[lexIndex+4].type == 'NUMBER' and lex[lexIndex+4].value == '0' \
                         and (('staticType' in storedVarsHistory[lex[lexIndex+1].value] and storedVarsHistory[lex[lexIndex+1].value]['staticType'] == 'list') \
