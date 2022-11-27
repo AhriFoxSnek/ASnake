@@ -1244,7 +1244,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'EvalnotBoolInversion':True, # Only provides performance to pypy, but its easy enough to leave it default
                             }
         optConstantPropagation=True
-        optMathEqual=False
+        optMathEqual=True
         optListToTuple=True
         optInSet=True
         optWalrus=True
