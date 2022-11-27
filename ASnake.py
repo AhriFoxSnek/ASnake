@@ -611,7 +611,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 tmpParenScope-=1
                             elif lex[tmpi].type in {'LPAREN','FUNCTION'}:
                                 tmpParenScope+=1
-                                if tmpParenScope >= 0:
+                                if tmpParenScope >= 0 and lex[tmpi-1].type != 'BUILTINF':
                                     if check and lex[tmpi].type == 'LPAREN':
                                         lex[tmpi].type='FUNCTION'
                                         lex[tmpi].value=tmpValue
@@ -623,20 +623,33 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         lex.insert(tmpi,makeToken(tok,tmpValue,'FUNCTION'))
                                         lexIndex+=1
                                     break
+                                elif lex[tmpi-1].type == 'BUILTINF': check=False
                             elif lex[tmpi].type == 'COMMA':
                                 check=False
-                            elif lex[tmpi].type in typeNewline: break
+                            elif lex[tmpi].type in typeNewline:
+                                if not check:
+                                    lex[lexIndex].type = 'RPAREN' ; lex[lexIndex].value = ')'
+                                    lex.insert(tmpi, makeToken(tok, tmpValue, 'FUNCTION')) ; lexIndex+=1
+                                break
                 elif lex[lexIndex].value.strip() == 'into':
-                    tok.type = 'IGNORE'
+                    tok.type = 'IGNORE' ; tmpAddBy=None
                     for tmpi in range(lexIndex-1, 0, -1):
                         if lex[tmpi].type in typeNewline+('ASSIGN',):
+                            tmp=True
                             if lex[tmpi].type == 'ASSIGN' and ':' in lex[tmpi].value:
-                                pass
+                                tmp=False
                             elif lex[tmpi].type == 'ASSIGN' and 'is' in lex[tmpi].value and lex[tmpi-1].type in typeAssignables and lex[tmpi-1].type not in {'ID','BUILTINF','RINDEX'}:
-                                pass
-                            else:
+                                tmp=False
+                            elif lex[tmpi].type == 'ASSIGN' and '=' == lex[tmpi].value:
+                                for tt in range(tmpi-1,-1,-1):
+                                    if lex[tt].type in {'LPAREN','FUNCTION'}:
+                                        tmp=False
+                                    elif lex[tt].type in typeNewline:
+                                        if tmp: break
+                                        else: tmpAddBy=tt ; tmp=True ; break
+                            if tmp:
                                 lex[lexIndex].type = 'RPAREN' ; lex[lexIndex].value = ')'
-                                lex.insert(tmpi+1,makeToken(tok,tmpValue,'FUNCTION'))
+                                lex.insert(tmpAddBy+1 if tmpAddBy!=None else tmpi+1,makeToken(tok,tmpValue,'FUNCTION'))
                                 lexIndex+=1 ; break
 
 
