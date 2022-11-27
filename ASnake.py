@@ -20,7 +20,7 @@ from unicodedata import category as unicodeCategory
 from sys import stdin
 from subprocess import check_output, CalledProcessError, STDOUT
 
-ASnakeVersion='v0.12.26'
+ASnakeVersion='v0.12.27'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -1244,7 +1244,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'EvalnotBoolInversion':True, # Only provides performance to pypy, but its easy enough to leave it default
                             }
         optConstantPropagation=True
-        optMathEqual=True
+        optMathEqual=False
         optListToTuple=True
         optInSet=True
         optWalrus=True
@@ -1255,6 +1255,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         optDeadVariableElimination=True
         optNestedLoopItertoolsProduct=True
         optSplitMultiAssign=True
+        optUnModAssignment=True
         # v these are done in main phase v
         optIfTrue=True # hybrid
         optSortedToSort=True
@@ -1899,6 +1900,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex.pop(token+2) ; lex.pop(token+2)
                                     newOptimization=True
 
+
                         if optWalrus and lex[token+1].type in typeAssignables+('ASSIGN','COMMAGRP') \
                         and lex[token-1].type in typeNewline+('TYPE',) and lex[token+2].type!='ID':
                             safe=True
@@ -2131,7 +2133,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     if debug: print(f"! split multi-assign: {', '.join([i[0].value for i in tmpVars])}")
 
 
-
+                    
 
                     elif lex[token].type == 'META':
                         metaCall=lex[token].value.replace('$','').replace(' ','').lower()
@@ -3239,7 +3241,64 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex[token].type = 'BOOL' ; lex[token].value = str(tmpEndResult)
                             newOptimization = True
 
-                        
+                    if optUnModAssignment and (lex[token].type == 'ID' and lex[token+1].type == 'ASSIGN' and any(True for i in {'+', '-', '/', '*'} if i in lex[token+1].value) or (lex[token].type == 'INC' and lex[token+1].type in typeNewline and lex[token-1].type in typeNewline)):
+                        # x = 2 ; x += 2 --> x = 2 + 2
+                        # undoing mod assignments is an optimization
+                        tmpIndent = None ; tmpFirstIndent = False ; safe = False ; tmpInsertAtEnd = 0
+                        if lex[token].type == 'ID':
+                          tmpSign = lex[token+1].value[0]
+                          if lex[token+1].value[1] == '/': tmpSign+='/'
+                          if   tmpSign == '+' : tmp = 'PLUS'
+                          elif tmpSign == '-' : tmp = 'MINUS'
+                          elif tmpSign == '/' : tmp = 'DIVIDE'
+                          elif tmpSign == '/' : tmp = 'TIMES'
+                          elif tmpSign == '//': tmp = 'RDIVIDE'
+                          tmpIDValue = lex[token].value
+                          tmpf = [makeToken(lex[token], tmpSign, tmp)]  # stores line
+                        elif lex[token].type == 'INC':
+                          if   lex[token].value[0]  == '+': tmp = 'PLUS' ; tmpSign=lex[token].value[0]
+                          elif lex[token].value[0]  == '-': tmp = 'MINUS'; tmpSign=lex[token].value[0]
+                          elif lex[token].value[-1] == '+': tmp = 'PLUS' ; tmpSign=lex[token].value[-1]
+                          elif lex[token].value[-1] == '-': tmp = 'MINUS'; tmpSign=lex[token].value[-1]
+                          else: continue
+                          tmpIDValue = lex[token].value.replace('++','').replace('--','')
+                          tmpf = [makeToken(lex[token], tmpSign, tmp),makeToken(lex[token], '1', 'NUMBER')]  # stores line
+                        else: continue
+
+                        if lex[token].type != 'INC':
+                            for tmpi in range(token+2,len(lex)-1):
+                              if lex[tmpi].type in typeNewline+typeConditionals:
+                                  break
+                              tmpf.append(copy(lex[tmpi]))
+                        tmpListOfIDs=tuple([_.value for _ in tmpf if _.type == 'ID'])
+                        # search for previous line
+                        for tmpi in range(token-1,0,-1):
+                          if lex[tmpi].type in typeNewline:
+                              if lex[tmpi].type == 'TAB':
+                                  if tmpFirstIndent and lex[tmpi].value.count(' ') != tmpIndent: break
+                                  tmpIndent=lex[tmpi].value.count(' ') ; tmpFirstIndent=True ; tmpInsertAtEnd=tmpi
+                              elif lex[tmpi].type == 'NEWLINE':
+                                  if tmpFirstIndent and tmpIndent > 0: safe=False ; break
+                                  tmpIndent=0 ; tmpFirstIndent=True ; tmpInsertAtEnd=tmpi
+                          elif lex[tmpi].type in typeConditionals+('LOOP','FOR') \
+                          or (lex[tmpi].type == 'ID' and lex[tmpi].value == tmpIDValue) or (lex[tmpi].type=='ID' and lex[tmpi].value in tmpListOfIDs):
+                              safe = False ; break
+                          elif lex[tmpi].type == 'ASSIGN' and lex[tmpi-1].type == 'ID' and lex[tmpi-1].value == tmpIDValue \
+                          and lex[tmpi+1].value != tmpIDValue and lex[tmpi+1].type != 'INDEX' and lex[tmpi-2].type in typeNewline:
+                              if lex[tmpi-2].type == 'NEWLINE' or (lex[tmpi-2].type == 'TAB' and lex[tmpi-2].value.count(' ') == tmpIndent):
+                                  # success, insert at end
+                                  for t in reversed(tmpf):
+                                      lex.insert(tmpInsertAtEnd, t) ; token+=1
+                                  if debug: print('! undoing mod assignment',' '.join([lex[t].value for t in range(tmpi-1,tmpInsertAtEnd+len(tmpf))]))
+                                  newOptimization = True
+                                  safe = True ; break
+
+                        if safe:
+                          # if success, delete line
+                          for tmpi in range(token, len(lex) - 1):
+                              if lex[tmpi].type in typeNewline:
+                                  break
+                              else: lex[tmpi].type = 'IGNORE'
 
 
                     if token > len(lex)-1: break
