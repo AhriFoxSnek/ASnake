@@ -629,7 +629,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lex[tmpi].type in typeNewline:
                                 if not check:
                                     lex[lexIndex].type = 'RPAREN' ; lex[lexIndex].value = ')'
-                                    lex.insert(tmpi, makeToken(tok, tmpValue, 'FUNCTION')) ; lexIndex+=1
+                                    lex.insert(tmpi+1, makeToken(tok, tmpValue, 'FUNCTION')) ; lexIndex+=1
                                 break
                 elif lex[lexIndex].value.strip() == 'into':
                     tok.type = 'IGNORE' ; tmpAddBy=None
