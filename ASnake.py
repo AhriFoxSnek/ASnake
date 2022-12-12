@@ -554,6 +554,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     willPipe=False # activates piping on next token
     reservedIsNowVar=[]
     deleteUntilIndentLevel = (False,0)
+    pyCompatibility=False
     
     # warning to self, when checking previous token, do not do lexIndex-1, lexIndex is the previous, as current token hasn't been added yet
     for tok in lexer.tokenize('\n'+data+' \n'):
@@ -672,19 +673,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             lineNumber = lineNumber+tok.value.count('\n')
         tok.lineno = lineNumber
 
-        if tok.type in {'BUILTINF','NUMBER'}:
-            if tok.value.endswith('\n'):
-                tok.value=tok.value[:-1]
-                lex.append(tok)
-                tmptok=copy(tok)
-                if currentTab > 0: tmptok.value=f'\n{" "*currentTab}' ; tmptok.type='TAB'
-                else: tmptok.value='\n' ; tmptok.type='NEWLINE'
-                lex.append(tmptok)
-                lexIndex+=1
-                del tmptok
-            else:
-                if tok.type == 'NUMBER' and pythonVersion < 3.06 and '_' in tok.value: tok.value = tok.value.replace('_', '')
-                lex.append(tok)
+        if tok.type == 'NUMBER':
+            if pythonVersion < 3.06 and '_' in tok.value: tok.value = tok.value.replace('_', '')
+            lex.append(tok)
         elif tok.type in {'HEXDEC','SCINOTAT'}:
             tok.type = 'NUMBER' ; lex.append(tok)
         elif tok.type == 'IMPORT':
@@ -734,6 +725,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             else:
                 if lex[lexIndex].type == 'FUNCTION' and lex[lexIndex].value[-1]=='(':
                     tok.type='IGNORE' # for when theres a tab after an opening function like print(
+                elif not pyCompatibility and lex[lexIndex].type == 'NUMBER' and lexIndex > 1 and lex[lexIndex-1].type == 'INS' and lex[lexIndex-1].value.strip() == 'in':
+                    # ASnake syntax:  in 12 --> range(12)
+                    tmp = False
+                    for t in range(lexIndex-1, 0, -1):
+                        if lex[t].type in typeNewline:
+                            break
+                        elif lex[t].type == 'FOR':
+                            tmp = True
+                    if tmp:
+                        lex.insert(lexIndex , makeToken(tok, 'range(', 'FUNCTION'))
+                        lex.append(makeToken(tok, ')', 'RPAREN'))
+                        lexIndex += 2
                 elif lex[lexIndex].type != 'LISTEND':
                     # makes it so tabs inside of lists dont affect tabbing
                     tmp=-1
@@ -986,7 +989,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     return AS_SyntaxError(
                         f'Meta ${metaCall} must follow after a {tuple(metaConditionalVersion)[0]} meta.',
                         f'$ {tuple(metaConditionalVersion)[0]} = 3.8\n\t\tprint 3.8\n\t${metaCall}\n\t\tprint "elsed!"', None, data)
-
+            elif metaCall.startswith(tuple(metaPyCompat)):
+                if '=' in metaCall:
+                    if 'true' in metaCall.split('=')[1]:
+                        pyCompatibility = True
+                    else:
+                        pyCompatibility = False
+                else:
+                    pyCompatibility = not pyCompatibility
+                lex.append(tok)
 
             elif tok.value.split('=')[0].replace(' ','').replace('$','') in inlineReplace or any(i for i in inlineReplace if f'${i}' in tok.value):
                 if debug: print('inlineReplace',inlineReplace)
