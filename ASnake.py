@@ -20,7 +20,7 @@ from unicodedata import category as unicodeCategory
 from sys import stdin
 from subprocess import check_output, CalledProcessError, STDOUT
 
-ASnakeVersion='v0.12.27'
+ASnakeVersion='v0.12.28'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -401,7 +401,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         return tok
 
     def indexTokenSplitter(tok,fstringMode=False,token=0):
-        nonlocal lex, lexIndex
+        nonlocal lex, lexIndex, parenScope
         tmpf = tok.value[tok.value.index('['):].split('[', 1)
         if tok.value.index('['):
             # tmp is if the index is preceded by an ID
@@ -445,6 +445,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         else:
                             if   ii.type == 'ENDIF': ii.type = 'COLON'
                             elif ii.type == 'LIST' : ii.type = 'LINDEX'
+                            elif ii.type in {'LPAREN','FUNCTION'}: parenScope += 1
+                            elif ii.type == 'RPAREN': parenScope -= 1
                             insertOrAppend(token,ii)
                             lex[tmpLI].lineno = lineNumber
                     insertOrAppend(token,makeToken(i,']','RINDEX'))
@@ -464,6 +466,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             tmpscope -= 1
                     elif fstringMode and i.type == 'RBRACKET':
                         return
+                    elif i.type in {'LPAREN','FUNCTION'}:
+                        parenScope += 1
+                    elif i.type == 'RPAREN':
+                        parenScope -= 1
                     insertOrAppend(token,i)
                     lex[tmpLI].lineno = lineNumber
         if lex[tmpLI].type == 'LISTEND': lex[tmpLI].type = 'RINDEX'
@@ -545,12 +551,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     currentTab=0
     lineNumber=0 # for source code
     bracketScope=0
+    parenScope=0
     pipeWrap=0 # keeps track of amount of PIPEGO
     lastIndent=[0]
     tabBackup=[currentTab,lastIndent[:]]
     inFrom=False
     crunch=False # for smooshing values into the latest lexIndex
-    ignoreIndentation=False
     willPipe=False # activates piping on next token
     reservedIsNowVar=[]
     deleteUntilIndentLevel = (False,0)
@@ -666,7 +672,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             lex.append(tok)
             tok.type=tmptok.type
             del tmptok
-        elif debug and len(lex) > lexIndex: print(f'lex={lexIndex} ln={lineNumber} lexType={lex[lexIndex].type}\ttype={tok.type}, value={tok.value}')
+        elif debug and len(lex) > lexIndex: print(f'lex={lexIndex} ln={lineNumber} ps={parenScope} lexType={lex[lexIndex].type}\ttype={tok.type}, value={tok.value}')
 
         if tok.type in {'COMMAGRP', 'COMMENT', 'DICT', 'IGNORENL', 'INDEX', 'NEWLINE', 'PYDEF', 'PYPASS', 'STRING', 'STRLIT', 'STRRAW', 'TAB', 'THEN', 'TYPEWRAP'}:
             # ^ every type that can have a newline should be included
@@ -679,7 +685,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif tok.type in {'HEXDEC','SCINOTAT'}:
             tok.type = 'NUMBER' ; lex.append(tok)
         elif tok.type == 'IMPORT':
-            if tok.value == 'import this ': # The ASnake Rebellion
+            if tok.value.strip() == 'import this': # The ASnake Rebellion
                 code.append(''.join(("import zlib as ASnake\n","myDress = ",str(b'x\x9c\x95UK\x8f\xda0\x10\xbe\xf3+\xac\xed\x05\xa4he;\xce\xc3U\xf7\xd4\xd3J\x95\xfa:"\x0e\x04\xc2n*6a\t\xa9\xd4\x7f_?\xc7\xe3$@\x8bD\x94xf\xbe\xf9\xe6\xe9E\xf5\xb4.EB\x185\x0f\x96\x90\x94\'$\xcf\x12R\xa6\xea\x80\xd1\x84\xc8BK\n$.\xb9\xfb\x90\xa5{a\xb4\x84G\xa6\xed\x983\x16\xc2\x9a\x18M\x8e\xe0\xadC&\x9c\x85>.\xa8\xb7\xe4\xfa\xcd\xfd\x8b\xd4J\x19\x93\x00\\\x803\xea\x85\xc2\x11e9\x0e\xc6\x9c\x83\x7f\xcf\xdf\xd8\x1am\xce\x11\xad`k\x91\xe8\xc8\xd4\x9e\x06\'&\n\x8e\xf9\x88\xdcr\xce\x0b\xaf-"\xb7\x1c"p\xb4\x8co\x14\x94\xd1gY\x9cU>\xe21\xc2\t\xf8\xf6h\x9a\x00\x83\xe8\xb9\x95\x05\x14\xc9k\xce\xe4\xc4*P@\xc9<\n\xa8{\x04\xf4\x95y\x1e\x19\xa4\xc7\xd4\x8cC(\x0c\xf1\x80\xae\xb3\x14CaSL\xeb:\x96:\x932\x8aE\'\xd3\x13\xf4m\xa3U\xa2r:0\xdf\xdd3y\x94\xd0h3\xf4]o\xc6>o\xa7\xf6\xff\xf1\xee\xc7\xe0\x99\xdb/9\x89\xc3S*r(a\x8e\xb5!\xd6\x12[\xc1\xa8\xc7\xe3\x80:L\xe0v\x0f\xbd!\xa2r\xb1+\x03\x95\xcf\x02\x8f\x92?368|4\xad\xfe\x98{\x16\x01<0\x80md\x08\xb3r\xe4\xca*\x85\xd0`\xa9\x85a\x93(\x9b\xa65\xf9\xec\xec\x86\xba\xc00Hhg\x08\xc8\x16\x07\x86(\x8d\xca\x18/\x1a\x81\n^xWx\xc3\x8c{\n\xad\xa6h\xf2\xd1\x1c\x8d&-^\xa1Yl\x19oL9\xe6\x8e\x86g\xbe\xae7W\xd2\xb4\x82q\xf1\xd1J\xa4\x8e\xe4\xbd\x056\xe3\xdd\xae\x92\xb0\xa7s\xcc\n\xeah{\xc4\xdfi\xeeAq\xa83\xc8W\xb6[H\x94KP\x1e\xddK\xd1\xdd\x18O2^\xb4Z(1\xe10\x02\xf9\xa4\xc6\x02\x94T[xIX\x19\x05.\xed?\\\xee\xf6\x9e\xb5\xf1\xf9I@\xb7W\xd4\xc8\xa3}\x92n\x16\xc7\xa6\xbf|=\xfc\xa8wu{\xf9v\xae\xfbf\xaf^\xfa\xe7\xef?w\x9d\xfazZo\x16\x87\xeeL\xaa\x8a4-9o\xdb\x97zI\x93c\xdd.\xab\xd5\xea#\xf9\xf0L\x8e\xc3o2(\xf9\x82\xa8\xdfm\xb0\xc7\xed\xe9T\xb7\xfbe\xb5\xae\xaa\xcd\xca\x18Tu\x7f\xf9Ro_\x86\xfa\xf3\xeb\xf6\xed\xd4t\xad\xf6\xa8%\xdak\xf3>\xf6z\xdb\x81\xa2dl\xf5\xaf9\xdca\xb3n\xde7\xe4\x13a)Uq\xfc\xe9\x06\xd2\xf4d?\xbcU\x1d@\xcc\x13\xf4Q\xec^\xcfw\xe8h\x0f\xab\xd5\xe2tn\xda\xcb\xf2\xe1\xe1\xf1W\xd7\xa8\xbcM\x00\x95\xca_\x02|\xfa\xf9'),"\n# who wears myDress the best?\nexec(ASnake.decompress(myDress)) ; del ASnake")))
                 lexIndex-=1
             elif '__future__' in tok.value:
@@ -747,7 +753,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             tmp += lex[tmpi].value.count('[')
                             tmp -= lex[tmpi].value.count(']')
                     if tmp >= 0: tok.type='IGNORE'
-                if bracketScope > 0: tok.type = 'IGNORE'
+                if bracketScope > 0 or (parenScope > 0 and tok.type != 'THEN'): tok.type = 'IGNORE'
                 if tok.type=='IGNORE': lex.append(tok)
                 else:
                     if lex[lexIndex].type == 'TAB':
@@ -817,7 +823,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tok.value=tok.value[1:]
                 while tok.value[0] in (' ','\t'): tok.value=tok.value[1:]
                 tmptok=copy(tok) ; tmptok.type='RPAREN' ; tmptok.value=')'
-                lex.append(tmptok) ; lexIndex+=1
+                lex.append(tmptok) ; lexIndex+=1 ; parenScope-=1
             if tok.value == '[]':
                 tmptok=copy(tok)
                 tmptok.type='LIST' ; tmptok.value='['
@@ -843,6 +849,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     lex.append(tmptok) ; del tmptok ; lexIndex+=1
                 for i in miniLex(tmpval+' '):
                     if i.type not in typeNewline: # genius, you can go crazy with whitespace in listcomps
+                        if i.type in {'LPAREN','FUNCTION'}: parenScope+=1
+                        elif i.type == 'RPAREN': parenScope-=1
                         i.lineno = lineNumber
                         lex.append(i)
                         lexIndex+=1
@@ -1096,6 +1104,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     lex.append(tok)
                 else:
                     if lexIndex>0 and lex[lexIndex].type == 'IGNORENL': lexIndex-=1 # newline is not real if IGNORENL \
+                    elif parenScope > 0: lexIndex-=1 # inside a parenthesis
                     else:
                         if lex[lexIndex].type == 'THEN': lex.pop() ; lexIndex-=1
                         if lex[lexIndex].type != 'NEWLINE':
@@ -1118,7 +1127,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 # !! allows reassignment of reserved keywords !!
                 lex[lexIndex].type = 'ID' ; lex.append(tok) ; reservedIsNowVar.append(lex[lexIndex].value.strip())
             else: lex.append(tok)
-        elif lex[lexIndex].type not in typeNewline and tok.type in ('LOOP','WHILE'):
+        elif lex[lexIndex].type not in typeNewline and tok.type in {'LOOP','WHILE'}:
             # loop/while can act as new expression indicators
             lex.append(makeToken(tok,'then','THEN')) ; lex.append(tok) ; lexIndex+=1
         elif tok.type == 'FUNCTION' and lex[lexIndex].type == 'ID' and lex[lexIndex].value.strip() == 'def' and 'def' not in reservedIsNowVar:
@@ -1140,6 +1149,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             bracketScope+=1 ; lex.append(tok)
         elif tok.type == 'RBRACKET':
             bracketScope-=1 ; lex.append(tok)
+        elif tok.type in {'FUNCTION','LPAREN'}:
+            parenScope+=1   ; lex.append(tok)
+        elif tok.type == 'RPAREN':
+            parenScope-=1   ; lex.append(tok)
         elif tok.type == 'ENDIF' and bracketScope > 0: tok.type='COLON' ; lex.append(tok)
         elif tok.type == 'SHEBANG':
             keepAtTop.append(tok) ; lexIndex-=1
@@ -3336,6 +3349,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         # these blocks help follow the order of operations for more accuracy
                         if token+3 < len(lex)-1 and ((lex[token+3].type == 'PIPE' and lex[token+3].value == 'to') or lex[token+1].type in typeNewline or lex[token+2].type in typeNewline): pass
                         elif lex[token-1].type in orderOfOps and lex[token+1].type in orderOfOps and not (lex[token-1].type == 'MINUS' and lex[token-2].type in tuple(orderOfOps)+tmpTypeSafe):
+                            #print('#-1', lex[token].value)
                             if (lex[token-1].type == 'LPAREN' or (orderOfOps[lex[token-1].type] < orderOfOps[lex[token+1].type]) or (lex[token-1].type=='MINUS' and lex[token-2].type in orderOfOps and (lex[token-2].type=='LPAREN' or orderOfOps[lex[token-2].type] < orderOfOps[lex[token+1].type])) ) \
                             and ((lex[token+3].type in typeNewline+('RPAREN',) or (isANegativeNumberTokens(token+2) and lex[token+4].type in typeNewline+('RPAREN',))) or not ((lex[token+3].type in orderOfOps and (orderOfOps[lex[token+3].type] >= orderOfOps[lex[token+1].type])) or (isANegativeNumberTokens(token+2) and lex[token+4].type in orderOfOps and orderOfOps[lex[token+4].type] >= orderOfOps[lex[token+1].type]))) \
                             and not (token+3 < len(lex) and lex[token+1].type == 'EXPONENT' and lex[token+3].type == 'EXPONENT') and not (token+4 < len(lex) and lex[token+1].type == 'EXPONENT' and isANegativeNumberTokens(token+2) and lex[token+4].type == 'EXPONENT'):
@@ -3386,9 +3400,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 elif lex[tmp].type in typeNewline+('LPAREN',) or orderOfOps[lex[token+1].type] >= orderOfOps[lex[tmp].type]:
                                     check = True
                                     #print('#2.2', lex[token].value)
+                                elif lex[tmp].type == 'RPAREN' and lex[token-1].type in {'FUNCTION','LPAREN'}:
+                                    # the case of ( 2 + 2 ) or print( 2 + 2 )
+                                    check = True
+                                    #print('#2.5', lex[token].value)
                             else:
                                 # simple three token eval
                                 check = True
+                                #print('#2.4',lex[token].value)
                         if token-2 > 0 and lex[token-1].type == 'MINUS' and lex[token-2].type in typeOperators and lex[token-2].type in orderOfOps and lex[token+1].type in orderOfOps and orderOfOps[lex[token+1].type] < orderOfOps[lex[token-1].type]:
                             check = False
                         if check and lex[token-1].type == 'BITWISE' and lex[token+1].type == 'BITWISE':
@@ -3412,7 +3431,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     else:
                                         if tmpf[-1].type in typeOperators: del tmpf[-1]
                                         break
-                                if tmpscope != 0: fail=True
+                                if tmpscope == 1 and tmpf[-1].type == 'RPAREN': tmpscope-=1 ; tmpf.pop()
+                                elif tmpscope != 0: fail=True
                                 #print(tmpscope, '--',[l.value for l in tmpf])
 
                                 if len(tmpf) <= 1 : fail = True
@@ -3448,7 +3468,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         lex[token].value=lex[token].value[:-1]+lex[token+2].value[c+1:]
                                         lex[token].value=lex[token].value[:-1]+quotes
                                         break
-                                if debug: print(f'merging into {lex[token].value}')
+                                if debug: print(f'! merging into {lex[token].value}')
                                 newOptimization=True
                                 lex[token+1].type=lex[token+2].type='IGNORE'
                             if lex[token].type == 'STRING' and lex[token+1].type == 'TIMES' and lex[token+2].type == 'NUMBER' and lex[token+2].value != '0' and '.' not in lex[token+2].value \
