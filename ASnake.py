@@ -187,7 +187,7 @@ class Lexer(Lexer):
     LPAREN  = r'\(|\['
     RPAREN  = r'\)|]'
 
-latestPythonVersionSupported='3.10'
+latestPythonVersionSupported='3.11'
 
 def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonVersion=latestPythonVersionSupported,enforceTyping=False,variableInformation={},outputInternals=False,metaInformation=False):
     # data is the string version of code for parsing
@@ -242,6 +242,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     elif compileTo == 'Cython': pythonVersion='3.6'
     elif compileTo == 'Pyston': pythonVersion='3.8'
     elif compileTo == 'MicroPython': pythonVersion='3.4'
+    elif compileTo == 'Codon':  pythonVersion='3.10'
 
     if compileTo == 'Cython': code=['# Cython compiled by ASnake '+ASnakeVersion]
     else: code=[f'# Python{pythonVersion} compiled by ASnake '+ASnakeVersion]
