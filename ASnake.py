@@ -238,7 +238,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     metaElseVersion = {'elseVersion','elseIfVersion','elsever'}
 
     if compileTo == 'PyPy3' and (pythonVersion == latestPythonVersionSupported or (not isinstance(pythonVersion, str) and pythonVersion > 3.8)):
-                                pythonVersion='3.7'
+                                pythonVersion='3.9'
     elif compileTo == 'Cython': pythonVersion='3.6'
     elif compileTo == 'Pyston': pythonVersion='3.8'
     elif compileTo == 'MicroPython': pythonVersion='3.4'
@@ -1291,8 +1291,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
         # vv incompatible optimizations vv
         if pythonVersion < 3.06:
-            optStrFormatToFString=False
-        elif pythonVersion < 3.08:
+            optStrFormatToFString = False
+        if pythonVersion < 3.08:
             optWalrus = False
 
 
