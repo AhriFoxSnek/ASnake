@@ -22,10 +22,13 @@ $start
 if (5*2+1) to float to str == '11.0' do working+=1
 else 'Parenthesis piping' $failed
 
-$start
-reverse does return x[::-1] from str x
-if ((6 to str * 3)+' wow') to reverse == 'wow 666' do working+=1
-else 'Nested parenthesis piping + define function' $failed
+$ ifVersion = 3.05
+	# the version check is mainly for MicroPython, not CPython
+	# MicroPython has a NotImplementedError
+	$start
+	reverse does return x[::-1] from str x
+	if ((6 to str * 3)+' wow') to reverse == 'wow 666' do working+=1
+	else 'Nested parenthesis piping + define function' $failed
 
 $start
 2+(4-2)//2
@@ -335,6 +338,16 @@ int ix , iy = z
 if ix is 1 and iy is 2 do $worked
 else 'type declaration on unpack' $failed
 
+
+$start
+ix = 12
+if x to str into float is 12.0 do $worked
+else 'pipe to into' $failed
+
+# $start
+# if x into str into float is 12.0 do $worked
+# else 'pipe double into' $failed
+# this case is broken rn
 
 
 f"Failed={failed} Working={working} out of {max}" to print
