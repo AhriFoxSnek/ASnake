@@ -641,7 +641,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 break
                 elif lex[lexIndex].value.strip() == 'into':
                     tok.type = 'IGNORE' ; tmpAddBy=None
-                    for tmpi in range(lexIndex-1, 0, -1):
+                    for tmpi in range(lexIndex-1, -1, -1):
                         if lex[tmpi].type in typeNewline+('ASSIGN','PYDEF','DEFFUNCT'):
                             tmp=True
                             if lex[tmpi].type == 'ASSIGN':
