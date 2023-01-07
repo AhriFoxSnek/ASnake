@@ -180,13 +180,13 @@ else 'int to range' $failed
 
 
 $start
-π is 3.14
-if π is 3.14 $worked
+ฯ€ is 3.14
+if ฯ€ is 3.14 $worked
 else 'non-ascii variable' $failed
 
 $start
-🤍💚🧡 is 'love'
-if 🤍💚🧡 is 'love' $worked
+๐ค๐’๐งก is 'love'
+if ๐ค๐’๐งก is 'love' $worked
 else '(multi) emoji variable' $failed
 
 
@@ -344,10 +344,9 @@ ix = 12
 if x to str into float is 12.0 do $worked
 else 'pipe to into' $failed
 
-# $start
-# if x into str into float is 12.0 do $worked
-# else 'pipe double into' $failed
-# this case is broken rn
+$start
+if x into str into float is 12.0 do $worked
+else 'pipe double into' $failed
 
 
 f"Failed={failed} Working={working} out of {max}" to print
