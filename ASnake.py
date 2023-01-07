@@ -642,7 +642,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif lex[lexIndex].value.strip() == 'into':
                     tok.type = 'IGNORE' ; tmpAddBy=None
                     for tmpi in range(lexIndex-1, -1, -1):
-                        if lex[tmpi].type in typeNewline+('ASSIGN','PYDEF','DEFFUNCT'):
+                        if lex[tmpi].type in typeNewline+('ASSIGN','PYDEF','DEFFUNCT')+typeConditionals:
                             tmp=True
                             if lex[tmpi].type == 'ASSIGN':
                                 if ':' in lex[tmpi].value: tmp=False
