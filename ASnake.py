@@ -245,6 +245,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     elif compileTo == 'Codon':  pythonVersion='3.10'
 
     if compileTo == 'Cython': code=['# Cython compiled by ASnake '+ASnakeVersion]
+    elif compileTo == 'Codon': code=['# Codon compiled by ASnake '+ASnakeVersion]
     else: code=[f'# Python{pythonVersion} compiled by ASnake '+ASnakeVersion]
 
 
@@ -6805,10 +6806,9 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runti
                 elif runtime == 'MicroPython':
                     pyCall = 'micropython'
                 else:
-                    proc = Popen("ls -ls /usr/bin/python* | awk '/-> python3/ {print $10 ;exit}'", shell=True, stdout=PIPE, stdin=PIPE)
-                    pyCall = proc.stdout.readline().decode().split('/')[-1].strip()
-                    if not pyCall:
-                        pyCall = 'python'
+                    if len(check_output(['which', 'python3']).decode()) > 0:
+                          pyCall = 'python3'
+                    else: pyCall = 'python'
             else: # windows
                 if runtime == 'PyPy':
                     try:
@@ -6824,16 +6824,23 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runti
             print(f'\t____________\n\t~ {runtime} Eval\n')
 
         if headless:
-            with open('ahrscriptExec.py','w') as f:
+            with open('ASnakeExec.py','w') as f:
                 f.write(code)
             if execTime:
                 s = monotonic()
-            child = Popen(f'{pyCall} ahrscriptExec.py', stdout=PIPE, cwd=os.getcwd(), shell=True)
+            child = Popen(f'{pyCall} ASnakeExec.py', stdout=PIPE, cwd=os.getcwd(), shell=True)
             child.communicate()
         else:
+            if runtime == 'Codon':
+                with open('ASnakeExec.py', 'w') as f:
+                    f.write(code)
+                commandString = (os.path.expanduser('~/.codon/bin/codon'), 'run', '--release', 'ASnakeExec.py')
+                headless=True
+            else:
+                commandString = (pyCall, '-c', code)
             if execTime:
                 s = monotonic()
-            spRun([pyCall, "-c", code])
+            spRun(commandString)
 
 
         if fancy:
@@ -6841,7 +6848,7 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runti
         if execTime:
             print('exec time:',monotonic()-s)
     if headless:
-        try: os.remove('ahrscriptExec.py')
+        try: os.remove('ASnakeExec.py')
         except: pass
 
 
@@ -6861,6 +6868,7 @@ if __name__ == '__main__':
     argParser.add_argument('-np', '--no-print', action='store_true', help="Doesn't print the compiled file on console.")
     argParser.add_argument('-jr', '--just-run', action='store_true', help="Will run compiled version of file if it exists, otherwise will compile and run it.")
     argParser.add_argument('-cy', '--cython', '--Cython', action='store_true', help="Compiles the code to Cython and .pyx")
+    argParser.add_argument('-cd', '--codon', '--Codon', action='store_true', help="Compiles the code to Codon.")
     argParser.add_argument('-pp', '--pypy', '--PyPy', action='store_true', help="Compiles to be compatible with PyPy3 Runtime.")
     argParser.add_argument('-ps', '--pyston', '--Pyston', action='store_true', help="Compiles to be compatible with Pyston runtime.")
     argParser.add_argument('-mp', '--micropython', '--MicroPython', action='store_true',help="Compiles to be compatible with MicroPython runtime.")
@@ -6876,6 +6884,7 @@ if __name__ == '__main__':
 
     args = argParser.parse_args()
 
+    data: str = ''
     if not stdin.isatty():
         data = sys.stdin.read()
         ASFile = False
@@ -6897,7 +6906,6 @@ if __name__ == '__main__':
     else:
         ASFile = args.file.name
         data=args.file.read()
-
 
 
     del args.file
@@ -6927,6 +6935,7 @@ if __name__ == '__main__':
     elif args.pyston: compileTo='Pyston'
     elif args.pypy: compileTo='PyPy3'
     elif args.micropython: compileTo = 'MicroPython'
+    elif args.codon: compileTo='Codon'
     else: compileTo='Python'
 
     if not fancy and not compileAStoPy: pep = False
@@ -6958,7 +6967,7 @@ if __name__ == '__main__':
             with open(tmpPath, 'wb') as file:
                 file.write(ASnek.content)
             print('# Downloaded latest ASnake.')
-            if ASFile == False and not args.eval:
+            if ASFile == False and not args.eval and not data:
                 exit()
             else:
                 print("# Warning: To run the latest ASnake you must do the command again, currently you are using the last version of ASnake.")
@@ -7082,6 +7091,22 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                     elif args.pypy: runtime = 'PyPy'
                     else: runtime = 'Cython'
                     execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=fancy,runtime=runtime,windows=WINDOWS,runCommand=args.run_command)
+        elif compileTo == 'Codon':
+            fileName=f'{ASFile}.codon'
+            with open(fileName, 'w') as f:
+                f.write(code)
+            try:
+                s = monotonic()
+                check_output(f"{os.path.expanduser('~/.codon/bin/codon')} build --release {fileName}", shell=True).decode()
+                print('# Codon compile time:', round(monotonic() - s, 2))
+                error = False
+            except CalledProcessError as e:
+                print(e.output.decode())
+                error = True
+            if not error:
+                print(check_output(f"./{ASFile.split('.')[0]}",shell=True).decode())
+
+
         if fancy:
             if ASFileExt == 'py' and not args.python_compatibility:
                 print('# Warning: Consider using -pc or --python-compatibility flag on Python files to ignore ASnake syntax.')
@@ -7106,6 +7131,7 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
         if args.pyston: runtime = 'Pyston'
         elif args.pypy: runtime = 'PyPy'
         elif args.micropython: runtime='MicroPython'
+        elif args.codon: runtime = 'Codon'
         else: runtime = 'Python'
 
         if compileTo == 'Cython':
