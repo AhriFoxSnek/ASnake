@@ -20,7 +20,7 @@ from unicodedata import category as unicodeCategory
 from sys import stdin
 from subprocess import check_output, CalledProcessError, STDOUT
 
-ASnakeVersion='v0.12.28'
+ASnakeVersion='v0.12.29'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -3619,6 +3619,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if lex[l].value=='(': lex[l].type='LPAREN'
                 else: lex[l].type='LIST'
             elif lex[l].type == 'IGNORE': del lex[l] ; l-=1
+            elif lex[l].type == 'FUNCTION' and lex[l].value[-1]!='(' and lex[l+1].type == 'LPAREN':
+                lex[l].value+='(' ; del lex[l+1]
             l+=1
         pyIs=ogPyIs
         del wasImported
@@ -3848,7 +3850,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tmpIter = [copy(lex[lexIndex + 1])]
         
         if isAppending and tmpVal and tmpVal in storedVarsHistory and 'type' in storedVarsHistory[tmpVal] \
-        and storedVarsHistory[tmpVal]['type'] in ('LIST', 'LISTCOMP') and 'line' in storedVarsHistory[tmpVal]:
+        and storedVarsHistory[tmpVal]['type'] in {'LIST', 'LISTCOMP'} and 'line' in storedVarsHistory[tmpVal]:
             for ii in range(tmpi,len(lex)-1):
                 if lex[ii].type in typeNewline:
                     tmpPos=ii-1 ; break
@@ -3861,10 +3863,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tmpPreTokens.append(makeToken(lex[lexIndex], ',', 'COMMA'))
             else:  # non empty list
                 line.append(decideIfIndentLine(indent, f'{tmpVal}.extend(map({func},'))
+                parenScope+=2
             tmpParen = 2
             tmpFound = True
         elif not isAppending and expressionStart != None and expressionStart+4 < len(lex):
-            tmpFound = False
+            tmpFound = False ; tmpList=''
             # list( is needed for globals in functions. in instances where its known function is pure, we should get rid of it
             if lex[expressionStart+1].type == 'FUNCTION' and lex[expressionStart+2].type != 'COMMAGRP' and lex[expressionStart+3].type == 'RPAREN' and lex[expressionStart+4].type in typeNewline:
                 if expressionStart + 3 + 2 < len(lex)-1 and lex[expressionStart + 3 + 2].type == 'LOOP': return False
@@ -3885,6 +3888,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tmpFound = True
                 tmpPos = expressionStart + 1
                 line.append(decideIfIndentLine(indent, f'{tmpList}map({tmpf}, '))
+            if tmpFound:
+                parenScope += 2 if tmpList else 1
 
         if tmpFound:
             for t in range(lexIndex, tmpPos+1):
@@ -4022,7 +4027,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             expPrint[0]=indent
             if len(expPrint) > 2:
                 expPrint.pop()
-        if tok.type=='IGNORE' and tok.value[-1]==')' and parenScope>0: parenScope-=1
         if debug: print(lineNumber,lexIndex,indent,f'({parenScope}','{'+str(bracketScope),f'[{listScope}','%s'%('T' if startOfLine == True else 'F'),'%s'%('T' if indentSoon == True else 'F'),'%s'%('T' if inIf == True else 'F'),'%s'%('T' if (hasPiped or hasPiped==None) else 'F'),'%s'%('T' if notInDef == True else 'F'),tok.type,tok.value.replace('\n','\\n').replace('\t','\\t'))
         if not inFuncArg or tok.type in typeNewline:
             if tok.type in typeAssignables: # idVALUES
@@ -4197,6 +4201,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if lastType == 'LISTCOMP':
                         tok.type='FUNCTION' ; tok.value+='('
                         line.append(decideIfIndentLine(indent,tok.value))
+                        parenScope+=1
                         tmptok=copy(tok)
                         tmptok.value=')' ; tmptok.type = 'RPAREN'
                         tmpfquote=''
@@ -4798,7 +4803,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     return AS_SyntaxError(
                                 f'You are missing a closing parenthesis',
                                 f'equal number of ( and ) like:\n{("".join(line)+")"*tmp) if len(line) > 0 else "this( thing )"}'
-                                ,lineNumber,data)
+                                , lineNumber if line else lineNumber-1 ,data)
                 else:
                     safe=True
                     if optimize and optListPlusListToExtend and lastValue in storedVarsHistory and (
@@ -5523,6 +5528,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if lex[lexIndex+1].type not in typeNewline+('IGNORE','INC','FSTR','PIPEGO','PIPE') and lex[lexIndex-1].type != 'IGNORE':
                         if lex[lexIndex+1].type == 'RBRACKET': bracketScope-=1
                         elif lex[lexIndex+1].type == 'RPAREN': parenScope-=1
+                        elif lex[lexIndex+1].type in {'LPAREN', 'FUNCTION'}: parenScope+=1
                         lex[lexIndex+1].value=f'{line[-1]},{lex[lexIndex+1].value}'
                         line=line[:-1]
                         lex[lexIndex+1].type='COMMAGRP' ; tok.type='IGNORE' ; lex[lexIndex-1].type='IGNORE'
@@ -6157,10 +6163,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     and storedVarsHistory[tok.value.split('.')[0]]['type']=='LIST' and len(tok.value.split('.')) > 1 and '.'+tok.value.split('.')[1] in listMods and 'value' in storedVarsHistory[tok.value.split('.')[0]]:
                         del storedVarsHistory[tok.value.split('.')[0]]['value']
                     # ^ if list is being modified, we don't know the value anymore, so forget it
-                    elif tok.type=='INDEX' and lexIndex-1>0 and lex[lexIndex-1].type in ('ASSIGN','ID'):
+                    elif tok.type=='INDEX' and lexIndex-1>0 and lex[lexIndex-1].type in {'ASSIGN','ID'}:
                         # just storing var in history if it assigns to index without an assignment token
-                        if lex[lexIndex-1].type in ('ID','INDEX','COMMAGRP'): tmpi=1
-                        elif lexIndex-2>0 and lex[lexIndex-2].type in ('ID','INDEX','COMMAGRP','BUILTINF'): tmpi=2
+                        if lex[lexIndex-1].type in {'ID','INDEX','COMMAGRP'}: tmpi=1
+                        elif lexIndex-2>0 and lex[lexIndex-2].type in {'ID','INDEX','COMMAGRP','BUILTINF'}: tmpi=2
                         else:
                             tmp=True
                             tmpListScope=0
@@ -6170,17 +6176,21 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 elif lex[tmpi].type in typeNewline and tmpListScope == 0:
                                     tmp=False ; break
                             if tmp:
-                                return AS_SyntaxError(f'Assignment needs a var ID',f'myVar is {tok.value}',lineNumber,data)
+                                return AS_SyntaxError('Assignment needs a var ID',f'myVar is {tok.value}',lineNumber,data)
 
                         if lex[lexIndex-tmpi].value in storedVarsHistory:
                             storedVarsHistory[lex[lexIndex-tmpi].value]['value'] = 'INDEX'
                         else: storeVar(lex[lexIndex-tmpi],tok,lex[lexIndex+1],position=lexIndex)
-                    elif tok.type == 'RPAREN': parenScope=parenScope-1 if parenScope > 0 else 0
+                    elif tok.type == 'RPAREN':
+                        parenScope -= 1
+                        if parenScope < 0:
+                            return AS_SyntaxError(f'Too many closing parenthesis.', ' '.join(line), lineNumber, data)
+
                     elif lastType in typeNewline and lex[lexIndex].type=='INDEX':
                         check=True
                         for t in range(lexIndex+1,len(lex)):
                             if lex[t].type in typeNewline: break
-                            elif lex[t].type in ('FUNCTION','BUILTINF','ASSIGN','PIPE'): check=False ; break
+                            elif lex[t].type in {'FUNCTION','BUILTINF','ASSIGN','PIPE'}: check=False ; break
                             elif lex[t-1].type == 'INDEX' and lex[t].type == 'INDEX': check=False ; break
                         if check:
                             line.append(decideIfIndentLine(indent,f'{expPrint[-1]}('))
@@ -6204,7 +6214,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         bigWrap=True
                 elif tok.type == 'WITHAS' and tok.value.startswith('as'): tok.value=f' {tok.value}'
                 elif tok.type == 'WITHAS' and not lastIndent[4]: lastIndent[4] = indent
-                elif tok.type == 'RPAREN': parenScope=parenScope-1 if parenScope > 0 else 0
+                elif tok.type == 'RPAREN':
+                    parenScope-=1
+                    if parenScope < 0:
+                        return AS_SyntaxError(f'Too many closing parenthesis.', ' '.join(line), lineNumber, data)
                 elif tok.type == 'FSTR': # idFSTR
                     if startOfLine and (lastType in typeNewline+('ELSE','DEFFUNCT') or inLoop[0]):
                         check=True # if pipe then dont assume print , else do
@@ -6306,7 +6319,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if doPrint: line.append(decideIfIndentLine(indent,f'{expPrint[-1]}(')); bigWrap = True; rParen += 1
 
                 # 1,2,3 in a
-                if tok.type == 'COMMAGRP':
+                if tok.type == 'COMMAGRP': # idCOMMAGRP
                     if lastType == 'ID' and lex[lexIndex-1].value!='print' and inIf == False and findEndOfFunction(lexIndex-1,goBackwards=True)==False:
                         line.append(' = ')
                     elif lastType in 'TYPE' and lex[lexIndex-2].type in typeNewline+('CONST',) and '=' in tok.value:
@@ -6315,13 +6328,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     else:
                         listScope += tok.value.count('[')
                         listScope -= tok.value.count(']')
-                        parenScope -= tok.value.count(')')
                 elif tok.type == 'LIST': inIf=True
                 elif tok.type == 'RETURN':
                     if 'yield' not in tok.value and lastType not in typeNewline:
                         line.append('\n') ; startOfLine=True
                     inIf=True ; inReturn=True
-                if tok.type == 'COMMAGRP' and tok.value.endswith('('): parenScope+=1
 
 
 
@@ -6785,10 +6796,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runtime='Python',windows=False,runCommand=None):
     if pep:
         if execTime:
+            print('# autopep8 time: ', end='', flush=True)
             s=monotonic()
         code=fix_code(code,options={'ignore': ['E114','E115','E116','E261','E262','E265','E266','E301','E302','E305','E4','E701','E702','E704','E722','E731','W3','W5','W6']})
         if execTime:
-            print('# autopep8 time:', round(monotonic()-s, 4))
+            print(round(monotonic()-s, 4))
     if fancy:
         print(code)
     if run:
@@ -6985,16 +6997,18 @@ if __name__ == '__main__':
         if 'windows' in OSName().lower():
             WINDOWS = True
 
+    if fancy or compileAStoPy: print('# build time: ', end='', flush=True)
     s=monotonic()
     if (compileTo == 'Cython' and justRun) == False:
         code=build(data,comment=comment,optimize=optimize,debug=debug,compileTo=compileTo,pythonVersion=pythonVersion,enforceTyping=enforceTyping)
     else: code=''
     if fancy or compileAStoPy:
-        print('# build time:',round(monotonic()-s,4))
+        print(round(monotonic()-s,4))
     if pep or headless:
+        print('# newline cleanup time: ', end='', flush=True)
         s=monotonic()
         code=REsub(r"""\n\n+(?=([^"'\\]*?(\\.|("|')([^"'\\]*?\\.)*?[^"'\\]*?("|')))*?[^"']*?$)""",'\n',code)
-        print('# newline cleanup time:',round(monotonic()-s,4))
+        print(round(monotonic()-s,4))
     if compileAStoPy:
         if args.path:
             if WINDOWS:
@@ -7013,9 +7027,10 @@ if __name__ == '__main__':
         ASFile = "".join(x for x in ASFile.split('/')[-1] if x.isalnum())
         fileName=f'{ASFile}.py{"x" if compileTo=="Cython" else ""}'
         if pep:
+            print('# autopep8 time:', end='', flush=True)
             s = monotonic()
             code=fix_code(code,options={'ignore': ['E265']})
-            print('# autopep8 time:', round(monotonic() - s, 4))
+            print(round(monotonic() - s, 4))
         if filePath=='/': filePath=''
         if ASFileExt == 'py' and os.path.isfile(filePath+fileName):
             fileName="AS_"+fileName
@@ -7060,10 +7075,11 @@ except ModuleNotFoundError:
 setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.annotate else False}),
 {'include_dirs=[numpy.get_include(),"."]' if includeNumpy else 'include_dirs=["."]'})""")
             try:
+                print('# C compile time: ', end='', flush=True)
                 s = monotonic()
                 cythonCompileText = check_output(f'{py3Command} ASsetup.py build_ext --inplace', shell=True).decode()
                 error=False
-                print('# C compile time:',round(monotonic()-s,2))
+                print(round(monotonic()-s,2))
             except CalledProcessError as e:
                 cythonCompileText = e.output.decode()
                 error=True
@@ -7096,9 +7112,10 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
             with open(fileName, 'w') as f:
                 f.write(code)
             try:
+                print('# Codon compile time:', end='', flush=True)
                 s = monotonic()
                 check_output(f"{os.path.expanduser('~/.codon/bin/codon')} build --release {fileName}", shell=True).decode()
-                print('# Codon compile time:', round(monotonic() - s, 2))
+                print(round(monotonic() - s, 2))
                 error = False
             except CalledProcessError as e:
                 print(e.output.decode())
