@@ -13,7 +13,6 @@ from re import sub as REsub
 from re import compile as REcompile
 from re import search as REsearch
 from re import findall as REfindall
-from re import match as REmatch
 from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
@@ -6997,13 +6996,15 @@ if __name__ == '__main__':
         if 'windows' in OSName().lower():
             WINDOWS = True
 
-    if fancy or compileAStoPy: print('# build time: ', end='', flush=True)
+    if not debug and (fancy or compileAStoPy): print('# build time: ', end='', flush=True)
     s=monotonic()
     if (compileTo == 'Cython' and justRun) == False:
         code=build(data,comment=comment,optimize=optimize,debug=debug,compileTo=compileTo,pythonVersion=pythonVersion,enforceTyping=enforceTyping)
     else: code=''
     if fancy or compileAStoPy:
-        print(round(monotonic()-s,4))
+        s=round(monotonic()-s,4)
+        if debug: print('# build time:', s)
+        else: print(s)
     if pep or headless:
         print('# newline cleanup time: ', end='', flush=True)
         s=monotonic()
