@@ -6,7 +6,7 @@ from sly import Lexer
 from autopep8 import fix_code
 
 # standard library
-import os
+from os import path, remove
 from copy import copy
 from time import monotonic
 from re import sub as REsub
@@ -16,7 +16,6 @@ from re import findall as REfindall
 from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
-from sys import stdin
 from subprocess import check_output, CalledProcessError, STDOUT
 
 ASnakeVersion='v0.12.29'
@@ -6835,17 +6834,18 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runti
             print(f'\t____________\n\t~ {runtime} Eval\n')
 
         if headless:
+            from os import getcwd
             with open('ASnakeExec.py','w') as f:
                 f.write(code)
             if execTime:
                 s = monotonic()
-            child = Popen(f'{pyCall} ASnakeExec.py', stdout=PIPE, cwd=os.getcwd(), shell=True)
+            child = Popen(f'{pyCall} ASnakeExec.py', stdout=PIPE, cwd=getcwd(), shell=True)
             child.communicate()
         else:
             if runtime == 'Codon':
                 with open('ASnakeExec.py', 'w') as f:
                     f.write(code)
-                commandString = (os.path.expanduser('~/.codon/bin/codon'), 'run', '--release', 'ASnakeExec.py')
+                commandString = (path.expanduser('~/.codon/bin/codon'), 'run', '--release', 'ASnakeExec.py')
                 headless=True
             else:
                 commandString = (pyCall, '-c', code)
@@ -6859,13 +6859,15 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runti
         if execTime:
             print('exec time:',monotonic()-s)
     if headless:
-        try: os.remove('ASnakeExec.py')
+        try: remove('ASnakeExec.py')
         except: pass
 
 
         
 if __name__ == '__main__':
     from argparse import ArgumentParser, FileType
+    from sys import stdin
+    from os import rename, chdir, listdir
     argParser=ArgumentParser()
     argParser.add_argument('-r', '--run', action='store_true', help="Compiles file in memory then runs it.")
     argParser.add_argument('-e', '--eval', action='store', help="Compiles ASnake in a string to Python and runs it.")
@@ -6899,13 +6901,13 @@ if __name__ == '__main__':
     if not stdin.isatty():
         data = sys.stdin.read()
         ASFile = False
-    elif args.file == None or not os.path.isfile(args.file.name):
+    elif args.file == None or not path.isfile(args.file.name):
         if args.eval:
             data = args.eval
             ASFile = False
             runCode = True
         else:
-            tmp=[i for i in os.listdir() if i.endswith('.asnake')]
+            tmp=[i for i in listdir() if i.endswith('.asnake')]
             if not tmp:
                 tmp='myScript.asnake'
             else: tmp=tmp[0]
@@ -6956,9 +6958,9 @@ if __name__ == '__main__':
             from requests import get
         except ModuleNotFoundError:
             print('Update failed. Module requests required. Please do something like:\n\tpython -m pip install requests') ; exit()
-        if os.path.isfile('ASnake.py'):
+        if path.isfile('ASnake.py'):
             ASnek = get("https://raw.githubusercontent.com/AhriFoxSnek/ASnake/main/ASnake.py")
-            if 'ASnake.py' in os.listdir():
+            if 'ASnake.py' in listdir():
                 tmpPath='ASnake.py'
                 tmpPrevious="previous_ASnake.py"
             else:
@@ -6970,10 +6972,10 @@ if __name__ == '__main__':
                     tmpPath = tmp
                     tmpPrevious = '/'.join(tmp.split('/')[:-1])+"previous_ASnake.py"
             try:
-                os.remove(tmpPrevious)
+                remove(tmpPrevious)
             except:
                 pass
-            os.rename(tmpPath, tmpPrevious)
+            rename(tmpPath, tmpPrevious)
             
             with open(tmpPath, 'wb') as file:
                 file.write(ASnek.content)
@@ -7015,7 +7017,7 @@ if __name__ == '__main__':
             if WINDOWS:
                 from pathlib import PureWindowsPath
                 args.path = PureWindowsPath(args.path).as_posix()
-            if os.path.isdir(args.path):
+            if path.isdir(args.path):
                 args.path += '/'
             if args.path.endswith('/'):
                 args.path+="".join(x for x in '.'.join(ASFile.rsplit('.')[:-1]).split('/')[-1] if x.isalnum())
@@ -7033,7 +7035,7 @@ if __name__ == '__main__':
             code=fix_code(code,options={'ignore': ['E265']})
             print(round(monotonic() - s, 4))
         if filePath=='/': filePath=''
-        if ASFileExt == 'py' and os.path.isfile(filePath+fileName):
+        if ASFileExt == 'py' and path.isfile(filePath+fileName):
             fileName="AS_"+fileName
         if code.startswith(f'# ASnake {ASnakeVersion} ERROR'):
             execPy(code, run=True, execTime=False, pep=False, headless=False, fancy=False, windows=WINDOWS,runCommand=args.run_command)
@@ -7084,7 +7086,7 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
             except CalledProcessError as e:
                 cythonCompileText = e.output.decode()
                 error=True
-            os.remove('ASsetup.py')
+            remove('ASsetup.py')
             if fancy or error:
                 print(cythonCompileText)
                 if error and py3Command == 'pypy3':
@@ -7096,11 +7098,11 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
             if not error:
                 cythonsoFile=cythonCompileText.split('/')[-1][:-5]
                 if filePath:
-                    os.rename(cythonsoFile,filePath+cythonsoFile)
+                    rename(cythonsoFile,filePath+cythonsoFile)
 
                 if runCode:
                     if filePath:
-                        os.chdir(filePath)
+                        chdir(filePath)
                     execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=False,windows=WINDOWS)
                     if '/' in ASFile: tmp=f"import sys\nsys.path.append('{ASFile.split('/')[-1]}')\nimport {ASFile.split('/')[-1]}"
                     else: tmp=f'import {ASFile}'
@@ -7115,7 +7117,7 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
             try:
                 print('# Codon compile time:', end='', flush=True)
                 s = monotonic()
-                check_output(f"{os.path.expanduser('~/.codon/bin/codon')} build --release {fileName}", shell=True).decode()
+                check_output(f"{path.expanduser('~/.codon/bin/codon')} build --release {fileName}", shell=True).decode()
                 print(round(monotonic() - s, 2))
                 error = False
             except CalledProcessError as e:
@@ -7144,7 +7146,7 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
     else:
         if ASFile:
             tmp='/'.join(ASFile.split('/')[:-1])+'/'
-            if tmp != '/': os.chdir(tmp)
+            if tmp != '/': chdir(tmp)
 
         if args.pyston: runtime = 'Pyston'
         elif args.pypy: runtime = 'PyPy'
