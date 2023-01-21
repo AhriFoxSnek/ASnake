@@ -1253,6 +1253,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'boolTonotnot':True,
                             'microPythonConst':True,
                             'EvalnotBoolInversion':True, # Only provides performance to pypy, but its easy enough to leave it default
+                            'sqrtMath': True,
                             }
         optConstantPropagation=True
         optMathEqual=True
@@ -1907,12 +1908,19 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     safe=False
                                 tmpi=2
                             else: tmpi=1
+                            if tmpi == 2 and lex[token+tmpi].type == 'IF':
+                                tmpfstr=False
+                                for _ in range(token+tmpi,len(lex)-1):
+                                    if not tmpfstr and lex[_].type == 'THEN': tmpTenary = _ ; break
+                                    elif lex[_].type == 'FSTR': tmpfstr=not tmpfstr
+                            else: tmpTenary = False
 
                             if safe:
                                 # get forward conditionals indent
-                                tmpIndent=0
+                                tmpIndent=0 ; tmpInConditional=False ; tmpConditionalIndex=0
                                 for tmpii in range(token+1,len(lex)-1):
                                     if lex[tmpii].type == 'IF' and lex[tmpii-1].type in typeNewline:
+                                        tmpInConditional=True ; tmpConditionalIndex=tmpii
                                         if lex[tmpii].type == 'THEN' and lex[tmpii+1].type not in {'TAB','NEWLINE'}:
                                             tmpIndent=-1 # negative 1 should signify that it is on same indent
                                             break
@@ -1920,10 +1928,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             tmpIndent=lex[tmpii].value.count(' ') ; break
                                         elif lex[tmpii].type == 'NEWLINE':
                                             tmpIndent=0 ; break
-                                    elif lex[tmpii].type == 'ID' and lex[tmpii].value == lex[token].value and lex[tmpii+1].type in typeAssignables+('ASSIGN',):
-                                        safe=False
+                                    elif lex[tmpii].type == 'ID' and lex[tmpii].value == lex[token].value and not tmpInConditional:
+                                        safe=False ; break
                                     elif lex[tmpii].type in {'WHILE','LOOP'}:
-                                        safe=False
+                                        safe=False ; break
 
                                 # check behind
                                 if safe:
@@ -1938,7 +1946,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 tmpFirstTNewline = True
                                         elif lex[tmpii].type == 'OF': safe = False
 
-
                             if safe:
                                 tmpIndent = 0 ; tmp = 1
                                 if lex[token - 1].type == 'TYPE': tmp = 2
@@ -1946,7 +1953,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                 tmpf=[] ; tmpval=lex[token].value ; tmpAddTotmpf=True
                                 for t in range(token+tmpi,len(lex)-1):
-                                    if lex[t].type in typeNewline and lex[t+1].type == 'IF':
+                                    if lex[t].type in typeNewline:
+                                        if t == tmpTenary:
+                                            if tmpAddTotmpf: tmpf.append([lex[t].value,lex[t].type])
+                                            continue
                                         tmpi=t+1
                                         if (lex[t].type == 'TAB' and lex[t].value.replace('\t',' ').count(' ') < tmpIndent) \
                                         or (lex[t].type == 'NEWLINE' and tmpIndent > 0):
@@ -1957,9 +1967,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     elif lex[t].type == 'INC': tmpf=[] ; break
                                     elif lex[t].type == 'NEWLINE': tmpAddTotmpf=False
                                     elif tmpAddTotmpf: tmpf.append([lex[t].value,lex[t].type])
-                                if tmpf != [] and lex[tmpi].type == 'IF':
+
+                                if tmpf != [] and tmpConditionalIndex:
                                     search=False
-                                    for t in range(tmpi,len(lex)-1):
+                                    for t in range(tmpConditionalIndex,len(lex)-1):
                                         if lex[t].type=='IF' and lex[t+1].type=='ID' \
                                         and lex[t+1].value == lex[token].value and ((lex[t+2].type != 'ASSIGN' and ':' not in lex[t+2].value) or lex[t+2].value.strip() == 'is'):
                                             search=True
@@ -2131,7 +2142,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     if debug: print(f"! split multi-assign: {', '.join([i[0].value for i in tmpVars])}")
 
 
-                    
+                        if optFuncTricks and optFuncTricksDict['sqrtMath'] and lex[token+1].type == 'EXPONENT' and lex[token+2].type == 'NUMBER' and lex[token+2].value in {'0.5','.5'}:
+                            lex[token + 1] = copy(lex[token])
+                            lex[token + 2] = makeToken(lex[token], ')', 'RPAREN')
+                            lex[token].type = 'FUNCTION' ; lex[token].value = 'sqrt('
+                            insertAtTopOfCodeIfItIsNotThere("from math import sqrt")
+                            if lex[token - 1].type in {'TAB', 'NEWLINE'}:
+                                lex.insert(token,makeToken(lex[token], 'defExp','DEFEXP'))
+
 
                     elif lex[token].type == 'META':
                         metaCall=lex[token].value.replace('$','').replace(' ','').lower()
@@ -4939,7 +4957,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif search:
                                 tmp.append(lex[tmpi].value)
                                 lex[tmpi].type=lex[tmpi].type='IGNORE'
-                            elif lex[tmpi].type == 'THEN' and lex[tmpi+1].type in typeAssignables+('ASSIGN','FUNCTION','BUILTINF','LPAREN'):
+                            elif lex[tmpi].type == 'THEN' and lex[tmpi+1].type in typeAssignables+('ASSIGN','FUNCTION','BUILTINF','LPAREN','FSTR'):
                                 lex[tmpi].type=lex[tmpi].type='IGNORE'
                                 search=True
                             elif lex[tmpi].type in typeNewline: break
