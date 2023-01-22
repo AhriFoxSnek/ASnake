@@ -2435,7 +2435,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             if not tmpIsFunc: lex[token + 4].type = 'IGNORE'
                                             check=True
                                         elif not tmpmax.isdigit() or int(tmpmax) < randTooBig:
-                                            lex[token].value = f'int(random()*({tmpmax}+1)'
+                                            lex[token].value = f'random()*({tmpmax}+1)'
+                                            if compileTo == 'Cython': lex[token].value='<int>('+lex[token].value
+                                            else: lex[token].value='int('+lex[token].value
                                             if lex[token + 2].type == 'COMMA': lex[token + 3].type = 'IGNORE'
                                             lex[token + 1].type = lex[token + 2].type = 'IGNORE'
                                             check = True
