@@ -2688,7 +2688,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if lex[tmpi].value.count(' ') <= tmpindent: break
                                         else: firstIndent=True
                                     elif lex[tmpi].type == 'NEWLINE': break
-                                    elif lex[tmpi].type=='BUILTINF' and '.' in lex[tmpi].value and lex[tmpi].value[0] not in ('"',"'",'.') and not lex[tmpi].value.startswith('self.') and not lex[tmpi].value.startswith('cls.') and not lex[tmpi].value.startswith(lex[token+1].value+'.') and lex[tmpi].value.split('.')[0] not in ignoreVars and firstIndent and not (optFuncTricks and optFuncTricksDict['popToDel'] and lex[tmpi].value.split('.')[-1] == 'pop' and lex[tmpi+2].type in {'NUMBER','ID'} and lex[tmpi+4].type in typeNewline):
+                                    elif lex[tmpi].type=='BUILTINF' and '.' in lex[tmpi].value and lex[tmpi].value[0] not in ('"',"'",'.') and not lex[tmpi].value.startswith('self.') and not lex[tmpi].value.startswith('cls.') and not lex[tmpi].value.startswith(lex[token+1].value+'.') and lex[tmpi].value.split('.')[0] not in ignoreVars and firstIndent and not (optFuncTricks and optFuncTricksDict['popToDel'] and lex[tmpi].value.split('.')[-1] == 'pop' and ((lex[tmpi+2].type in {'NUMBER','ID'} and lex[tmpi+4].type in typeNewline) or (lex[tmpi+2].type=='MINUS' and lex[tmpi+3].value != '1' and lex[tmpi+5].type in typeNewline )) ):
                                         check=False ; minindent=None
                                         tmpImportName=lex[tmpi].value.split('.')[0]
                                         if tmpImportName+'.' in importcheck: break
@@ -6098,18 +6098,21 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 line.append('= ')
                             if lex[lexIndex-2].type == 'TYPE':storeVar(lex[lexIndex-1],tok,lex[lexIndex+1],lex[lexIndex-2],position=lexIndex)
                             else: storeVar(lex[lexIndex-1],tok,lex[lexIndex+1],position=lexIndex)
-                    elif optimize and tok.type == 'BUILTINF' and optFuncTricks and optFuncTricksDict['popToDel'] and tok.value.endswith('.pop') and lastType in typeNewline and checkVarType(tok.value.split('.')[0], 'LIST') \
+                    elif optimize and tok.type == 'BUILTINF' and optFuncTricks and optFuncTricksDict['popToDel'] and ((tok.value.endswith('.pop') and checkVarType(tok.value.split('.')[0], 'LIST')) or (tok.value.startswith('AS') and tok.value.endswith('_pop') and checkVarType(tok.value,'BUILTINF') and checkVarType(tok.value[2:].split('_pop')[0],'LIST'))) and lastType in typeNewline \
                     and (((lex[lexIndex+2].type == 'NUMBER' or (lex[lexIndex+2].type=='ID' and checkVarType(lex[lexIndex+2].value,'NUMBER'))) and lex[lexIndex+3].type == 'RPAREN' and lex[lexIndex+4].type in typeNewline) or (lex[lexIndex+2].type == 'MINUS' and (lex[lexIndex+3].type == 'NUMBER' or lex[lexIndex+3].type == 'ID' and checkVarType(lex[lexIndex+3].value,'NUMBER')) and lex[lexIndex+4].type == 'RPAREN' and lex[lexIndex+5].type in typeNewline)):
-                        if isANegativeNumberTokens(lexIndex+2):
+                        if lex[lexIndex+2].type == 'MINUS' and lex[lexIndex+3].type == 'NUMBER' and lex[lexIndex+3].value == '1':
                             # x.pop(-1) --> x.pop()
                             lex[lexIndex+2].type = lex[lexIndex+3].type = 'IGNORE'
-                        else:
+                        elif not tok.value.startswith('AS'):
                             # x.pop(y) --> del x[y]
                             lastType = 'RETURN' ; lastValue = 'del'
                             line.append(decideIfIndentLine(indent,'del '))
                             tok.value=tok.value.split('.')[0] ; tok.type='ID'
                             lex[lexIndex+1].type = 'LINDEX' ; lex[lexIndex+1].value = '['
-                            lex[lexIndex+3].type = 'RINDEX' ; lex[lexIndex+3].value = ']'
+                            if lex[lexIndex+2].type == 'MINUS':
+                                lex[lexIndex+4].type = 'RINDEX' ; lex[lexIndex+4].value = ']'
+                            else:
+                                lex[lexIndex+3].type = 'RINDEX' ; lex[lexIndex+3].value = ']'
                     if lexIndex+1 < len(lex):
                         if tok.type=='FUNCTION' and lex[lexIndex+1].type == typeAssignables+('ASSIGN','ASSIGN') and tok.value.endswith('()'):
                             tok.value=tok.value.replace('()','')
