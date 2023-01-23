@@ -239,7 +239,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 pythonVersion='3.9'
     elif compileTo == 'Cython': pythonVersion='3.6'
     elif compileTo == 'Pyston': pythonVersion='3.8'
-    elif compileTo == 'MicroPython': pythonVersion='3.4'
+    elif compileTo == 'MicroPython': pythonVersion='3.8'
     elif compileTo == 'Codon':  pythonVersion='3.10'
 
     if compileTo == 'Cython': code=['# Cython compiled by ASnake '+ASnakeVersion]
