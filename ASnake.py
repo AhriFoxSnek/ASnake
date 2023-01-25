@@ -18,7 +18,7 @@ from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 from subprocess import check_output, CalledProcessError, STDOUT
 
-ASnakeVersion='v0.12.29'
+ASnakeVersion='v0.12.30'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -1839,7 +1839,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             if tmpLastIndent < 0: tmpLastIndent = 0
                                                             if tmpindent > tmpLastIndent: search = False
                                                     elif lex[tmpi].type in typeConditionals and lex[tmpi-1].type in typeNewline:
-                                                        tmpindent+=prettyIndent
+                                                        inLoop[1]+=prettyIndent
 
                                                 if tmpi >= len(lex)-1 and linkType and (enforceTyping or compileTo == 'Cython') and lex[token-1].type != 'TYPE'\
                                                 and lex[token-2].type != 'LOOP' and lex[token-1].type != 'ID':
@@ -2147,10 +2147,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex[token + 1] = copy(lex[token])
                             lex[token + 2] = makeToken(lex[token], ')', 'RPAREN')
                             lex[token].type = 'FUNCTION' ; lex[token].value = 'sqrt('
-                            insertAtTopOfCodeIfItIsNotThere("from math import sqrt")
                             if lex[token - 1].type in {'TAB', 'NEWLINE'}:
                                 lex.insert(token,makeToken(lex[token], 'defExp','DEFEXP'))
-
+                            newOptimization=True
+                            if 'math.' in wasImported and 'sqrt' not in wasImported['math.']:
+                                wasImported['math.'].append('sqrt')
+                            else:
+                                insertAtTopOfCodeIfItIsNotThere("from math import sqrt")
 
                     elif lex[token].type == 'META':
                         metaCall=lex[token].value.replace('$','').replace(' ','').lower()
