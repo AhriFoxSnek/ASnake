@@ -3711,7 +3711,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             storedVarsHistory[var1.value]['staticType']=staticType.value
 
         if var2 != None and var2.type == 'ID' and var2.value in storedVarsHistory \
-        and storedVarsHistory[var2.value]['type'] in ('LIST','LISTCOMP') and var3.type in typeNewline:
+        and storedVarsHistory[var2.value]['type'] in ('LIST','LISTCOMP') and var3.type in typeNewline and var1.type != 'RINDEX':
             # copy list on assignment, screw references
             if lex[lexIndex].value==var2.value: lex[lexIndex].value+='[:]'
             elif lex[lexIndex+1].value==var2.value: lex[lexIndex+1].value+='[:]'
