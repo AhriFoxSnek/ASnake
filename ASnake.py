@@ -2611,6 +2611,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 # forumula: int(some_float * (10 ** TOLERANCE) - (.5 if some_float < 0 else -.5)) / (10 ** TOLERANCE)
                                 lex[token+1].type=lex[token+2].type=lex[token+3].type='IGNORE'
                                 if optLoopAttr and preAllocated and 'ASint' in (p[1] for p in preAllocated): lex[token].value='ASint('
+                                elif compileTo == 'Cython': lex[token].value = '<int>('
                                 else: lex[token].value='int('
                                 tmpFloat = lex[token+1].value
                                 tmpTolerance = 10**int(lex[token+3].value)
@@ -2618,6 +2619,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if debug: print(f'! fast-round: round({tmpFloat},{tmpTolerance})  -->  {tmp}')
                                 autoMakeTokens(tmp, token)
                                 newOptimization=True
+                                # todo: this transformation will trigger DEFEXP vs the unoptimized which does not. we should conform this in some way.
 
                         if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
                         and lex[token-1].type not in {'ID','ASSIGN'}:
