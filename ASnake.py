@@ -242,10 +242,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     elif compileTo == 'MicroPython': pythonVersion='3.8'
     elif compileTo == 'Codon':  pythonVersion='3.10'
 
-    if compileTo == 'Cython': implementation='Cython'
-    elif compileTo == 'Codon': implementation='Codon'
-    elif compileTo == 'MicroPython': implementation='MicroPython'
-    else: implementation='CPython'
+    implementation = compileTo if compileTo != 'Python' else 'CPython'
     code = [f"# {implementation} for Python{pythonVersion} compiled by ASnake "+ASnakeVersion]
 
 
