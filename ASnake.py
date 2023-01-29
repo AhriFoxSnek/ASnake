@@ -1240,6 +1240,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif lex[t].type == 'FSTR':
                     return True
 
+        def autoMakeTokens(tokenString, tokenPosition):
+            nonlocal lex
+            # manually writing tokens is boring and error prone.
+            # this function takes a string and turns everything into tokens for you.
+            for tt in reversed([_ for _ in miniLex(tokenString + ' ')]):
+                lex.insert(tokenPosition + 1, tt)
+
         # idOPTARGS
         # vv you can choose to disable specific optimizations
         optFromFunc=True
@@ -1255,6 +1262,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'EvalnotBoolInversion':True, # Only provides performance to pypy, but its easy enough to leave it default
                             'sqrtMath': True,
                             'popToDel': True, # main phase
+                            'roundFast': True,
                             }
         optConstantPropagation=True
         optMathEqual=True
@@ -2450,11 +2458,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if check:
                                     # turn token into many tokens for further parsing/optimizing
                                     lex[token].type = 'IGNORE'
-                                    tmpf = []
-                                    for tt in miniLex(lex[token].value + ' '):
-                                        tmpf.append(tt)
-                                    for tt in reversed(tmpf):
-                                        lex.insert(token + 1, tt)
+                                    autoMakeTokens(lex[token].value,token)
                                 else:
                                     randintOptimize = False
 
@@ -2600,6 +2604,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 else:
                                     lex[token].type = 'LBRACKET' ; lex[token].value = '{'
                                     lex[token + 1].type = 'RBRACKET' ; lex[token + 1].value = '}'
+
+
+                            if optFuncTricksDict['roundFast'] and lex[token].value == 'round(' and lex[token+1].type in {'ID','NUMBER'} and lex[token+2].type == 'COMMA' and lex[token+3].type == 'NUMBER' and lex[token+4].type == 'RPAREN':
+                                # fast rounding, majorly accurate
+                                # forumula: int(some_float * (10 ** TOLERANCE) - (.5 if some_float < 0 else -.5)) / (10 ** TOLERANCE)
+                                lex[token+1].type=lex[token+2].type=lex[token+3].type='IGNORE'
+                                if optLoopAttr and preAllocated and 'ASint' in (p[1] for p in preAllocated): lex[token].value='ASint('
+                                else: lex[token].value='int('
+                                tmpFloat = lex[token+1].value
+                                tmpTolerance = 10**int(lex[token+3].value)
+                                tmp=f"{tmpFloat} * ({tmpTolerance}) - (.5 if {tmpFloat} < 0 else -.5)) / ({tmpTolerance}"
+                                if debug: print(f'! fast-round: round({tmpFloat},{tmpTolerance})  -->  {tmp}')
+                                autoMakeTokens(tmp, token)
+                                newOptimization=True
 
                         if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
                         and lex[token-1].type not in {'ID','ASSIGN'}:
