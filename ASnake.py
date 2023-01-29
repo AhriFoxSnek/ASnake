@@ -242,9 +242,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     elif compileTo == 'MicroPython': pythonVersion='3.8'
     elif compileTo == 'Codon':  pythonVersion='3.10'
 
-    if compileTo == 'Cython': code=['# Cython compiled by ASnake '+ASnakeVersion]
-    elif compileTo == 'Codon': code=['# Codon compiled by ASnake '+ASnakeVersion]
-    else: code=[f'# Python{pythonVersion} compiled by ASnake '+ASnakeVersion]
+    if compileTo == 'Cython': implementation='Cython'
+    elif compileTo == 'Codon': implementation='Codon'
+    elif compileTo == 'MicroPython': implementation='MicroPython'
+    else: implementation='CPython'
+    code = [f"# {implementation} for Python{pythonVersion} compiled by ASnake "+ASnakeVersion]
 
 
     def fixVersionNumber(version):
@@ -7097,7 +7099,7 @@ if __name__ == '__main__':
         ASFile = "".join(x for x in ASFile.split('/')[-1] if x.isalnum())
         fileName=f'{ASFile}.py{"x" if compileTo=="Cython" else ""}'
         if pep:
-            print('# autopep8 time:', end='', flush=True)
+            print('# autopep8 time: ', end='', flush=True)
             s = monotonic()
             code=fix_code(code,options={'ignore': ['E265']})
             print(round(monotonic() - s, 4))
