@@ -1298,6 +1298,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif compileTo == 'Pyston':
             # v slower v
             optFuncTricksDict['boolTonotnot']=False
+        elif compileTo == 'MicroPython':
+            optFromFunc=optLoopAttr=False # not slower, but takes up too much memory
 
         # vv incompatible optimizations vv
         if pythonVersion < 3.06:
@@ -5794,7 +5796,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if (lexIndex+3 < len(lex) or lexIndex+2 < len(lex)) and (lex[lexIndex+1].type == 'ID' or lex[lexIndex+2].type == 'ID'):
                     if compileTo != 'Cython' or (compileTo=='Cython' and ((lex[lexIndex+2].type == 'ASSIGN' and lex[lexIndex+3].type not in ('STRING','LIST','DICT','NUMBER','SET')  or lex[lexIndex+3].value.startswith('f')) or (lex[lexIndex+1].type == 'ID' and lex[lexIndex+2].type not in ('STRING','LIST','DICT','NUMBER','SET') or lex[lexIndex+2].value.startswith('f')) or (lex[lexIndex+2].type == 'ID' and lex[lexIndex+3].type not in ('STRING','LIST','DICT','NUMBER','SET','ASSIGN') or lex[lexIndex+3].value.startswith('f')))):
                         # ^^ when Cython, check if it can be compile-time-constant, else defaults to our implementation
-                        if pythonVersion >= 3.04 and pythonVersion < 3.08: # old implementation
+                        if (pythonVersion >= 3.04 and pythonVersion < 3.08) or compileTo == 'MicroPython': # old implementation
                             # deprecate ?
                             tmpval=copy(lex[lexIndex+1])
                             if lex[lexIndex+2].type=='ASSIGN': tmpi=3
@@ -5805,7 +5807,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if lex[lexIndex+1].value in convertType: tmpf=convertType[lex[lexIndex+1].value]
                                 else: tmpf=lex[lexIndex+1].value
                                 storedVarsHistory[lex[lexIndex+2].value]={'value': lex[lexIndex+2].value+'[0]', 'type': tmpf}
-                                if pythonVersion > 3.04:
+                                if pythonVersion > 3.04 and compileTo != 'MicroPython':
                                     insertAtTopOfCodeIfItIsNotThere('from typing import Tuple\n')
                                     lex[lexIndex+1].type=lex[lexIndex+2].type='IGNORE'
                                     if lex[lexIndex+3].type != 'ASSIGN':
