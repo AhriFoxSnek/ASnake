@@ -6452,7 +6452,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 #    if tmp not in storedCustomFunctions: storedCustomFunctions[tmp]={}
                 #    storedCustomFunctions[tmp]['type']=None
             elif tok.type == 'PYPASS':
-                line.append(tok.value[2:][:-2])
+                if indent > 0 and tok.value[3] not in {'\t',' ','\n'}:
+                    line.append(decideIfIndentLine(indent,tok.value[2:][:-2]))
+                else: line.append(tok.value[2:][:-2])
             elif tok.type == 'TRY': # idTRY
                 if ':' not in tok.value: tok.value+=':'
                 tmp = False
