@@ -5593,7 +5593,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if doPrint: line.append(decideIfIndentLine(indent,f'{expPrint[-1]}(')); bigWrap = True; rParen += 1
                     line.append(decideIfIndentLine(indent, tok.value))
 
-                elif lex[lexIndex+1].type != 'ID' and lastType not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT'):
+                elif lex[lexIndex+1].type not in {'ID','LIST'} and lastType not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT'):
                     return AS_SyntaxError(f"Type must be declared to a variable. '{lex[lexIndex+1].value}' is invalid.",f'{tok.value} variable = value', lineNumber, data)
                 elif lastType in typeCheckers:
                     line.append(tok.value)
@@ -5644,9 +5644,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex[lexIndex+1].value=f"{lex[lexIndex+1].value}: {firstType.capitalize()}[{secondType}]"
                             if lexIndex+2 < len(lex) and lex[lexIndex+2].type in typeAssignables:
                                 lex[lexIndex+1].value=f"{lex[lexIndex+1].value}"
-                            tmp=f'from typing import {firstType.capitalize()}'
-                            if any(True for i in code if i == tmp)==False:
-                                code.insert(1,tmp)
+
+                            insertAtTopOfCodeIfItIsNotThere(f'from typing import {firstType.capitalize()}')
                         else:
                             if compileTo == 'Cython' and inLoop[0]==False and lex[lexIndex+1].value not in storedVarsHistory:
                                 if lex[lexIndex + 2].type == 'COMMA':
@@ -5906,7 +5905,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 tmpName=lex[lexIndex+tmp].value
                                 lex[lexIndex+tmp].value = lex[lexIndex+tmp].value + ': Final'
                                 if tmpType:
-                                    lex[lexIndex + tmp].value+=f'[{tmpType}]'
+                                    if pythonVersion <= 3.08 and '[' in tmpType:
+                                        tmp2=tmpType.split('[')[0].capitalize()
+                                        insertAtTopOfCodeIfItIsNotThere(f"from typing import {tmp2}\n")
+                                        lex[lexIndex + tmp].value += '['+tmp2+'['+'['.join(tmpType.split('[')[1:])+']'
+                                    else: lex[lexIndex + tmp].value+=f'[{tmpType}]'
                                     if tmpType in convertType: tmpType2 = convertType[tmpType]
                                     elif '[' in tmpType and tmpType.split('[')[0] in convertType: tmpType2 = convertType[tmpType.split('[')[0]] # for stuff like tuple[str]
                                     storedVarsHistory[tmpName]={'type': tmpType2,'staticType':tmpType}
