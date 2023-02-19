@@ -1752,6 +1752,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                             tmpf.insert(0,makeToken(tmpf[0], ')', 'RPAREN'))
                                                                     if tmpCheck:
                                                                         tmpf.append(makeToken(tmpf[0], 'defExp', 'DEFEXP'))
+                                                                if lex[tmpi+1].type == 'PIPE' and tmpf[0].type == 'RPAREN' and tmpf[-1].type == 'LPAREN':
+                                                                    # jumpy
+                                                                    # when folding tuple onto pipe, add another paren as to not inherit the tuple.
+                                                                    tmpf.append(makeToken(tmpf[0], '(', 'LPAREN'))
+                                                                    tmpf.insert(0, makeToken(tmpf[0], ')', 'RPAREN'))
                                                                 lex[tmpi].type='IGNORE'
                                                                 for t in tmpf:
                                                                     lex.insert(tmpi,copy(t))
@@ -2377,7 +2382,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                     lex[token].value=lex[token].value[len(tmpf[0]):] # replaces module.thing to thing
 
-                                    if lex[token+1].type == 'LPAREN':
+                                    if lex[token+1].type == 'LPAREN' and lex[token].value[-1]!='(':
                                         lex[token].type='FUNCTION'
                                         lex[token].value+='('
                                         del lex[token+1]
@@ -6018,9 +6023,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     else:
                                         tmpfunc.append(f'({"".join(line[tmp:])})')
                                         line=line[:tmp]
-                                        if '(' not in line:
-                                            while tmpfunc[-1].startswith('((') and tmpfunc[-1].endswith('))'):
-                                                tmpfunc[-1]=tmpfunc[-1][1:-1]
                             else:
                                 return AS_SyntaxError('closing ) is missing opening (',
                                 f'(1,2,3) to {lex[lexIndex+1].value}',lineNumber,data)
@@ -6309,6 +6311,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         for i in tok.value:
                             if i == '"': fstrQuote=i ; break
                             elif i == "'": fstrQuote=i ; break
+                    for tmpi in range(lexIndex+1,len(lex)-1):
+                        # convert all strings inside fstring to be opposite quote
+                        if lex[tmpi].type == 'STRING' and lex[tmpi].value[0] == fstrQuote:
+                            if fstrQuote == '"': lex[tmpi].value = "'"+lex[tmpi].value[1:-1]+"'"
+                            elif fstrQuote == "'": lex[tmpi].value = '"' + lex[tmpi].value[1:-1] + '"'
+                        elif lex[tmpi].type == 'FSTR': break
                 elif tok.type == 'SCOPE':
                     tmp=' '.join(tok.value.split()[1:]).split(',')
                     for t in tmp:
