@@ -243,7 +243,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     elif compileTo == 'Codon':  pythonVersion='3.10'
 
     implementation = compileTo if compileTo != 'Python' else 'CPython'
-    code = [f"# {implementation} for Python{pythonVersion} compiled by ASnake "+ASnakeVersion]
+    code = [f"# Python{pythonVersion} for {implementation} compiled by ASnake "+ASnakeVersion]
 
 
     def fixVersionNumber(version):
@@ -3555,7 +3555,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lex[tmpi].type == 'FUNCTION' and '(' in lex[tmpi].value: tmpParenScope+=1
                             elif lex[tmpi].type == 'RPAREN': tmpParenScope-=1
                             elif lex[tmpi].type == 'CONSTANT' and not delPoint: isConstant = True
-                            elif tmpi-1 <= 0: tmpIndent = 0
+                            elif tmpi - 1 <= 0: tmpIndent = 0
                         if tmpParenScope > 0: check=False
                         if delPoint == None or tmpIndent == None: check=False
                         if (token-1<=0): check=True ; delPoint = tmpIndent = 0
