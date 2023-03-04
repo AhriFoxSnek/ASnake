@@ -1759,7 +1759,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                 lex[tmpi].type='IGNORE'
                                                                 for t in tmpf:
                                                                     lex.insert(tmpi,copy(t))
-                                                                ignores.append(tmpi+len(tmpf))
+                                                                #ignores.append(tmpi+len(tmpf))
                                                             else:
                                                                 tmpf=''.join(tmpf)
                                                                 lex[tmpi].value=tmpf ; lex[tmpi].type=vartype
