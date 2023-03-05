@@ -349,4 +349,19 @@ if x into str into float is 12.0 do $worked
 else 'pipe double into' $failed
 
 
+$start
+$ ignoreIndent = True
+ix = 3
+if True
+	if False
+		pass
+	ix = 2
+	end
+end
+if ix is 3 do $worked
+else 'basic ignoreIndent' $failed
+$ ignoreIndent = False
+	
+
+
 f"Failed={failed} Working={working} out of {max}" to print
