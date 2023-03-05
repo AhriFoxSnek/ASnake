@@ -1935,13 +1935,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 for tmpii in range(token+1,len(lex)-1):
                                     if lex[tmpii].type == 'IF' and lex[tmpii-1].type in typeNewline:
                                         tmpInConditional=True ; tmpConditionalIndex=tmpii
-                                        if lex[tmpii].type == 'THEN' and lex[tmpii+1].type not in {'TAB','NEWLINE'}:
-                                            tmpIndent=-1 # negative 1 should signify that it is on same indent
-                                            break
-                                        elif lex[tmpii].type == 'TAB':
-                                            tmpIndent=lex[tmpii].value.count(' ') ; break
-                                        elif lex[tmpii].type == 'NEWLINE':
-                                            tmpIndent=0 ; break
+                                    elif lex[tmpii].type == 'THEN' and lex[tmpii+1].type not in {'TAB','NEWLINE'}:
+                                        tmpIndent=-1 # negative 1 should signify that it is on same indent
+                                        break
+                                    elif lex[tmpii].type == 'TAB':
+                                        tmpIndent=lex[tmpii].value.count(' ') ; break
+                                    elif lex[tmpii].type == 'NEWLINE':
+                                        tmpIndent=0 ; break
                                     elif lex[tmpii].type == 'ID' and lex[tmpii].value == lex[token].value and not tmpInConditional:
                                         safe=False ; break
                                     elif lex[tmpii].type in {'WHILE','LOOP'}:
@@ -4740,9 +4740,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         incWrap=['',0]
 
                     bigWrap=False
-
-                if ignoreIndentation and tok.type=='TAB' :
-                    tok.type='THEN'
 
                 if tok.type == 'THEN' and ':' not in tok.value:
                     if fstrQuote!='' and tenary: pass
