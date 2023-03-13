@@ -18,7 +18,7 @@ from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 from subprocess import check_output, CalledProcessError, STDOUT
 
-ASnakeVersion='v0.12.30'
+ASnakeVersion='v0.12.31'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -1451,7 +1451,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     elif optListPlusListToExtend and tmpf[0].type == 'FUNCTION' and tmpf[0].value.startswith('list') and tmpf[1].type == 'STRING' and tmpf[2].type == 'RPAREN':
                                         tmpf=None # in cases where optListPlusListToExtend is viable, constant propagation is slower
                                 if valueStop==None: valueStop=len(lex)-1
-
                                 if tmpf != None: # we got a expression now
                                     if vartype == 'NUMBER' and optCompilerEval:
                                         try:
@@ -1469,11 +1468,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             tmptok=copy(lex[token]) ; tmptok.type='RPAREN' ; tmptok.value=')' ; tmpf.insert(0,tmptok) ; del tmptok
                                     else: tmpf=[l for l in tmpf if tmpf.type != 'IGNORE']
 
-                                    search=True ; linkType=True ; ignores=[] ; inDef=False ; wasInDefs=False ; inFrom=False ; inCase=False
+                                    search=True ; linkType=True if (enforceTyping or compileTo == 'Cython') else False ; ignores=[] ; inDef=False ; wasInDefs=False ; inFrom=False ; inCase=False
                                     # wasInDefs is for determining if a later define could break behaviour inside of functions
                                     tmpIDshow=0 ; tmpAddToIgnoresWhenNL = 0
                                     for tmpi in range(valueStop+1,len(lex)): # check if we can determine its a constant
-                                        #print(lex[token].value,search,lex[tmpi].type,tmpIDshow)
+                                        #print(lex[token].value,search,lex[tmpi].type,lex[tmpi].value,tmpIDshow)
                                         if not search and (enforceTyping and not linkType): break
                                         if lex[tmpi].type=='INC' or (tmpi+1 < len(lex) and lex[tmpi+1].type=='LINDEX' and lex[tmpi].value == lex[token].value) \
                                         or ((lex[tmpi].type in ('ID','INC') and lex[tmpi].value.replace('++','').replace('--','')==lex[token].value and (lex[tmpi-1].type not in {'ELIF','OF','IF','OR','AND','FSTR'})  ) and lex[tmpi+1].type in typeAssignables+('ASSIGN',) ):
@@ -1511,6 +1510,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     tmpSafe=True ; tmpAddToIgnoresWhenNL=0
                                                 if not tmpSafe:
                                                     search = False
+                                            if lex[token].value == lex[tmpi].value and lex[tmpi+1].type not in typeAssignables+('ASSIGN',): tmpIDshow+=1
 
                                         elif inFrom and lex[tmpi].type == 'ID' and lex[token].value == lex[tmpi].value:
                                             search = False
@@ -1612,9 +1612,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         # ^^ no global var pls
                                         elif len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TRY' and 'try' in lex[tmpi].value])>len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TRY' and 'except' in lex[tmpi].value]): search=False
                                         # ^^ fixes it in cases where the constant is defined in the except
-                                        elif tmpIDshow > 1 and isinstance(tmpf[0],str) == False and (len(tmpf)-2 > 1 and not(len(tmpf)-2==2 and tmpf[2].type=='MINUS' and tmpf[1].type=='NUMBER') ) and vartype!="LIST": search=False
+                                        elif tmpIDshow > 1 and not isinstance(tmpf[0],str) and len(tmpf)>1 and (len(tmpf)-2 > 1 and not(len(tmpf)-2==2 and tmpf[2].type=='MINUS' and tmpf[1].type=='NUMBER') ) and vartype!="LIST": search=False
                                         # ^^ when a constant involves operations, its better to compute it once and share the value rather than compute the value in many places.
-                                        #print(search,lex[token].value,tmpIDshow > 1,len([_ for _ in tmpf if _.type not in {'LPAREN','RPAREN'}])==2,tmpf[2].type=='MINUS' , tmpf[1].type in {'ID','NUMBER'})
+                                        #print(search,lex[token].value,len(tmpf),tmpIDshow)
                                     if search or linkType:
                                         inFrom=False # dont replace constants inside of FROM (function args)
                                         tmpindent=0 # keeping track if constant is in indented block
@@ -1635,20 +1635,21 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         tmpindent-=1
                                                     break
                                             elif lex[tmpi].type == 'NEWLINE':
-                                                if lex[tmpi + 1].type == 'TYPEWRAP':
+                                                if lex[tmpi+1].type == 'TYPEWRAP':
                                                     tmpindent -= 1
+                                                elif lex[tmpi+1].type in typeConditionals:
+                                                    tmpindent += 1
                                                 break
                                             # don't check THENs for indent
-                                            elif lex[tmpi].type == 'THEN':
+                                            elif lex[tmpi].type == 'THEN' and lex[tmpi-1].type not in {'TAB','NEWLINE'}:
                                                 tmpFoundThen=True
-                                            elif tmpFoundThen and lex[tmpi].type in typeConditionals and lex[tmpi-1].type in typeNewline: search=False # if its in a conditional that is a no no
-
+                                            #elif tmpFoundThen and lex[tmpi].type in typeConditionals and lex[tmpi-1].type in typeNewline: search=False # if its in a conditional that is a no no
+                                            # ^ why is it a no no tho?
 
                                         if len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TYPEWRAP' and (lex[tmpi-1].type=='NEWLINE' or (lex[tmpi-1].type in typeNewline and lex[tmpi-1].value.count(' '*prettyIndent)<tmpindent))])>0:
                                             linkType=False # if there is a typewrap defining the types, then we shouldnt mess with it
-                                            if search == False: token+=1 ; continue # if linktype and search are false, why are we here? leave
 
-                                        if debug:
+                                        if debug and search:
                                             print('constant-propagation:',lex[token].value)
                                             if isinstance(tmpf[0],str) == False:
                                                 print('tokens',lex[token].value,'=',''.join([f.value for f in tmpf[::-1]]))
@@ -1659,6 +1660,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             if inFrom or inCase:
                                                 if lex[tmpi].type in typeNewline: inFrom=inCase=False
                                                 elif inCase and lex[tmpi].type == 'IF': inCase=False # its fine on a conditional guard
+                                            elif not search and not linkType: break # if linktype and search are false, why are we here? leave
                                             else:
                                                 if search and ignores!=[]:
                                                     if isinstance(ignores[0], int) and ignores[0] == tmpi:
