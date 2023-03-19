@@ -88,7 +88,7 @@ class Lexer(Lexer):
                META, SCOPE, BITWISE, DIVMOD, TYPEWRAP, SHEBANG, COMMENT,
                FUNCMOD, WITHAS, LISTEND, ENDIF, INC, BREAK, LBRACKET, RBRACKET,
                LAMBDA, PYCLASS, ELLIPSIS, BINARY, PIPEGO, DQUOTE, SQUOTE,
-               HEXDEC, SCINOTAT
+               HEXDEC, SCINOTAT, NOTIN
              }
 
     # String containing ignored characters between tokens
@@ -98,6 +98,7 @@ class Lexer(Lexer):
     # Regular expression rules for tokens
     # THIS IS RELATIVELY COMMON FOR LEXERS DUMMIES, REGEX != BAD
     # simplifying expressions tends to be good though
+    # order is important, top takes most precedence, bottom least
     SHEBANG = r'#(!| *cython:) *.*'
     COMMENT = r'''(?=(\t| ))*?#.*?(!#|(?=\n|$))'''
     TAB     = r'\n(>>>|\.\.\.)?((\t| )+)'
@@ -131,6 +132,7 @@ class Lexer(Lexer):
     STRRAW  = r"""f?r((f?\"(\\"|.)+?\")|(f?\'(\\'|.)+?\'))"""
     IMPORT  = r"""(^|(?! )|from +[^'"\n ]*) ?c?import [^\n;]*"""
     EQUAL   = r'==|equals?(?= |\t)'
+    NOTIN   = r"isn'?t +in( |(?=\n))"
     NOTEQ   = r'!=|isnt|isn\'t|not +equal|unequal'
     LESSEQ  = r'(<=)|(=<)|≤'
     GREATEQ = r'(>=)|(=>)|≥'
@@ -566,9 +568,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     deleteUntilIndentLevel = (False,0)
     pyCompatibility=False
     
+    preLex=list(lexer.tokenize('\n'+data+' \n')) ; preLexIndex=0
+    # ^^ needs newline at the start
     # warning to self, when checking previous token, do not do lexIndex-1, lexIndex is the previous, as current token hasn't been added yet
-    for tok in lexer.tokenize('\n'+data+' \n'):
-        # ^^ needs newline at the start
+    for tok in preLex:
+        preLexIndex+=1
         if deleteUntilIndentLevel[0]:
             if currentTab > deleteUntilIndentLevel[1] and tok.type not in typeNewline:
                 continue
@@ -986,7 +990,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if debug: print('inlineReplace',inlineReplace)
                 while '$ ' in tok.value: tok.value = tok.value.replace('$ ', '$')
                 def inlineReplaceFunc(tok):
-                    nonlocal lexIndex
+                    #jumpy
+                    nonlocal lexIndex, preLexIndex
+                    lexesAdded=0
                     while tok.value!='' and len([i for i in inlineReplace if f'${i}' in tok.value]) > 0:
                         tmp=tok.value.split()[0]
                         if ',' in tmp: tmp=tmp.split(',')[0]
@@ -1002,7 +1008,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     inlineReplaceFunc(t)
                                 else:
                                     t.lineno = lineNumber
-                                    lex.append(t) ; lexIndex+=1
+                                    #lex.append(t) ; lexIndex+=1
+                                    preLex.insert(preLexIndex, t) ; preLexIndex+=1 ; lexesAdded+=1
                                     if debug: print('--',t)
                             #print(tok.value.lstrip('$'+tmp)) ; exit()
                             while tok.value[0]==' ': tok.value=tok.value[1:]
@@ -1010,9 +1017,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         for t in miniLex(tok.value.rsplit('$')[0]+' '):
                             tok.value=tok.value.replace(t.value,'')
                             t.lineno = lineNumber
-                            lex.append(t) ; lexIndex+=1
+                            #lex.append(t) ; lexIndex+=1
+                            preLex.insert(preLexIndex, t) ; preLexIndex+=1 ; lexesAdded+=1
                             if debug: print('---',t)
-                    lexIndex-=1 # i dont know why but i think this works
+                    preLexIndex-=lexesAdded
+                    lexIndex-=1 # cuz the meta counts as a token i think
                 inlineReplaceFunc(tok)
             else: lex.append(tok)
         elif tok.type == 'LISTCOMP':
@@ -1144,6 +1153,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             lex.append(tok)
         elif tok.type == 'IGNORE':
             lexIndex-=1
+        elif tok.type == 'NOTIN':
+            lex.append(makeToken(tok, 'not ', 'INS'))
+            lex.append(makeToken(tok, 'in ', 'INS'))
+            lexIndex += 1
         else:
             if reservedIsNowVar and tok.value in reservedIsNowVar: tok.type='ID'
             lex.append(tok)
@@ -3295,7 +3308,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if optCompilerEval and lex[token].type in {'STRING','NUMBER'}: # jumpy
                         # math or string evaluation
                         bitwiseOrderOps = {'~': 5, '<<': 4, '>>': 4, '&': 3, '^': 2, '|': 1}
-                        tmpTypeSafe = typeNewline + ('RPAREN', 'ASSIGN', 'FUNCTION', 'LPAREN')
+                        tmpTypeSafe = typeNewline + ('RPAREN', 'ASSIGN', 'FUNCTION', 'LPAREN', 'ELSE')
                         check=False
                         # these blocks help follow the order of operations for more accuracy
                         if token+3 < len(lex)-1 and ((lex[token+3].type == 'PIPE' and lex[token+3].value == 'to') or lex[token+1].type in typeNewline or lex[token+2].type in typeNewline): pass
@@ -3369,7 +3382,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if check and lex[token-1].type == 'BITWISE' and lex[token+1].type == 'BITWISE':
                             if bitwiseOrderOps[lex[token-1].value] > bitwiseOrderOps[lex[token+1].value]:
                                 check=False
-                        
+
                         if check:
                             if lex[token].type == 'NUMBER' and lex[token+1].type in typeOperators and (lex[token+2].type == 'NUMBER' or (lex[token+2].type == 'LPAREN' and lex[token+3].type == 'NUMBER') or isANegativeNumberTokens(token+2)):
 
@@ -4240,12 +4253,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         storedCustomFunctions[tok.value]['scopes']=scopey
                     if optimize and compileTo != 'MicroPython' and optFuncCache and not impure and 'list' not in tmpf:
                         optAddCache()
-                    if compileTo == 'Cython' and optimize: # append cy function mods
-                        if cyWrapAround:
-                            # disabled until better detection of when it is safe
-                            if any(i for i in code if 'cimport cython\n' in i)==False:
-                                code.insert(1,'cimport cython\n')
-                            line.append(decideIfIndentLine(indent,'@cython.wraparound(False)\n',False))
+                    if compileTo == 'Cython' and optimize and cyWrapAround: # append cy function mods
+                        insertAtTopOfCodeIfItIsNotThere('cimport cython\n')
+                        line.append(decideIfIndentLine(indent,'@cython.wraparound(False)\n',False))
 
 
                     if debug: print(f"{impure =}") #; print(storedCustomFunctions)
@@ -6319,6 +6329,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lex[t].type == 'FSTR': tmp=check=True
                         if tok.value.replace('f','').startswith('"""') or tok.value.replace('f','').startswith("'''"): check = False
                         if check: line.append(decideIfIndentLine(indent,expPrint[-1]+'(')) ; bigWrap=True ; rParen+=1
+                    elif lastType in {'ID','INDEX','LISTEND','RINDEX','RPAREN'}:
+                        # varName f"number: {num}"  -->  varName = f"number: {num}"
+                        tmpCheck=True if inIf else False
+                        for t in range(lexIndex-1,0,-1):
+                            if lex[t].type in typeNewline: break
+                            elif lex[t].type == 'FSTR': tmpCheck = False; break
+                            elif not inIf:
+                                if lex[t].type == 'LOOP': break
+                                elif lex[t].type == 'ID' and lex[t-1].type in typeNewline: tmpCheck=True
+
+                        if tmpCheck:
+                            line.append('== ' if inIf else '=')
 
                     if fstrQuote in tok.value and ',' in tok.value and fstrQuote in tok.value.split(',')[0]:
                         # splitting it from COMMAGRP
@@ -7089,7 +7111,7 @@ if __name__ == '__main__':
                 print("# Warning: To run the latest ASnake you must do the command again, currently you are using the last version of ASnake.")
 
     if not args.version:
-        pythonVersion = '3.10'
+        pythonVersion = latestPythonVersionSupported
     if not args.pypy and not args.pyston and not args.version:
         from platform import python_version_tuple
         pv = python_version_tuple()
