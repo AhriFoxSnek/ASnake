@@ -22,7 +22,7 @@ $start
 if (5*2+1) to float to str == '11.0' do working+=1
 else 'Parenthesis piping' $failed
 
-$ ifVersion = 3.05
+$ ifVersion = 3.9
 	# the version check is mainly for MicroPython, not CPython
 	# MicroPython has a NotImplementedError
 	$start
@@ -68,7 +68,7 @@ if tmp $worked
 else 'Ruby style range' $failed
 
 $start
-for x in 0...5 x+2
+for xx in 0...5 xx+2
 if result is 6 $worked
 else 'NRange assume indent' $failed
 
@@ -89,7 +89,7 @@ if result is 11 $worked
 else 'Loop is new-expression/new-line' $failed
 
 $start
-loop 12 n f"{n}"
+loop 12 nn f"{nn}"
 if result is '11' $worked
 else 'Fstring DefExp after loop' $failed
 
@@ -174,7 +174,7 @@ else 'Multiple Increments one line' $failed
 
 $start
 a is 5
-for x in a do x
+for xx in a do xx
 if result is 4 $worked
 else 'int to range' $failed
 
@@ -341,11 +341,11 @@ else 'type declaration on unpack' $failed
 
 $start
 ix = 12
-if x to str into float is 12.0 do $worked
+if ix to str into float is 12.0 do $worked
 else 'pipe to into' $failed
 
 $start
-if x into str into float is 12.0 do $worked
+if ix into str into float is 12.0 do $worked
 else 'pipe double into' $failed
 
 
@@ -362,6 +362,17 @@ if ix is 3 do $worked
 else 'basic ignoreIndent' $failed
 $ ignoreIndent = False
 	
+
+$start
+if '1' isnt in '23456' do $worked
+else 'isn\'t in to not in syntax alias' $failed
+
+
+$start
+sx  f"{12}"
+if sx f"{12}" do $worked
+else 'assume assign/compare on fstring' $failed
+
 
 
 f"Failed={failed} Working={working} out of {max}" to print
