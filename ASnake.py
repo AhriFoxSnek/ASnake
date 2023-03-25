@@ -1316,7 +1316,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             # v slower v
             optFuncTricksDict['boolTonotnot']=False
         elif compileTo == 'MicroPython':
+            optListToTuple=optListPlusListToExtend=False # slower
             optFromFunc=optLoopAttr=False # not slower, but takes up too much memory
+            optNestedLoopItertoolsProduct=optFuncCache=False # incompatible
 
         # vv incompatible optimizations vv
         if pythonVersion < 3.06:
@@ -2273,7 +2275,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex[tmp].type = 'RBRACKET' ; lex[tmp].value = '}'
                                     if debug: print(f"! converted to set: {{{', '.join(tmpf)}}}")
                                     newOptimization = True
-                                elif lex[token].type == 'LIST':
+                                elif optListToTuple and lex[token].type == 'LIST':
                                     # might as well convert it to tuple
                                     lex[token].type='LPAREN' ; lex[token].value='('
                                     lex[tmp].type = 'RPAREN' ; lex[tmp].value = ')'
