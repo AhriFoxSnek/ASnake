@@ -532,6 +532,48 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             #elif lex[tmpi].type in typeCheckers+typeMops and tmpParen == 0:
             #    return tmpi+1
 
+    def endOfLineChores(tok):
+        nonlocal constWrap, line, rParen, incWrap, bigWrap, inLoop, parenScope, indent, startOfLine
+        # jumpy
+        if constWrap:
+            if len([i for i in line if ',' in i]) > 1:
+                line.append(')')
+            elif compileTo == 'MicroPython' and len([i for i in line if 'const(' in i]) > 0:
+                line.append(')')
+            else:
+                line.append(',)')
+            if comment: line.append(' # constant')
+            constWrap = False
+
+        tmp = ''  # for big functions but parsing ASnake inside
+        while rParen > 0:
+            tmp += ')' ; rParen -= 1;
+            parenScope = parenScope - 1 if parenScope > 0 else 0
+        if tmp != '':
+            if not line: pass
+            elif line[-1].endswith('\n'): line.insert(-1, tmp)
+            else: line.append(tmp)
+
+        # for LOOP syntax i guess
+        if inLoop[0] == None:
+            if tok.type not in typeNewline: line.append(':\n')
+            indent += prettyIndent
+            startOfLine = True
+            inLoop[0] = True
+            if len(inLoop) > 2:
+                line.append(decideIfIndentLine(indent, inLoop[2]))
+                del inLoop[2]
+
+        if incWrap[0] != '':
+            if isinstance(line, str): line = [line]
+            while incWrap[1] > 0:
+                line.append('\n') ; startOfLine = True
+                line.append(decideIfIndentLine(indent, incWrap[0]))
+                incWrap[1] -= 1
+            incWrap = ['', 0]
+
+        bigWrap = False
+
 
 
     prettyIndent = 4
@@ -2677,7 +2719,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if debug: print(f'! fast-round: round({tmpFloat},{tmpTolerance})  -->  {tmp}')
                                 autoMakeTokens(tmp, token)
                                 newOptimization=True
-                                # todo: this transformation will trigger DEFEXP vs the unoptimized which does not. we should conform this in some way.
+                                lex.insert(token,makeToken(lex[token],'DONTDEXP','DONTDEXP'))
+
 
                         if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
                         and lex[token-1].type not in {'ID','ASSIGN'}:
@@ -4769,42 +4812,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     startOfLine=True
 
                 if bigWrap: # for putting things at the end
-                    if constWrap:
-                        if len([i for i in line if ',' in i])>1: line.append(')')
-                        elif compileTo == 'MicroPython' and len([i for i in line if 'const(' in i])>0: line.append(')')
-                        else: line.append(',)')
-                        if comment: line.append(' # constant')
-                        constWrap=False
-
-                    tmp='' # for big functions but parsing ASnake inside
-                    while rParen > 0:
-                        tmp+=')' ; rParen-=1 ; parenScope=parenScope-1 if parenScope > 0 else 0
-                    if tmp != '':
-                        if not line: pass
-                        elif line[-1].endswith('\n'): line.insert(-1,tmp)
-                        else: line.append(tmp)
-
-                    # for LOOP syntax i guess
-                    if inLoop[0] == None:
-                        if tok.type not in typeNewline:
-                            line.append(':\n')
-                        indent+=prettyIndent
-                        startOfLine=True
-                        inLoop[0]=True
-                        if len(inLoop) > 2:
-                            line.append(decideIfIndentLine(indent,inLoop[2]))
-                            del inLoop[2]
-
-
-                    if incWrap[0]!='':
-                        if isinstance(line, str): line = [line]
-                        while incWrap[1] > 0:
-                            line.append('\n') ; startOfLine=True
-                            line.append(decideIfIndentLine(indent,incWrap[0]))
-                            incWrap[1]-=1
-                        incWrap=['',0]
-
-                    bigWrap=False
+                    endOfLineChores(tok)
 
                 if tok.type == 'THEN' and ':' not in tok.value:
                     if fstrQuote!='' and tenary: pass
@@ -5604,6 +5612,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 break
                     else: return AS_SyntaxError('"any of" needs something after it','any of (1,2,3)',lineNumber,data)
             elif tok.type == 'END': # idEND
+                if bigWrap: # for putting things at the end
+                    endOfLineChores(tok)
                 tmpi=1 ; skipIf=False
                 while -1 < lexIndex-tmpi < len(lex)-1:
                     if lex[lexIndex-tmpi].type in typeConditionals \
