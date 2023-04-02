@@ -990,7 +990,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if debug: print('inlineReplace',inlineReplace)
                 while '$ ' in tok.value: tok.value = tok.value.replace('$ ', '$')
                 def inlineReplaceFunc(tok):
-                    #jumpy
                     nonlocal lexIndex, preLexIndex
                     lexesAdded=0
                     while tok.value!='' and len([i for i in inlineReplace if f'${i}' in tok.value]) > 0:
@@ -1388,9 +1387,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if optConstantPropagation:
                             tmpi=None
                             if lex[token-1].type not in typeConditionals+('OR','AND','LOOP'):
-                                if lex[token+1].type in typeAssignables and lex[token+1].type != 'LISTEND' and lex[token+2].type not in {'PIPE','LISTCOMP'}:
+                                if lex[token+1].type in typeAssignables+('FSTR',) and lex[token+1].type != 'LISTEND' and lex[token+2].type not in {'PIPE','LISTCOMP'}:
                                     tmpi=1
-                                elif lex[token+1].type == 'ASSIGN' and lex[token+1].value.strip() in {'is','='} and lex[token+2].type in typeAssignables+('LPAREN','LBRACKET','FUNCTION','MINUS','INS','LINDEX') and lex[token+2].type != 'LISTEND' and lex[token+3].type != 'LISTCOMP':
+                                elif lex[token+1].type == 'ASSIGN' and lex[token+1].value.strip() in {'is','='} and lex[token+2].type in typeAssignables+('LPAREN','LBRACKET','FUNCTION','MINUS','INS','LINDEX','FSTR') and lex[token+2].type != 'LISTEND' and lex[token+3].type != 'LISTCOMP':
                                     tmpi=2
                             if lex[token].value == 'print' or lex[token-1].type == 'COMMA': tmpi=None
                             if optMathEqual and token+3 < len(lex) and lex[token+2].value == lex[token].value and lex[token+3].type in typeOperators: tmpi=None
@@ -1428,6 +1427,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             tmpf.append(copy(lex[t]))
                                 else:
                                     tmpNoEqualsAssign=True if tmpi == 1 else False
+                                    tmpFstrOn=True if lex[token+tmpi].type == 'FSTR' else False
                                     for t in range(token+tmpi,len(lex)-1):
                                         #print(lex[token].value,tmpParenScope,lex[t].type,lex[t].value,[tt.value for tt in tmpf])
                                         if tmpNoEqualsAssign:
@@ -1460,10 +1460,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             elif lex[t].type == 'FUNCTION':
                                                 tmpParenScope+=1
                                                 tmpf.append(copy(lex[t]))
+                                            elif vartype == 'FSTR':
+                                                if lex[t].type == 'FSTR': tmpFstrOn = not tmpFstrOn
+                                                if tmpFstrOn: tmpf.append(copy(lex[t]))
                                             else: vartype=None ; tmpf.append(copy(lex[t]))
                                             if lex[t].type == 'LBRACKET': tmpBracketScope+=1
                                             elif lex[t].type == 'RBRACKET': tmpBracketScope-=1
-
+                                if vartype=='FSTR': vartype='STRING'
                                 if tmpf == []: tmpf=None
                                 if tmpf!=None and len(tmpf)>2:
                                     if tmpf[0].type in {'ID','BUILTINF'} and tmpf[1].type == 'LINDEX' and (tmpf[-1].type == 'RINDEX' or tmpf[-2].type == 'RINDEX'):
@@ -1498,6 +1501,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         or ((lex[tmpi].type in ('ID','INC') and lex[tmpi].value.replace('++','').replace('--','')==lex[token].value and (lex[tmpi-1].type not in {'ELIF','OF','IF','OR','AND','FSTR'})  ) and lex[tmpi+1].type in typeAssignables+('ASSIGN',) ):
                                             if (lex[tmpi+1].type == 'ASSIGN' and lex[tmpi+2].type == vartype) or lex[tmpi+1].type == vartype or (vartype=='NUMBER' and lex[tmpi].type=='INC'):
                                                 pass
+                                            elif lex[tmpi+1].type == 'ASSIGN' and vartype == 'STRING' and lex[tmpi+1].value.strip() not in {'=','is',':='}: pass # if fold is string then only hard assigns arent safe
                                             else: linkType=False
                                             if lex[tmpi+1].type=='LINDEX':
                                                 if vartype=='STRING': pass
@@ -1670,6 +1674,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TYPEWRAP' and (lex[tmpi-1].type=='NEWLINE' or (lex[tmpi-1].type in typeNewline and lex[tmpi-1].value.count(' '*prettyIndent)<tmpindent))])>0:
                                             linkType=False # if there is a typewrap defining the types, then we shouldnt mess with it
 
+
                                         if debug and search:
                                             print('constant-propagation:',lex[token].value)
                                             if isinstance(tmpf[0],str) == False:
@@ -1693,7 +1698,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     #if debug: print(tmpi,lex[tmpi].type,f'ignore={ignore}',f'skip/end={ignores}')
 
                                                 if search and ignore == False:
-                                                    #print(lex[token].value,lex[tmpi].type,search,ignores,tmpi, tmpLastIndent,tmpindent)
+                                                    #print(lex[token].value,lex[tmpi].type,search,linkType,ignores,tmpi, tmpLastIndent,tmpindent)
                                                     if lex[tmpi].type == 'ID' and lex[tmpi].value==lex[token].value and (lex[tmpi+1].type not in typeAssignables+('ASSIGN',) or (lex[tmpi-1].type in typeConditionals+('OR','AND','INS') and lex[tmpi-1].type!='ELSE') or (lex[tmpi+1].type == 'ASSIGN' and 'is' in lex[tmpi+1].value and determineIfAssignOrEqual(tmpi+1)) or (lex[tmpi+1].type == 'LIST' and lex[tmpi-1].type not in typeNewline+('TYPE','CONSTANT','ELSE')+typeAssignables)) and lex[tmpi-1].type not in {'FOR','LOOP'}:
                                                         if lex[tmpi-1].type in typeConditionals and lex[tmpi+1].type == 'ASSIGN' and ':' in lex[tmpi+1].value: continue
                                                         tmpsafe=True
@@ -1775,6 +1780,31 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                             tmpf.insert(0,makeToken(tmpf[0], ')', 'RPAREN'))
                                                                     if tmpCheck:
                                                                         tmpf.append(makeToken(tmpf[0], 'defExp', 'DEFEXP'))
+                                                                if len(tmpf)>=2 and tmpf[1].type == 'FSTR' == lex[tmpi-1].type:
+                                                                    # when folding an fstr onto an fstr, make sure quote types dont collide
+                                                                    tmpFSTRcheck=False
+                                                                    if lex[tmpi-1].value[0] == 'f' and lex[tmpi-1].value[1] == tmpf[1].value[1]:
+                                                                        tmpFSTRcheck=tmpi-1
+                                                                        if lex[tmpi - 1].value[1] == "'": tmpFSTRq = '"'
+                                                                        else: tmpFSTRq = "'"
+                                                                    if not tmpFSTRcheck:
+                                                                        for t in range(tmpi,0,-1):
+                                                                            if lex[t].type == 'FSTR' and lex[t].value[1] in {'"',"'"}:
+                                                                                tmpFSTRcheck = t
+                                                                                if   lex[t].value[1] == "'": tmpFSTRq = '"'
+                                                                                elif lex[t].value[1] == '"': tmpFSTRq = "'"
+                                                                                break
+                                                                    if tmpFSTRcheck:
+                                                                        for t in tmpf:
+                                                                            if t.type == 'FSTR':
+                                                                                if   t.value[-1] == lex[tmpFSTRcheck].value[1]: t.value = t.value[:-1]+tmpFSTRq
+                                                                                elif t.value[ 1] == lex[tmpFSTRcheck].value[1]: t.value = 'f'+tmpFSTRq+t.value[2:]
+                                                                
+                                                                if len(tmpf)>=2 and tmpf[1].type == 'FSTR' and lex[tmpi+1].type == 'FSTR':
+                                                                    # a ID and FSTR with nothing inbetween implies comparison,
+                                                                    # whereas FSTR + FSTR implies addition
+                                                                    # so we insert comparison to not break behaviour
+                                                                    lex.insert(tmpi+1,makeToken(lex[token],'==','EQUAL'))
                                                                 if lex[tmpi+1].type == 'PIPE' and tmpf[0].type == 'RPAREN' and tmpf[-1].type == 'LPAREN':
                                                                     # when folding tuple onto pipe, add another paren as to not inherit the tuple.
                                                                     tmpf.append(makeToken(tmpf[0], '(', 'LPAREN'))
@@ -2476,7 +2506,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             check=True
                                         elif not tmpmax.isdigit() or int(tmpmax) < randTooBig:
                                             lex[token].value = f'random()*({tmpmax}+1)'
-                                            if compileTo == 'Cython': lex[token].value='<int>('+lex[token].value
+                                            if compileTo == 'Cython': lex[token].value='p!<int>!p('+lex[token].value
                                             else: lex[token].value='int('+lex[token].value
                                             if lex[token + 2].type == 'COMMA': lex[token + 3].type = 'IGNORE'
                                             lex[token + 1].type = lex[token + 2].type = 'IGNORE'
@@ -2511,8 +2541,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     newOptimization = True
 
                                 if compileTo == 'Cython' and 'random(' == lex[token].value and lex[token+1].type == 'RPAREN':
-                                    lex[token+1].type = 'IGNORE'
-                                    lex[token].value = "rand() / (RAND_MAX + 1.0)"
+                                    lex[token].type=lex[token+1].type = 'IGNORE'
+                                    autoMakeTokens("rand() / (RAND_MAX + 1.0)", token)
                                     insertAtTopOfCodeIfItIsNotThere("from libc.stdlib cimport rand, RAND_MAX, srand\nfrom libc.time cimport time as Ctime\nsrand(Ctime(NULL))\nrand()")
                                     newOptimization=True
 
