@@ -7041,6 +7041,7 @@ if __name__ == '__main__':
     argParser.add_argument('-v', '--version', action='store', help="Specify which Python version to compile to.")
     argParser.add_argument('-c', '--compile', action='store_true', help="Compiles file to .py and writes it on disk. On Cython will attempt to compile to .so file.")
     argParser.add_argument('-o', '--optimize', action='store_true', help="Toggles optimization on and off. On by default.")
+    argParser.add_argument('-fm', '--format', action='store_true', help="Turns off code formatting if on, and turns it off if on.")
     argParser.add_argument('-f', '--fast', action='store_true', help="Turns off code formatting, and turns off optimization. Useful for fast compile times.")
     argParser.add_argument('-pc', '--python-compatibility', action='store_true', help="Disables ASnake syntax to be compatible with most Python scripts. Useful for optimizing Python scripts written without ASnake in mind.")
     argParser.add_argument('-nc', '--no-comment', action='store_true', help="Turns off comments in the compiled file.")
@@ -7095,6 +7096,9 @@ if __name__ == '__main__':
     if args.optimize:
         if optimize: optimize=False
         else: optimize=True
+    if args.format:
+        if not pep: pep = True
+        else: pep = False
     if args.debug: debug=True
     if args.no_print: fancy=False
     if args.compile:
