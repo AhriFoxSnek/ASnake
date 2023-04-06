@@ -19,7 +19,7 @@ if 5 to float to str == '5.0' $worked
 else 'Basic piping' $failed
 
 $start
-if (5*2+1) to float to str == '11.0' do working+=1
+if (5*2+1) to float to str == '11.0' $worked
 else 'Parenthesis piping' $failed
 
 $ ifVersion = 3.9
@@ -170,6 +170,13 @@ a is 0
 a is ++a+++a+a+++a++
 if a is 10 then $worked
 else 'Multiple Increments one line' $failed
+
+$start
+ix = 0
+iy = 0
+++ix + ix++ + ++iy + iy++ + ++ix + ix++ + ++iy + iy++
+if result is 16 and ix iy is 4 $worked
+else 'Multiple Increments one line 2' $failed
 
 
 $start
