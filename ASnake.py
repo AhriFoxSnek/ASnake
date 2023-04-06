@@ -18,7 +18,7 @@ from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 from subprocess import check_output, CalledProcessError, STDOUT
 
-ASnakeVersion='v0.12.31'
+ASnakeVersion='v0.12.32'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -564,13 +564,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 line.append(decideIfIndentLine(indent, inLoop[2]))
                 del inLoop[2]
 
-        if incWrap[0] != '':
-            if isinstance(line, str): line = [line]
-            while incWrap[1] > 0:
-                line.append('\n') ; startOfLine = True
-                line.append(decideIfIndentLine(indent, incWrap[0]))
-                incWrap[1] -= 1
-            incWrap = ['', 0]
+        for iw in range(0,len(incWrap)):
+            if incWrap[iw][0] != '':
+                if isinstance(line, str): line = [line]
+                while incWrap[iw][1] > 0:
+                    line.append('\n') ; startOfLine = True
+                    line.append(decideIfIndentLine(indent, incWrap[iw][0]))
+                    incWrap[iw][1] -= 1
+        incWrap=[]
 
         bigWrap = False
 
@@ -4164,7 +4165,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     bigWrap=False
     rParen=0
     constWrap=False
-    incWrap=['',0]
+    incWrap=[['',0]]
 
     listcomp={}
     lexIndex=-1
@@ -6687,14 +6688,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
 
             elif tok.type == 'INC': # idINC
-                if lexIndex-1 > 0 and (lex[lexIndex-1].type in typeNewline+('TRY','ENDIF','ELSE') or (lexIndex-3>0 and (lex[lexIndex-3].type=='LOOP' or lex[lexIndex-2].type=='LOOP'))):
+                if lexIndex-1 >= 0 and (lex[lexIndex-1].type in typeNewline+('TRY','ENDIF','ELSE') or (lexIndex-3>0 and (lex[lexIndex-3].type=='LOOP' or lex[lexIndex-2].type=='LOOP'))):
                     if lex[lexIndex+1].type in typeNewline+typeConditionals or inIf:
                         doPrint=False
                     else:
                         doPrint=True
                         for tmpi in range(lexIndex+1,len(lex)):
                             if lex[tmpi].type in typeNewline: break
-                            elif lex[tmpi].type not in typePrintable:
+                            elif lex[tmpi].type not in typePrintable+('INC',):
                                 doPrint=False
                 else: doPrint=False
                 if tok.value.startswith('++') or tok.value.startswith('--'):
@@ -6720,7 +6721,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lastType == 'WHILE':
                                 # increment at start
                                 bigWrap = True
-                                incWrap = [f'{tok.value[2:]}{tok.value[0]}=1\n',incWrap[1]+1]
+                                tmpf = f'{tok.value[2:]}{tok.value[0]}=1\n'
+                                tmp = False
+                                for iw in range(0, len(incWrap)):
+                                    if incWrap[iw][0] == tmpf:
+                                        incWrap[iw][1] += 1;
+                                        tmp = True
+                                if not tmp:
+                                    incWrap += [[tmpf, 1]]
                             else:
                                 line.insert(0,decideIfIndentLine(indent,f'{tok.value[2:]}{tok.value[0]}=1\n'))
                         if inIf: indent = oldIndent
@@ -6779,7 +6787,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if lastType == 'INC': line.append('== ')
                         if lex[lexIndex+1].type not in typeNewline or lex[lexIndex-1].type not in typeNewline:
                             line.append(decideIfIndentLine(indent,tmp))
-                        incWrap=[f'{tok.value[:-2]}{tok.value[-1]}=1\n',incWrap[1]+1]
+
+                        tmpf=f'{tok.value[:-2]}{tok.value[-1]}=1\n'
+                        tmp=False
+                        for iw in range(0,len(incWrap)):
+                            if incWrap[iw][0] == tmpf:
+                                incWrap[iw][1]+=1 ; tmp = True
+                        if not tmp:
+                            incWrap += [[tmpf, 1]]
             elif tok.type == 'DIVMOD':
                 if lexIndex+1 < len(lex) and lexIndex-1 > 0:
                     if (lex[lexIndex-1].type == 'NUMBER' or  (lex[lexIndex-1].type == 'ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] in ('NUMBER','int','float')))\
