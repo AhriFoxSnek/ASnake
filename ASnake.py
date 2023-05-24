@@ -1131,7 +1131,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 else:
                     if lexIndex>0 and lex[lexIndex].type == 'IGNORENL': lexIndex-=1 # newline is not real if IGNORENL \
                     elif parenScope > 0: lexIndex-=1 # inside a parenthesis
-                    else:
+                    elif lex:
                         if lex[lexIndex].type == 'THEN': lex.pop() ; lexIndex-=1
                         if lex[lexIndex].type != 'NEWLINE':
                             # so repeated NEWLINE doesn't override last backup
@@ -1202,7 +1202,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         else:
             if reservedIsNowVar and tok.value in reservedIsNowVar: tok.type='ID'
             lex.append(tok)
-        if lex[lexIndex].type == 'TYPE' and tok.type != 'ID' and lex[lexIndex-1].type not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT')+typeNewline and tok.type != 'CONSTANT':
+        if lex and lex[lexIndex].type == 'TYPE' and tok.type != 'ID' and lex[lexIndex-1].type not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT')+typeNewline and tok.type != 'CONSTANT':
             lex[lexIndex].type='ID' ; reservedIsNowVar.append(lex[lexIndex].value.strip())
         elif tok.type == 'CONSTANT' and lex[lexIndex].type == 'TYPE':
             tok.type='TYPE' ; tok.value = lex[lexIndex].value
@@ -1218,9 +1218,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
     lex=[l for l in lex if l.type not in {'IGNORE','IGNORENL'}]
 
-    tmptok=copy(lex[-1])
-    tmptok.type='NEWLINE' ; tmptok.value='\n'
-    lex.append(tmptok) ; del tmptok
+    if lex:
+        tmptok=copy(lex[-1])
+        tmptok.type='NEWLINE' ; tmptok.value='\n'
+        lex.append(tmptok) ; del tmptok
     # ^ need newline at the end , some stuff relies on that
 
 
@@ -3384,7 +3385,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if optCompilerEval and lex[token].type in {'STRING','NUMBER'}: # jumpy
                         # math or string evaluation
                         bitwiseOrderOps = {'~': 5, '<<': 4, '>>': 4, '&': 3, '^': 2, '|': 1}
-                        tmpTypeSafe = typeNewline + ('RPAREN', 'ASSIGN', 'FUNCTION', 'LPAREN', 'ELSE')
+                        tmpTypeSafe = typeNewline + ('RPAREN', 'ASSIGN', 'FUNCTION', 'LPAREN', 'ELSE', 'DEFEXP')
                         check=False
                         # these blocks help follow the order of operations for more accuracy
                         if token+3 < len(lex)-1 and ((lex[token+3].type == 'PIPE' and lex[token+3].value == 'to') or lex[token+1].type in typeNewline or lex[token+2].type in typeNewline): pass
