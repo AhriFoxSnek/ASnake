@@ -1032,26 +1032,26 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.value.split('=')[0].replace(' ','').replace('$','') in inlineReplace or any(i for i in inlineReplace if f'${i}' in tok.value):
                 if debug: print('inlineReplace',inlineReplace)
                 while '$ ' in tok.value: tok.value = tok.value.replace('$ ', '$')
+                tmpAddThisInline=[]
                 def inlineReplaceFunc(tok):
-                    nonlocal lexIndex, preLexIndex
-                    lexesAdded=0
+                    nonlocal lexIndex, tmpAddThisInline
                     while tok.value!='' and len([i for i in inlineReplace if f'${i}' in tok.value]) > 0:
                         tmp=tok.value.split()[0]
                         if ',' in tmp: tmp=tmp.split(',')[0]
                         tmp=tmp.strip()
                         tmp=[i for i in inlineReplace if f'${i}' == tmp]
                         if debug: print(tok.value)
-                        if len(tmp)>0:
+                        if tmp:
                             tmp=tmp[0]
-                            for t in miniLex(inlineReplace[tmp]+' '):#inlineReplace[tok.value.split('=')[0].replace(' ','').replace('$','')]+' '):
+                            for t in miniLex(inlineReplace[tmp]+' '):
                                 if t.type == 'ID' and t.value in defaultTypes and t.value not in reservedIsNowVar:
-                                    t.type = 'TYPE'
-                                elif t.type == 'META':
+                                    if preLex[preLexIndex].type == 'PIPE': t.type = 'FUNCTION'
+                                    else: t.type = 'TYPE'
+                                if t.type == 'META':
                                     inlineReplaceFunc(t)
                                 else:
                                     t.lineno = lineNumber
-                                    #lex.append(t) ; lexIndex+=1
-                                    preLex.insert(preLexIndex, t) ; preLexIndex+=1 ; lexesAdded+=1
+                                    tmpAddThisInline.append(t)
                                     if debug: print('--',t)
                             #print(tok.value.lstrip('$'+tmp)) ; exit()
                             while tok.value[0]==' ': tok.value=tok.value[1:]
@@ -1059,12 +1059,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         for t in miniLex(tok.value.rsplit('$')[0]+' '):
                             tok.value=tok.value.replace(t.value,'')
                             t.lineno = lineNumber
-                            #lex.append(t) ; lexIndex+=1
-                            preLex.insert(preLexIndex, t) ; preLexIndex+=1 ; lexesAdded+=1
+                            tmpAddThisInline.append(t)
                             if debug: print('---',t)
-                    preLexIndex-=lexesAdded
-                    lexIndex-=1 # cuz the meta counts as a token i think
+                lexIndex-=1 # cuz the meta counts as a token i think
                 inlineReplaceFunc(tok)
+                for t in reversed(tmpAddThisInline): preLex.insert(preLexIndex,t)
             else: lex.append(tok)
         elif tok.type == 'LISTCOMP':
             check=False # checks for    if thing > 4: doStuff
@@ -4291,7 +4290,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     if compileTo=='Cython' and tmptype.value=='bool' and noKwargs:
                                         insertAtTopOfCodeIfItIsNotThere(f'cdef extern from "stdbool.h":\n{" "*prettyIndent}ctypedef bint bool')
                                 elif i.type == 'ASSIGN': assign=True
-                                elif i.type in ('TIMES','EXPONENT','MINUS'): kwargs=i.type ; continue
+                                elif i.type in {'TIMES','EXPONENT','MINUS'}: kwargs=i.type ; continue
                                 elif assign:
                                     newtmp[-1]+=f' = {i.value}'
                                     assign=False
@@ -4567,7 +4566,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if lex[lexIndex-1].value in convertType: lex[lexIndex-1].value=convertType[lex[lexIndex-1].value]
                                 storedVarsHistory[tok.value]={'value': lex[lexIndex+1].value, 'type': lex[lexIndex-1].value}
                         elif startOfLine and inIf == False:
-
                             if tok.type == 'ID' and ((tok.value in storedCustomFunctions) or (tok.value in pyBuiltinFunctions and tok.value not in storedVarsHistory and tok.value not in typeTypes and lex[lexIndex + 1].type in typeNewline + typeOperators)) \
                             and '(' not in tok.value and lastType != 'FOR' and functionPassing == False:
                                 tok.type = 'FUNCTION' ; tok.value += '(' ; parenScope+=1
