@@ -3443,7 +3443,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         check = True
                                         #print('#2.1', lex[token].value)
                                 elif lex[tmp].type in typeNewline+('LPAREN',) or orderOfOps[lex[token+1].type] >= orderOfOps[lex[tmp].type]:
-                                    check = True
+                                    check=True
+                                    if lex[tmp+2].type in orderOfOps:
+                                        # check ahead to make sure not breaking order of operations way down the line
+                                        for ttmp in range(tmp,len(lex)-1):
+                                            if lex[ttmp].type in typeNewline+('LPAREN',) \
+                                            or lex[ttmp].type in orderOfOps and lex[ttmp-2].type in orderOfOps and orderOfOps[lex[ttmp-2].type] <= orderOfOps[lex[ttmp].type]:
+                                                check = False
                                     #print('#2.2', lex[token].value)
                                 elif lex[tmp].type == 'RPAREN' and lex[token-1].type in {'FUNCTION','LPAREN'}:
                                     # the case of ( 2 + 2 ) or print( 2 + 2 )
