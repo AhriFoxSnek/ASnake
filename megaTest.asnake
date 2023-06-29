@@ -187,13 +187,13 @@ else 'int to range' $failed
 
 
 $start
-π is 3.14
-if π is 3.14 $worked
+ฯ€ is 3.14
+if ฯ€ is 3.14 $worked
 else 'non-ascii variable' $failed
 
 $start
-🤍💚🧡 is 'love'
-if 🤍💚🧡 is 'love' $worked
+๐ค๐’๐งก is 'love'
+if ๐ค๐’๐งก is 'love' $worked
 else '(multi) emoji variable' $failed
 
 
@@ -388,6 +388,12 @@ $ def xy = $x + $y
 $xy
 if result is "xy" do $worked
 else 'recursive inline' $failed
+
+
+$start
+9 * 2 + 4**2 // 5 - 8
+if result is 13 do $worked
+else 'order of operations lookahead for compile time optimization' $failed
 
 
 
