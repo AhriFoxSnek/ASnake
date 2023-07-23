@@ -1322,6 +1322,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'sqrtMath': True,
                             'popToDel': True, # main phase
                             'roundFast': True,
+                            'insertPi': True,
                             }
         optConstantPropagation=True
         optMathEqual=True
@@ -2721,6 +2722,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 autoMakeTokens(tmp, token)
                                 newOptimization=True
                                 lex.insert(token,makeToken(lex[token],'DONTDEXP','DONTDEXP'))
+
+                            if optFuncTricksDict['insertPi'] and lex[token].type == 'BUILTINF' and ((lex[token].value == 'pi' and 'math.' in wasImported and 'pi' in wasImported['math.']) or lex[token].value == 'math.pi'):
+                                # math.pi --> 3.141592653589793
+                                lex[token].type = 'NUMBER' ; lex[token].value = '3.141592653589793'
 
 
                         if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
