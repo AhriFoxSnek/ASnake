@@ -1742,7 +1742,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     #if debug: print(tmpi,lex[tmpi].type,f'ignore={ignore}',f'skip/end={ignores}')
 
                                                 if search and ignore == False:
-                                                    #print(lex[token].value,lex[tmpi].type,search,linkType,ignores,tmpi, tmpLastIndent,tmpindent)
+                                                    #print(lex[token].value,lex[tmpi].type,lex[tmpi].value,search,linkType,ignores,tmpi, tmpLastIndent,tmpindent)
                                                     if lex[tmpi].type == 'ID' and lex[tmpi].value==lex[token].value and (lex[tmpi+1].type not in typeAssignables+('ASSIGN',) or (lex[tmpi-1].type in typeConditionals+('OR','AND','INS') and lex[tmpi-1].type!='ELSE') or (lex[tmpi+1].type == 'ASSIGN' and 'is' in lex[tmpi+1].value and determineIfAssignOrEqual(tmpi+1)) or (lex[tmpi+1].type == 'LIST' and lex[tmpi-1].type not in typeNewline+('TYPE','CONSTANT','ELSE')+typeAssignables)) and lex[tmpi-1].type not in {'FOR','LOOP'}:
                                                         if lex[tmpi-1].type in typeConditionals and lex[tmpi+1].type == 'ASSIGN' and ':' in lex[tmpi+1].value: continue
                                                         tmpsafe=True
@@ -1750,7 +1750,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             for tmpii in range(tmpi,0,-1):
                                                                 if lex[tmpii].type == 'LOOP': tmpsafe=False ; break
                                                                 elif lex[tmpii].type in typeNewline: break
-                                                        if vartype!='STRING' and lex[tmpi+1].type=='LINDEX':tmpsafe=False # so it doesn't replace the var in var[index]s
+                                                        if vartype !='STRING' and lex[tmpi+1].type=='LINDEX':
+                                                            if (tmpIDshow == 1 and vartype in {'DICT','LIST'}): pass # dict/list ok if only once
+                                                            else: tmpsafe=False # so it doesn't replace the var in var[index]s
                                                         if vartype in {'LIST','ID'} and (lex[tmpi-1].type not in typeCheckers+('INS','EQUAL','LPAREN','BITWISE','ANYOF')+typeMops or (lex[tmpi-1].type == 'LPAREN' and lex[tmpi-2].type in {'BUILTINF','FUNCTION'})) and (lex[tmpi-1].value.replace('(','') not in pyBuiltinFunctions or tmpIDshow > 1):
                                                             tmpsafe=False # functions can modify lists in place, therefore replacing it with the list can break behaviour
                                                             for tmpii in range(tmpi,0,-1):
@@ -2726,6 +2728,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if optFuncTricksDict['insertPi'] and lex[token].type == 'BUILTINF' and ((lex[token].value == 'pi' and 'math.' in wasImported and 'pi' in wasImported['math.']) or lex[token].value == 'math.pi'):
                                 # math.pi --> 3.141592653589793
                                 lex[token].type = 'NUMBER' ; lex[token].value = '3.141592653589793'
+                                #wasImported['math.'].remove('pi')
+                                # ^ in event of dead import elimination being implemented, uncomment
 
 
                         if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
