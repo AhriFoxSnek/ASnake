@@ -1322,7 +1322,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'sqrtMath': True,
                             'popToDel': True, # main phase
                             'roundFast': True,
-                            'insertPi': True,
+                            'insertMathConstants': True,
                             'EvalStr': True,
                             }
         optConstantPropagation=True
@@ -2726,9 +2726,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 newOptimization=True
                                 lex.insert(token,makeToken(lex[token],'DONTDEXP','DONTDEXP'))
 
-                            if optFuncTricksDict['insertPi'] and lex[token].type == 'BUILTINF' and ((lex[token].value == 'pi' and 'math.' in wasImported and 'pi' in wasImported['math.']) or lex[token].value == 'math.pi'):
+                            if optFuncTricksDict['insertMathConstants'] and lex[token].type == 'BUILTINF' and \
+                            (  ((lex[token].value == 'pi' and 'math.' in wasImported and 'pi' in wasImported['math.']) or lex[token].value == 'math.pi')
+                            or ((lex[token].value == 'e'  and 'math.' in wasImported and 'e'  in wasImported['math.']) or lex[token].value == 'math.e')
+                                ):
                                 # math.pi --> 3.141592653589793
-                                lex[token].type = 'NUMBER' ; lex[token].value = '3.141592653589793'
+                                tmp='3.141592653589793' if lex[token].value.endswith('pi') else '2.718281828459045' # pi or e
+                                if debug: print(f'! insertMathConstants: {lex[token].value} --> {tmp}')
+                                lex[token].type = 'NUMBER' ; lex[token].value = tmp
                                 #wasImported['math.'].remove('pi')
                                 # ^ in event of dead import elimination being implemented, uncomment
                                 newOptimization = True
