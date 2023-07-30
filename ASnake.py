@@ -1323,6 +1323,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'popToDel': True, # main phase
                             'roundFast': True,
                             'insertPi': True,
+                            'EvalStr': True,
                             }
         optConstantPropagation=True
         optMathEqual=True
@@ -2730,7 +2731,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex[token].type = 'NUMBER' ; lex[token].value = '3.141592653589793'
                                 #wasImported['math.'].remove('pi')
                                 # ^ in event of dead import elimination being implemented, uncomment
+                                newOptimization = True
 
+                            if optFuncTricksDict['EvalStr'] and optCompilerEval and lex[token].type == 'FUNCTION' and lex[token].value.replace('(','') == 'str' and lex[token+1].type in {'NUMBER','STRING'} and lex[token+2].type == 'RPAREN':
+                                # str(12) --> "12"
+                                if debug: print(f'! evalStr: str({lex[token+1].value}) --> "{lex[token+1].value}"')
+                                lex[token].type = lex[token+2].type = 'IGNORE'
+                                if  lex[token+1].type == 'NUMBER':
+                                    lex[token+1].type = 'STRING' ; lex[token+1].value = f'"{lex[token+1].value}"'
+                                elif lex[token+1].type == 'STRING':
+                                    lex[token].type = 'DONTDEXP'
+                                newOptimization = True
 
                         if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
                         and lex[token-1].type not in {'ID','ASSIGN'}:
