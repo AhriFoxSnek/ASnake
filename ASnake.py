@@ -3410,7 +3410,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if optCompilerEval and lex[token].type in {'STRING','NUMBER'}: # jumpy
                         # math or string evaluation
                         bitwiseOrderOps = {'~': 5, '<<': 4, '>>': 4, '&': 3, '^': 2, '|': 1}
-                        tmpTypeSafe = typeNewline + ('RPAREN', 'ASSIGN', 'FUNCTION', 'LPAREN', 'ELSE', 'DEFEXP')
+                        tmpTypeSafe = typeNewline + ('RPAREN', 'ASSIGN', 'FUNCTION', 'LPAREN', 'ELSE', 'DEFEXP', 'LINDEX')
                         check=False
                         # these blocks help follow the order of operations for more accuracy
                         if token+3 < len(lex)-1 and ((lex[token+3].type == 'PIPE' and lex[token+3].value == 'to') or lex[token+1].type in typeNewline or lex[token+2].type in typeNewline): pass
