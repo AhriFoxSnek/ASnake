@@ -1754,7 +1754,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         if vartype !='STRING' and lex[tmpi+1].type=='LINDEX':
                                                             if (tmpIDshow == 1 and vartype in {'DICT','LIST'}): pass # dict/list ok if only once
                                                             else: tmpsafe=False # so it doesn't replace the var in var[index]s
-                                                        if vartype in {'LIST','ID'} and (lex[tmpi-1].type not in typeCheckers+('INS','EQUAL','LPAREN','BITWISE','ANYOF')+typeMops or (lex[tmpi-1].type == 'LPAREN' and lex[tmpi-2].type in {'BUILTINF','FUNCTION'})) and (lex[tmpi-1].value.replace('(','') not in pyBuiltinFunctions or tmpIDshow > 1):
+                                                        if vartype in {'LIST','ID'} and (tmpIDshow > 1 and lex[tmpi-1].type not in typeCheckers+('INS','EQUAL','LPAREN','BITWISE','ANYOF')+typeMops or (lex[tmpi-1].type == 'LPAREN' and lex[tmpi-2].type in {'BUILTINF','FUNCTION'})) and (lex[tmpi-1].value.replace('(','') not in pyBuiltinFunctions or tmpIDshow > 1):
                                                             tmpsafe=False # functions can modify lists in place, therefore replacing it with the list can break behaviour
                                                             for tmpii in range(tmpi,0,-1):
                                                                 if lex[tmpii].type in typeNewline+('BUILTINF','FUNCTION','LPAREN'): break
@@ -1764,6 +1764,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                         tmpf[-1].value='(' ; tmpf[-1].type='LPAREN'
                                                                         tmpf[0].value = ')' ; tmpf[0].type = 'RPAREN'
                                                                     break
+                                                        if vartype == 'LIST' and lex[tmpi+1].type == 'LISTCOMP': tmpsafe=False # have this until LISTCOMP is smart enough to take in a whole list as an argument
                                                         if lex[tmpi-2].type == 'LOOP' and isinstance(tmpf[0],str) == False and tmpf[0].type == 'RPAREN': tmpsafe=False
                                                         if vartype == 'STRING' and (lex[tmpi-1].type == 'FSTR' or lex[tmpi+1].type == 'FSTR'):
                                                             if isinstance(tmpf[0],str) == False and '\\\\' in tmpf[0].value: tmpsafe=False
