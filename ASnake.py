@@ -2727,8 +2727,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex.insert(token,makeToken(lex[token],'DONTDEXP','DONTDEXP'))
 
                             if optFuncTricksDict['insertMathConstants'] and lex[token].type == 'BUILTINF' and \
-                            (  ((lex[token].value == 'pi' and 'math.' in wasImported and 'pi' in wasImported['math.']) or lex[token].value == 'math.pi')
-                            or ((lex[token].value == 'e'  and 'math.' in wasImported and 'e'  in wasImported['math.']) or lex[token].value == 'math.e')
+                            (  ((lex[token].value == 'pi' or lex[token].value == 'math.pi') and 'math.' in wasImported and 'pi' in wasImported['math.'])
+                            or ((lex[token].value == 'e'  or lex[token].value == 'math.e' ) and 'math.' in wasImported and 'e'  in wasImported['math.'])
                                 ):
                                 # math.pi --> 3.141592653589793
                                 tmp='3.141592653589793' if lex[token].value.endswith('pi') else '2.718281828459045' # pi or e
