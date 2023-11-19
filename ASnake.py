@@ -18,7 +18,7 @@ from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 from subprocess import check_output, CalledProcessError, STDOUT
 
-ASnakeVersion='v0.12.32'
+ASnakeVersion='v0.12.33'
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -5092,7 +5092,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif ((lastType in typeAssignables+('ASSIGN','FUNCTION','BUILTINF','LPAREN','RPAREN','BOOL','IGNORE','INDEX','COMMAGRP','FSTR','RETURN','RINDEX') and tok.value=='if') or tenary) and startOfLine == False:
                     tenary=True
                     # this section is for altered tenary
-                    if lastType in {'ASSIGN','RETURN'} or (lastType == 'FSTR' and fstrQuote!=''): # alias:  c is if True then a else b
+                    if lastType in {'ASSIGN','RETURN', 'LPAREN', 'FUNCTION'} or (lastType == 'FSTR' and fstrQuote!=''): # alias:  c is if True then a else b
                         search=False ; tmp=[]
                         for tmpi in range(lexIndex+1,len(lex)-1):
                             if lex[tmpi].type == 'ELSE': break
