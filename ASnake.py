@@ -1691,7 +1691,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         inLoop=[False,0]
                                         inCase=False # similar to inFrom ; do not replace constants in OF case statements
 
-                                        tmpFoundIndent=tmpFoundThen=False
+                                        tmpFoundIndent=tmpFoundThen=tmpInTypeWrap=False
                                         for tmpi in range(token-1,0,-1):
                                             if lex[tmpi].type == 'TAB':
                                                 if not tmpFoundIndent:
@@ -1715,6 +1715,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 tmpFoundThen=True
                                             #elif tmpFoundThen and lex[tmpi].type in typeConditionals and lex[tmpi-1].type in typeNewline: search=False # if its in a conditional that is a no no
                                             # ^ why is it a no no tho?
+                                            elif lex[tmpi].type == 'TYPEWRAP': tmpInTypeWrap = True
 
                                         if len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TYPEWRAP' and (lex[tmpi-1].type=='NEWLINE' or (lex[tmpi-1].type in typeNewline and lex[tmpi-1].value.count(' '*prettyIndent)<tmpindent))])>0:
                                             linkType=False # if there is a typewrap defining the types, then we shouldnt mess with it
@@ -1867,9 +1868,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             newOptimization=True
                                                     elif lex[tmpi].type == 'FROM': inFrom=True
                                                     elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value: inCase=True
-                                                    elif (lex[tmpi].type=='TAB' and lex[tmpi].value.replace('\t',' ').count(' '*prettyIndent) < tmpindent) \
-                                                    or (lex[tmpi].type == 'NEWLINE' and tmpindent>0):
-                                                        break # if inside a indented block, try and stay local to that, do not escape it
+
                                                     elif lex[tmpi].type in {'LOOP','WHILE'} or lex[tmpi].type == 'FOR' and lex[tmpi-1].type in typeNewline:
                                                         if inLoop[0] == False and not isinstance(tmpf[0],str) and len(tmpf) > 1:
                                                             # if variable isnt a literal and is folding into a loop, dont bother, inefficient
@@ -1954,6 +1953,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             if tmpindent > tmpLastIndent: search = False
                                                     elif lex[tmpi].type in typeConditionals and lex[tmpi-1].type in typeNewline:
                                                         inLoop[1]+=prettyIndent
+                                                    if (lex[tmpi].type=='TAB' and lex[tmpi].value.replace('\t',' ').count(' '*prettyIndent) < tmpindent) \
+                                                    or (lex[tmpi].type == 'NEWLINE' and tmpindent>0):
+                                                        if tmpInTypeWrap: tmpInTypeWrap=False # it's okay, its a syntax sugar indent that doesn't control flow
+                                                        else:
+                                                            break # if inside a indented block, try and stay local to that, do not escape it
 
                                                 if tmpi >= len(lex)-1 and linkType and (enforceTyping or compileTo == 'Cython') and lex[token-1].type != 'TYPE'\
                                                 and lex[token-2].type != 'LOOP' and lex[token-1].type != 'ID':
