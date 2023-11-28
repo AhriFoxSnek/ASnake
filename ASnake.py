@@ -534,7 +534,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
     def endOfLineChores(tok):
         nonlocal constWrap, line, rParen, incWrap, bigWrap, inLoop, parenScope, indent, startOfLine
-        # jumpy
         if constWrap:
             if len([i for i in line if ',' in i]) > 1:
                 line.append(')')
@@ -1324,6 +1323,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'roundFast': True,
                             'insertMathConstants': True,
                             'EvalStr': True,
+                            'ExponentToTimes': True,
                             }
         optConstantPropagation=True
         optMathEqual=True
@@ -2272,6 +2272,31 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 wasImported['math.'].append('sqrt')
                             else:
                                 insertAtTopOfCodeIfItIsNotThere("from math import sqrt")
+
+                        elif optFuncTricks and optFuncTricksDict['ExponentToTimes'] and lex[token].type == 'ID' and lex[token + 1].type == 'EXPONENT' and lex[token + 2].type == 'NUMBER':
+                            # x*x is faster than x**2
+                            # so create many x*x based on the exponent number
+                            tmpSafe = False
+                            if (compileTo == 'Python' and int(lex[token + 2].value) < 6) \
+                            or (compileTo == 'Pyston' and int(lex[token + 2].value) < 11) \
+                            or (compileTo == 'PyPy3' and int(lex[token + 2].value) > 2):
+                                # x**6 is when x*x becomes slower for cpython
+                                # x**11 for pyston
+                                # x ** 2 is faster in pypy, anything more is not, ever
+                                tmpSafe = int(lex[token + 2].value)
+                            if tmpSafe:
+                                lex[token + 1].type = lex[token + 2].type = 'IGNORE'
+                                for ii in range(tmpSafe-1, 0, -1):
+                                    lex.insert(token + 1, copy(lex[token]))
+                                    lex.insert(token + 1, makeToken(lex[token], '*', 'TIMES'))
+                                lex.insert(token, makeToken(lex[token], '(', 'LPAREN'))
+                                lex.insert(token + (tmpSafe*2), makeToken(lex[token], ')', 'RPAREN'))
+                            if debug: print(f'! ExpToTimes: {lex[token+1].value}**{tmpSafe}  -->  {(lex[token+1].value+"*")*(tmpSafe-1)}{lex[token+1].value}')
+                        elif compileTo == 'PyPy3' and optFuncTricks and optFuncTricksDict['ExponentToTimes'] and lex[token].type == 'ID' and lex[token + 1].type == 'TIMES' and lex[token+2].type == 'ID' and lex[token+2].value == lex[token].value and lex[token+3].type not in typeMops and lex[token-1].type not in typeMops:
+                            # x*x --> x**2
+                            lex[token + 1].type = 'EXPONENT' ; lex[token + 2].value = '**'
+                            lex[token + 2].type = 'NUMBER' ; lex[token + 2].value = '2'
+
 
                     elif lex[token].type == 'META':
                         metaCall=lex[token].value.replace('$','').replace(' ','').lower()
@@ -3240,6 +3265,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex.insert(tmp,makeToken(lex[token],'not ','INS'))
                         else: # True
                             lex[token].type = lex[token + 1].type = 'IGNORE'
+
+
 
 
 
