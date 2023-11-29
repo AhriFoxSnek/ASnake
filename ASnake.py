@@ -1332,7 +1332,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         optWalrus=True
         optLoopAttr=True
         optStrFormatToFString=True
-        optCompilerEval=True
+        optCompilerEval=True # pyfuzz indicates there is likely breaking behaviour
         optPow=True
         optDeadVariableElimination=True
         optNestedLoopItertoolsProduct=True
@@ -2999,17 +2999,21 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                     # gather loop info
                                     tmpEndPoint=token
-                                    safe=True ; tmpCurrent=None ; tmpAfterIn=False
+                                    safe=True ; tmpCurrent=None ; tmpAfterIn=False ; tmpSawNL=True
                                     # tmpCurrent is the type of loop
                                     # tmpAfterIn is when iterable token gathering begins
+                                    # tmpSawNL ensures that the loops are on seperate lines
                                     tmpListScope=0
                                     for tmpi in range(token,len(lex)-1):
                                         if lex[tmpi].type in {'FOR','LOOP'}:
                                             tmpCurrent = lex[tmpi].type
                                             tmpIterables.append([])
                                             tmpAfterIn = False
+                                            if not tmpSawNL: safe=False ; break
+                                            else: tmpSawNL=False
                                         elif lex[tmpi].type in {'LIST','LINDEX'}: tmpListScope+=1
                                         elif lex[tmpi].type in {'LISTEND', 'RINDEX'}: tmpListScope -= 1
+                                        elif lex[tmpi].type in typeNewline: tmpSawNL=True
 
                                         if tmpCurrent == 'LOOP':
                                             if lex[tmpi].type == 'ID' and lex[tmpi+1].type in typeNewline+('LOOP',) and tmpListScope == 0:
