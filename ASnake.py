@@ -3385,7 +3385,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                           if   tmpSign == '+' : tmp = 'PLUS'
                           elif tmpSign == '-' : tmp = 'MINUS'
                           elif tmpSign == '/' : tmp = 'DIVIDE'
-                          elif tmpSign == '/' : tmp = 'TIMES'
+                          elif tmpSign == '*' : tmp = 'TIMES'
                           elif tmpSign == '//': tmp = 'RDIVIDE'
                           tmpIDValue = lex[token].value
                           tmpf = [makeToken(lex[token], tmpSign, tmp)]  # stores line
