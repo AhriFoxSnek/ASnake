@@ -2619,7 +2619,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                 if compileTo == 'Cython' and 'random(' == lex[token].value and lex[token+1].type == 'RPAREN':
                                     lex[token].type=lex[token+1].type = 'IGNORE'
-                                    autoMakeTokens("rand() / (RAND_MAX + 1.0)", token)
+                                    autoMakeTokens("rand() / (RAND_MAX + 1.0)", token) # jumpy
                                     insertAtTopOfCodeIfItIsNotThere("from libc.stdlib cimport rand, RAND_MAX, srand\nfrom libc.time cimport time as Ctime\nsrand(Ctime(NULL))\nrand()")
                                     newOptimization=True
 
@@ -5720,7 +5720,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
             elif tok.type == 'COMMA': # idCOMMA
                 if lexIndex-1 > 0 and lexIndex+1 < len(lex)-1 and len(line)>0:
-                    if lex[lexIndex+1].type not in typeNewline+('IGNORE','INC','FSTR','PIPEGO','PIPE') and lex[lexIndex-1].type != 'IGNORE':
+                    if lex[lexIndex+1].type not in typeNewline+('IGNORE','INC','FSTR','PIPEGO','PIPE','PYPASS') and lex[lexIndex-1].type != 'IGNORE':
                         if lex[lexIndex+1].type == 'RBRACKET': bracketScope-=1
                         elif lex[lexIndex+1].type == 'RPAREN': parenScope-=1
                         elif lex[lexIndex+1].type in {'LPAREN', 'FUNCTION'}: parenScope+=1
