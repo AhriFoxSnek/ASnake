@@ -1403,6 +1403,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         doNotModThisToken=[]
         newOptimization=True
         optimizeRound=0
+        varWasFolded=[] # for optConstantPropagation + optDeadVariableElimination
 
 
         while newOptimization: # continue to optimize until there is nothing left
@@ -1866,6 +1867,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                 tmpf=''.join(tmpf)
                                                                 lex[tmpi].value=tmpf ; lex[tmpi].type=vartype
                                                             newOptimization=True
+                                                            if lex[token] not in varWasFolded: varWasFolded.append(lex[token])
                                                     elif lex[tmpi].type == 'FROM': inFrom=True
                                                     elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value: inCase=True
 
@@ -2619,7 +2621,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                 if compileTo == 'Cython' and 'random(' == lex[token].value and lex[token+1].type == 'RPAREN':
                                     lex[token].type=lex[token+1].type = 'IGNORE'
-                                    autoMakeTokens("rand() / (RAND_MAX + 1.0)", token) # jumpy
+                                    autoMakeTokens("rand() / (RAND_MAX + 1.0)", token)
                                     insertAtTopOfCodeIfItIsNotThere("from libc.stdlib cimport rand, RAND_MAX, srand\nfrom libc.time cimport time as Ctime\nsrand(Ctime(NULL))\nrand()")
                                     newOptimization=True
 
@@ -3678,8 +3680,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmpCurrentIndent = 0 ; tmpParenScope=0
                         # tmpIndent is var's indent, tmpCurrentIndent is iterations indent
                         # outOfBlock signifies that if we are in a function or class, we are safe from previous classes
+                        tmpSkipCheck = lex[token] in varWasFolded # bypasses checking if the var is dead, assumes it is dead
                         for tmpi in range(token-1, -1, -1):
                             #print(lex[token].value, '-!', lex[tmpi].value, lex[tmpi].type, tmpIndent,check)
+                            if tmpSkipCheck and delPoint != None: check=True ; break
                             if lex[tmpi].type == 'TAB':
                                 if tmpIndent==None: tmpIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
                                 if delPoint==None: delPoint=tmpi
@@ -3786,8 +3790,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     elif lex[tmpi].type == 'THEN' and tmpInConditional: tmpCurrentIndent+=prettyIndent
                                     if tmpCurrentIndent < tmpIndent: tmpOutOfStartingBlock=True
                                     tmpInConditional=False
-                                elif not tmpOutOfAssign and lex[tmpi].type == 'FUNCTION':
+                                elif not tmpSkipCheck and not tmpOutOfAssign and lex[tmpi].type == 'FUNCTION':
                                     tmpCallsFunction=True
+                            if tmpSkipCheck:
+                                varWasFolded.remove(lex[token])
 
                         if check:  # remove the var
                             #print('-------', lex[token].value)
@@ -3854,7 +3860,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lex[l].value+='(' ; del lex[l+1]
             l+=1
         pyIs=ogPyIs
-        del wasImported
+        del wasImported, varWasFolded
 
 
     # python transpiling ---------------------------
