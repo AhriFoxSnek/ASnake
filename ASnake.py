@@ -1693,30 +1693,35 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         inCase=False # similar to inFrom ; do not replace constants in OF case statements
 
                                         tmpFoundIndent=tmpFoundThen=tmpInTypeWrap=False
+                                        tmptmpIndent=0 # keeping track of backwards current indent
                                         for tmpi in range(token-1,0,-1):
+                                            #print(lex[token].value,lex[tmpi].type,tmptmpIndent,tmpindent)
+                                            # checks backwards to make sure its valid, also gets indent
                                             if lex[tmpi].type == 'TAB':
                                                 if not tmpFoundIndent:
-                                                    tmpindent=lex[tmpi].value.replace('\t',' ').count(' '*prettyIndent)
+                                                    tmptmpIndent=tmpindent=lex[tmpi].value.replace('\t',' ').count(' '*prettyIndent)
                                                     if lex[tmpi+1].type in typeConditionals:
                                                         tmpindent+=1
                                                     tmpFoundIndent=True
                                                 elif lex[tmpi].value.replace('\t',' ').count(' '*prettyIndent) < tmpindent:
                                                     if lex[tmpi+1].type == 'TYPEWRAP':
                                                         tmpindent-=1
-                                                    break
+
                                             elif lex[tmpi].type == 'NEWLINE':
                                                 if not tmpFoundIndent:
                                                     if lex[tmpi+1].type == 'TYPEWRAP':
                                                         tmpindent -= 1
                                                     elif lex[tmpi+1].type in typeConditionals:
                                                         tmpindent += 1
-                                                break
+                                                tmptmpIndent=0
                                             # don't check THENs for indent
                                             elif lex[tmpi].type == 'THEN' and lex[tmpi-1].type not in {'TAB','NEWLINE'}:
                                                 tmpFoundThen=True
                                             #elif tmpFoundThen and lex[tmpi].type in typeConditionals and lex[tmpi-1].type in typeNewline: search=False # if its in a conditional that is a no no
                                             # ^ why is it a no no tho?
                                             elif lex[tmpi].type == 'TYPEWRAP': tmpInTypeWrap = True
+                                            elif tmpindent > tmptmpIndent and lex[tmpi].type == 'ID' and lex[tmpi].value == lex[token].value:
+                                                search=False ; break # previous version of self found on previous indent, bail!
 
                                         if len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TYPEWRAP' and (lex[tmpi-1].type=='NEWLINE' or (lex[tmpi-1].type in typeNewline and lex[tmpi-1].value.count(' '*prettyIndent)<tmpindent))])>0:
                                             linkType=False # if there is a typewrap defining the types, then we shouldnt mess with it
