@@ -6792,9 +6792,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if ':' not in tok.value: tok.value+=':'
                 tmp = False
                 if tok.value.startswith('except'):
-                    if tok.value[:-1].strip() == 'except' and (lex[lexIndex+1].type not in typeNewline+('NOTHING',) or (lex[lexIndex+1].type == 'NOTHING' and lex[lexIndex+2].type == 'PIPE')):
+                    if tok.value[:-1].strip() == 'except' and (lex[lexIndex+1].type not in typeNewline+('NOTHING','STRING','NUMBER','LBRACKET','LPAREN','LIST') or (lex[lexIndex+1].type == 'NOTHING' and lex[lexIndex+2].type == 'PIPE')):
                         tok.value=tok.value[:-1] ; tmp=True
-                    if lastType not in ('NEWLINE','TAB'):
+                    if lastType not in {'NEWLINE','TAB'}:
                         if lastType!='THEN':
                             line.append('\n') ; startOfLine=True
                         if startOfLine: indent-=prettyIndent
