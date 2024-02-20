@@ -1272,6 +1272,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             keepAtTop.append(tok) ; lexIndex-=1
         elif tok.type == 'IF' and lex[lexIndex].type in {"OR","AND"}:
             lexIndex-=1
+        elif tok.type == 'ELSE' and wrapParenEndOfLine:
+            addParenUntilDone() ; lex.append(tok)
         elif tok.type == 'PIPEGO' and tok.value not in reservedIsNowVar:
             pipeWrap+=1
             lex.append(tok)
