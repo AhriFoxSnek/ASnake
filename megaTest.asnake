@@ -356,8 +356,9 @@ if ix into str into float is 12.0 do $worked
 else 'pipe double into' $failed
 
 
-$start
 $ ignoreIndent = True
+
+$start
 ix = 3
 if True
 	if False
@@ -365,8 +366,18 @@ if True
 	ix = 2
 	end
 end
-if ix is 3 do $worked
-else 'basic ignoreIndent' $failed
+if ix is 3 do $worked end
+else 'basic ignoreIndent' $failed end
+
+$start
+def test()
+${
+    if (1 == 1) ${'hi';return 0;$}
+	return 1
+$}
+if test() is 0 and result is 'hi' do $worked end
+else 'basic metaBracket alias' $failed end
+
 $ ignoreIndent = False
 	
 
@@ -394,6 +405,56 @@ $start
 9 * 2 + 4**2 // 5 - 8
 if result is 13 do $worked
 else 'order of operations lookahead for compile time optimization' $failed
+
+
+$start
+double does int return x*2 from int x
+getResult double 2
+if result is 4 do $worked
+else 'function line wrap' $failed
+
+$start
+if 4 == double 2 :
+	$worked
+else 'function line wrap in conditional' $failed
+
+$start
+del double
+def double(x: int) -> int: return x*2
+getResult double 3
+if result is 6 do $worked
+else 'function line wrap when using python function define' $failed
+
+$start
+test1 does 3
+test1 = 12
+test1
+if result is 12 do $worked
+else 'function line wrap redefined as variable' $failed
+
+$start
+$functionWrap = off
+if double 2 do 'function line wrap meta off failed' ; failed++
+else $worked
+
+$start
+$functionWrap = on
+if double 2 do $worked
+else 'function line wrap meta on' $failed
+
+$start
+1
+test2 does 2
+$functionPass = on
+x = test2
+if result is 1 do $worked
+else 'functionPass meta on' $failed
+
+$start
+$functionPass = off
+test2
+if result is 2 do $worked
+else 'functionPass meta off' $failed
 
 
 
