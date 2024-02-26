@@ -4954,13 +4954,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         # ENDIF screws up OFs by making a TAB after, thus remove ENDIF if it exists
                         tmpf=tmpf[:-1]
                     if len(tmpf)==0:
-                        return AS_SyntaxError(f'match is not provided a statement.','match variable', lineNumber, data)
+                        return AS_SyntaxError('match is not provided a statement.','match variable', lineNumber, data)
                     switchCase={'case':True,'var':tmpf,'firstIf':True,'type':'of'}
                     if not tmpHideMatch:
                         switchCase['type']='case'
                         switchCase['indent']=indent
                 else:
-                    return AS_SyntaxError(f'match is not provided a statement.','match variable',lineNumber,data)
+                    return AS_SyntaxError('match is not provided a statement.','match variable',lineNumber,data)
             elif tok.type == 'IGNORENL':
                 ignoreNewline=True
             elif tok.type in typeNewline and tok.type != 'END': # idNEWLINE
@@ -4970,6 +4970,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 # ^ allows tabs inside of brackets to be ignored
                 if fstrQuote != '':
                     if tok.type != 'THEN':
+                        tok.type = 'IGNORE' ; continue
+                    elif lastType == 'THEN' or lex[lexIndex+1].type == 'THEN':
                         tok.type = 'IGNORE' ; continue
                     elif not tenary:
                         tok.value='}{' ; line.append(tok.value) ; lastType=tok.type='FSTR' ; continue
