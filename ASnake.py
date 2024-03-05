@@ -1460,7 +1460,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         optMathEqual=True
         optListToTuple=True
         optInSet=True
-        optWalrus=True
+        optWalrus=False # seems to be only faster in pypy
         optLoopAttr=True
         optStrFormatToFString=True
         optCompilerEval=True # pyfuzz indicates there is likely breaking behaviour
@@ -1487,6 +1487,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif compileTo == 'PyPy3':
             # v seems to be slower for some reason on PyPy but faster on Python v
             optNestedLoopItertoolsProduct=optFuncCache=optLoopToMap=optListPlusListToExtend=False
+            # v faster in pypy v
+            optWalrus=True
         elif compileTo == 'Pyston':
             # v slower v
             optFuncTricksDict['boolTonotnot']=False
@@ -2158,6 +2160,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     newOptimization=True
 
 
+                        #print(lex[token].value, optWalrus , lex[token+1].type in typeAssignables+('ASSIGN',) , lex[token-1].type in typeNewline+('TYPE',) , lex[token+2].type!='ID')
                         if optWalrus and lex[token+1].type in typeAssignables+('ASSIGN',) \
                         and lex[token-1].type in typeNewline+('TYPE',) and lex[token+2].type!='ID':
                             safe=True
@@ -2183,8 +2186,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         tmpIndent=-1 # negative 1 should signify that it is on same indent
                                         break
                                     elif lex[tmpii].type == 'TAB':
+                                        if lex[tmpii + 1].type == 'IF': tmpConditionalIndex = tmpii + 1
                                         tmpIndent=lex[tmpii].value.count(' ') ; break
                                     elif lex[tmpii].type == 'NEWLINE':
+                                        if lex[tmpii+1].type == 'IF': tmpConditionalIndex=tmpii+1
                                         tmpIndent=0 ; break
                                     elif lex[tmpii].type == 'ID' and lex[tmpii].value == lex[token].value and not tmpInConditional:
                                         safe=False ; break
@@ -2203,6 +2208,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             else:
                                                 tmpFirstTNewline = True
                                         elif lex[tmpii].type == 'OF': safe = False
+                                        elif lex[tmpii].type in {'WHILE','LOOP'}: safe = False ; break
 
                             if safe:
                                 tmpIndent = 0 ; tmp = 1
@@ -3982,7 +3988,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif lex[l].type == 'FUNCTION' and lex[l].value[-1]!='(' and lex[l+1].type == 'LPAREN':
                 lex[l].value+='(' ; del lex[l+1]
             l+=1
-        pyIs=ogPyIs
         del wasImported, varWasFolded
 
 
@@ -4068,7 +4073,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             storedVarsHistory[var1.value]['line']=tmp
     def checkVarType(name,theType):
         if name in storedVarsHistory and 'type' in storedVarsHistory[name]:
-            if isinstance(theType, tuple):
+            if isinstance(theType, tuple) or isinstance(theType, set):
                 if storedVarsHistory[name]['type'] in theType: return True
                 else: return False
             elif storedVarsHistory[name]['type'] == theType: return True
@@ -7028,13 +7033,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.type in typeCheckers:
                 check = True
                 if intVsStrDoLen:
-                    if (lastType in {'STRING','LIST','LISTCOMP','DICT','TUPLE'} or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] in {'STRING','LIST','LISTCOMP','DICT','TUPLE'})) \
+                    tmpAllowedLen={'STRING','LIST','LISTCOMP','DICT','TUPLE','SET'}
+                    if (lastType in tmpAllowedLen or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] in tmpAllowedLen)) \
                     and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in {'NUMBER','INC'} or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type']=='NUMBER'))):
                         line[-1]=line[-1].replace(lex[lexIndex-1].value,f"len({lex[lexIndex-1].value})")
                         line.append(decideIfIndentLine(indent,f'{codeDict[tok.type]} '))
                         check = False
                     elif (lastType in {'NUMBER','INC'} or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type']=='NUMBER')) \
-                    and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in {'STRING','LIST','LISTCOMP','DICT','TUPLE'} or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type'] in ('STRING','LIST','LISTCOMP','DICT','TUPLE') and lex[lexIndex+2].type not in {'LINDEX','INDEX'}))):
+                    and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in tmpAllowedLen or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type'] in tmpAllowedLen and lex[lexIndex+2].type not in {'LINDEX','INDEX'}))):
                         tmp=False
                         for tmpi in range(lexIndex+1,len(lex)-1):
                             if lex[tmpi].type in typeNewline: break
@@ -7051,12 +7057,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if check and pythonVersion >= 3.08:
                         checkForWalrus = False
                         if lastType == 'RPAREN'  \
-                        and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in {'NUMBER','INC'} or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type']=='NUMBER'))):
+                        and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in tuple(tmpAllowedLen)+('NUMBER','INC') or ((lex[lexIndex+1].type=='ID' and checkVarType(lex[lexIndex+1].value,tuple(tmpAllowedLen)+('NUMBER','INC'))))):
                             tmpRange=(range(lexIndex-1,0,-1),False) # False stands for backward
                             checkForWalrus=True
-                        elif (lastType in {'NUMBER','INC'} or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type']=='NUMBER')) \
+                        elif ((lastType in {'NUMBER','INC'} or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and checkVarType(lex[lexIndex-1].value,'NUMBER'))) \
+                        or (lastType == 'RPAREN' and lex[lexIndex-3].type == 'ASSIGN' and ':' in lex[lexIndex-3].value and ((lex[lexIndex-2].type == 'ID' and checkVarType(lex[lexIndex-2].value,'NUMBER')) or (lex[lexIndex-2].type == 'NUMBER') ) )) \
                         and lex[lexIndex+1].type == 'LPAREN':
-                            #
                             tmpRange = (range(lexIndex+1, len(lex)-1), True)  # True stands for forward
                             checkForWalrus = True
 
@@ -7098,16 +7104,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 elif lex[tmpi].type == 'ASSIGN':
                                     if ':' in lex[tmpi].value:
                                         tmpFoundWalrus=True
+                                        if lex[tmpi+2].type == 'RPAREN' and (lex[tmpi+1].type in {'NUMBER','INC'} or (lex[tmpi+1].type == 'ID' and checkVarType(lex[tmpi+1].value,{'NUMBER','INC'}))):
+                                            lex[lexIndex+1].value = f"p!len({lex[lexIndex+1].value})!p" ; lex[lexIndex+1].type = 'PYPASS' ; break
+                                        elif lex[tmpi+2].type == 'RPAREN' and (lex[tmpi+1].type in tmpAllowedLen or (lex[tmpi+1].type == 'ID' and checkVarType(lex[tmpi+1].value,tmpAllowedLen))):
+                                            tmpDoLen=True
                                     else: break
                                 elif lex[tmpi].type in typeNewline+typeConditionals: break
                                 elif not tmpRange[1] and tmpFoundWalrus and lex[tmpi].type in {'ID','BUILTINF'}:
                                     if lex[tmpi].value in storedVarsHistory \
                                     and 'type' in storedVarsHistory[lex[tmpi].value] \
-                                    and storedVarsHistory[lex[tmpi].value]['type'] in {'STRING','LIST','LISTCOMP','DICT','TUPLE','SET'}:
+                                    and storedVarsHistory[lex[tmpi].value]['type'] in tmpAllowedLen:
                                         tmpDoLen=True
                                 elif tmpRange[1] and lex[tmpi].type in {'ID','BUILTINF'} and lex[tmpi+1].type == 'ASSIGN' and ':' in lex[tmpi+1].value \
                                 and lex[tmpi].value in storedVarsHistory and 'type' in storedVarsHistory[lex[tmpi].value] \
-                                and storedVarsHistory[lex[tmpi].value]['type'] in {'STRING', 'LIST', 'LISTCOMP','DICT', 'TUPLE', 'SET'}:
+                                and storedVarsHistory[lex[tmpi].value]['type'] in tmpAllowedLen:
                                     tmpFoundWalrus = tmpDoLen = True
                                     
                             if not check: line.append(f'{codeDict[tok.type]} ')
