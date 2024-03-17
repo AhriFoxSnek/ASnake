@@ -2901,12 +2901,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                             if optFuncTricksDict['EvalStr'] and optCompilerEval and lex[token].type == 'FUNCTION' and lex[token].value.replace('(','') == 'str' and lex[token+1].type in {'NUMBER','STRING'} and lex[token+2].type == 'RPAREN':
                                 # str(12) --> "12"
-                                if debug: print(f'! evalStr: str({lex[token+1].value}) --> "{lex[token+1].value}"')
                                 lex[token].type = lex[token+2].type = 'IGNORE'
                                 if  lex[token+1].type == 'NUMBER':
                                     lex[token+1].type = 'STRING' ; lex[token+1].value = f'"{lex[token+1].value}"'
                                 elif lex[token+1].type == 'STRING':
                                     lex[token].type = 'DONTDEXP'
+                                if debug and lex[token+1].type == 'NUMBER': print(f'! evalStr: str({lex[token + 1].value}) --> "{lex[token + 1].value}"')
+                                elif debug: print(f'! evalStr: str({lex[token + 1].value}) --> {lex[token + 1].value}')
                                 newOptimization = True
 
                         if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
@@ -4708,6 +4709,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 elif lex[tmpi].type == 'ASSIGN' and ':' not in lex[tmpi].value:
                                                     # if there is an assign in the expression, then clearly user is not trying to hint assign
                                                     tmpcheck=False
+                                        if tok.type == 'LIST' and lastType in {'BUILTINF','ID'} and (parenScope > 0 or not startOfLine):
+                                            if lex[lexIndex-2].type in typeNewline or (lex[lexIndex-2].type in {'TYPE','CONSTANT'} and lex[lexIndex-3].type in typeNewline) or (lex[lexIndex-2].type in {'TYPE','CONSTANT'} and lex[lexIndex-3].type in {'TYPE','CONSTANT'} and lex[lexIndex-4].type in typeNewline): pass
+                                            else: tmpcheck=False
                                         if tmpcheck:
                                             line.append('= ') ; storeVar(lex[lexIndex-1],tok,lex[lexIndex+1],position=lexIndex)
                             elif lex[lexIndex-1].value=='print':
@@ -6736,7 +6740,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     inIf=True ; inReturn=True
 
 
-
+                
                 if tok.type in {'LIST','BOOL','DICT','SET'} and startOfLine and lexIndex+1 < len(lex) and lex[lexIndex+1].type in typeNewline and lex[lexIndex-1].type not in typeConditionals and inIf==False:
                     line.append(decideIfIndentLine(indent,f'{expPrint[-1]}({tok.value})'))
                 elif fstrQuote!='' and tok.type != 'IGNORE':
