@@ -248,7 +248,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     metaPyFunc = {'funcPass','funcpass','passFunction','functionPass','pyfunc','pyFunc'}
 
     if compileTo == 'PyPy3' and (pythonVersion == latestPythonVersionSupported or (not isinstance(pythonVersion, str) and pythonVersion > 3.8)):
-                                pythonVersion='3.9'
+                                pythonVersion='3.10'
     elif compileTo == 'Cython': pythonVersion='3.6'
     elif compileTo == 'Pyston': pythonVersion='3.8'
     elif compileTo == 'MicroPython': pythonVersion='3.8'
