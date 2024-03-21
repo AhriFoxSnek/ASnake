@@ -120,7 +120,7 @@ class Lexer(Lexer):
     ELSE    = r'''(, *)?else(?= |\n|\t|:|\(|'|")'''
     FUNCTION= r'\w+\('
     NRANGE  = r'(-?(\d+|\w+(\(.\))?)\.\.\.?(-?\d+|\w+(\(.\))?))|-?\d+ ?to ?-?\d+'
-    BUILTINF= """(([a-zA-Z_]+\d*|[^\s\d='";()+\-*[\],{}]*|(f|u)?\"[^\"]*\"|(f|u)?\'[^\"\']*\')\.([^\u0000-\u007F\s]|[a-zA-Z_])+([^\u0000-\u007F\s]|[a-zA-Z0-9_])*)+"""
+    BUILTINF= r"""(([a-zA-Z_]+\d*|[^\s\d='";()+\-*[\],{}]*|(f|u)?\"[^\"]*\"|(f|u)?\'[^\"\']*\')\.([^\u0000-\u007F\s]|[a-zA-Z_])+([^\u0000-\u007F\s]|[a-zA-Z0-9_])*)+"""
     #COMMAGRP= """(?!\[)(([\[\w\d\]=.-]|(((f|r)?\"[^\"]*\")|((f|r)?\'[^\']*\')))+ ?,)+([\[\]\w\d=.-]|((f|r)?\"[^\"]*\")|((f|r)?\'[^\']*\'))+"""
     TRY     = r'(((try)|(except +([A-Z]\w+|\w+\.\w+)( +as +\w*)?)|(except)|(finally))(( *:?)|( +(do|then))))'
     TYPEWRAP= fr'({"|".join(defaultTypes)})( ?\[\w*\])? *: *(#.*)?(?=\n)'
@@ -1291,7 +1291,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 # already defined function is being redefined, thus not a line wrap, thus deconvert it to ID
                 lex[lexIndex].value = lex[lexIndex].value[:-1] ; lex[lexIndex].type = 'ID' ;  wrapParenEndOfLine -= 1
             if lex[lexIndex].type != 'ID':
-                return AS_SyntaxError(f'{lex[lexIndex].value} is not a valid function name.\n\tFunction names should start with a letter or underscore.\n\tAvoid character literals like ()\!=<>/\\\'"*^%#@:&$.'+'{}','myFunction does',lineNumber,data)
+                return AS_SyntaxError(rf'{lex[lexIndex].value} is not a valid function name.\n\tFunction names should start with a letter or underscore.\n\tAvoid character literals like ()\!=<>/\\\'"*^%#@:&$.'+'{}','myFunction does',lineNumber,data)
             if lex[lexIndex].value not in definedFunctions: definedFunctions[lex[lexIndex].value] = currentTab
             # ^ store function name and current indent
             lex.append(tok)
@@ -2627,7 +2627,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if len(tmpf) > 0:
                                 # tmpf is moduleName. like random.
                                 # func is all of the things after it, like .randint
-                                restr='((?: |,)'+tmpf[0].replace('.','\.')+r"""\w*\b(?=([^"'\\]*(\\.|("|')([^"'\\]*\\.)*[^"'\\]*("|')))*))"""
+                                restr=r'((?: |,)'+tmpf[0].replace('.','\\.')+r"""\w*\b(?=([^"'\\]*(\\.|("|')([^"'\\]*\\.)*[^"'\\]*("|')))*))"""
                                 # thing\.\w*\b is all thats needed, rest is for excluding it if its in quotes
                                 func=REfindall(restr,' '+lex[token].value,REMULTILINE)
                                 if len(func) > 0: func = [f[0] for f in func]
