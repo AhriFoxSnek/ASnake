@@ -2627,7 +2627,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if len(tmpf) > 0:
                                 # tmpf is moduleName. like random.
                                 # func is all of the things after it, like .randint
-                                restr=r'((?: |,)'+tmpf[0].replace('.','\.')+r"""\w*\b(?=([^"'\\]*(\\.|("|')([^"'\\]*\\.)*[^"'\\]*("|')))*))"""
+                                restr=r'((?: |,)'+tmpf[0].replace('.','\\.')+r"""\w*\b(?=([^"'\\]*(\\.|("|')([^"'\\]*\\.)*[^"'\\]*("|')))*))"""
                                 # thing\.\w*\b is all thats needed, rest is for excluding it if its in quotes
                                 func=REfindall(restr,' '+lex[token].value,REMULTILINE)
                                 if len(func) > 0: func = [f[0] for f in func]
