@@ -1657,6 +1657,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         tmpf=None # in cases where optListPlusListToExtend is viable, constant propagation is slower
                                 if valueStop==None: valueStop=len(lex)-1
                                 if tmpf != None: # we got a expression now
+                                    tmpListOfVarsInside=()
                                     if vartype == 'NUMBER' and optCompilerEval:
                                         try:
                                             tmpf=compilerNumberEval(tmpf)
@@ -1671,6 +1672,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if len(tmpf) > 1 and tmpf[-1].type!='LIST' and any(True for i in tmpf if i.type == 'LISTCOMP' )==False:
                                             tmptok=copy(lex[token]) ; tmptok.type='LPAREN' ; tmptok.value='(' ; tmpf.append(tmptok) ; del tmptok
                                             tmptok=copy(lex[token]) ; tmptok.type='RPAREN' ; tmptok.value=')' ; tmpf.insert(0,tmptok) ; del tmptok
+                                        tmpListOfVarsInside=tuple([_.value for _ in tmpf if _.type == 'ID']) # for keeping track of vars inside that may change
                                     else: tmpf=[l for l in tmpf if tmpf.type != 'IGNORE']
 
                                     search=True ; linkType=True if (enforceTyping or compileTo == 'Cython') else False ; ignores=[] ; inDef=False ; wasInDefs=False ; inFrom=False ; inCase=False
@@ -1679,8 +1681,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     for tmpi in range(valueStop+1,len(lex)): # check if we can determine its a constant
                                         #print(lex[token].value,search,lex[tmpi].type,lex[tmpi].value,tmpIDshow)
                                         if not search and (enforceTyping and not linkType): break
-                                        if lex[tmpi].type=='INC' or (tmpi+1 < len(lex) and lex[tmpi+1].type=='LINDEX' and lex[tmpi].value == lex[token].value) \
-                                        or ((lex[tmpi].type in ('ID','INC') and lex[tmpi].value.replace('++','').replace('--','')==lex[token].value and (lex[tmpi-1].type not in {'ELIF','OF','IF','OR','AND','FSTR'})  ) and lex[tmpi+1].type in typeAssignables+('ASSIGN',) ):
+                                        if lex[tmpi].type=='INC' or (tmpi+1 < len(lex) and lex[tmpi+1].type=='LINDEX' and lex[tmpi].value in (lex[token].value,)+tmpListOfVarsInside) \
+                                        or ((lex[tmpi].type in {'ID','INC'} and lex[tmpi].value.replace('++','').replace('--','') in (lex[token].value,)+tmpListOfVarsInside and (lex[tmpi-1].type not in {'ELIF','OF','IF','OR','AND','FSTR'})  ) and lex[tmpi+1].type in typeAssignables+('ASSIGN',) ):
                                             if (lex[tmpi+1].type == 'ASSIGN' and lex[tmpi+2].type == vartype) or lex[tmpi+1].type == vartype or (vartype=='NUMBER' and lex[tmpi].type=='INC'):
                                                 pass
                                             elif lex[tmpi+1].type == 'ASSIGN' and vartype == 'STRING' and lex[tmpi+1].value.strip() not in {'=','is',':='}: pass # if fold is string then only hard assigns arent safe
@@ -7396,6 +7398,7 @@ if __name__ == '__main__':
                 exit()
             else:
                 print("# Warning: To run the latest ASnake you must do the command again, currently you are using the last version of ASnake.")
+        else: print('ASnake file not found.')
 
     if not args.version:
         pythonVersion = latestPythonVersionSupported
