@@ -168,7 +168,7 @@ class Lexer(Lexer):
     INS     = r'(not|in)( |(?=\n))'
     ARE     = r"(arent|aren\'t|are)(?= |\n|\t)"
     BOOL    = r'True|False|None'
-    MODULO  = r'%|remainder(?= |\n|\t)'
+    MODULO  = r'%|modulo(?= |\n|\t)|remainder(?= |\n|\t)'
     INC     = r'((\+{2}|\-{2})[^\[\]\(\)\+\-\/\*\d\s,=][^\s\+\-\/\*,\(\)=><]*(\[.*\])?)|([^\[\]\(\)\+\-\/\*\d\s,=][^\s\+\-\/\*,=]*(\[.*\])?(\+{2}|\-{2}))'
     HEXDEC  = r'0x[\da-fA-F]+'
     NUMBER  = r'(0x\d*)|(((( \-\d|\d)\d*\.?\d*)|(\-?\.))(e(-|\+)\d+)?\.?_*\d*j?(?!\w+))'
@@ -178,15 +178,15 @@ class Lexer(Lexer):
     PLUS    = r'\+|plus(?= |\t)'
     EXPONENT= r'\*\*|power(?= |\t)'
     TIMES   = r'\*|times(?= |\t)'
+    DIVMOD  = r'///'
+    RDIVIDE = r'//|r(ound ?)?divide( +by)?(?= |\t)'
+    DIVIDE  = r'/|divide( +by)?(?= |\t)'
     ID      = r'([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*'
     ELLIPSIS= r'\.\.\.'
     DQUOTE  = r'"'
     SQUOTE  = r"'"
     COMMA   = r','
     IGNORENL= r'\\'
-    DIVMOD  = r'///'
-    RDIVIDE = r'//'
-    DIVIDE  = r'/'
     LPAREN  = r'\(|\['
     RPAREN  = r'\)|]'
 
