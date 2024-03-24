@@ -176,7 +176,7 @@ class Lexer(Lexer):
     BINARY  = r'0(o|O|x|X|b|B)\d+'
     MINUS   = r'-|minus(?= |\t)'
     PLUS    = r'\+|plus(?= |\t)'
-    EXPONENT= r'\*\*|power(?= |\t)'
+    EXPONENT= r'\*\*|power(?:\sof(?= |\t))?|exponent(?= |\t)'
     TIMES   = r'\*|times(?= |\t)'
     DIVMOD  = r'///'
     RDIVIDE = r'//|r(ound ?)?divide( +by)?(?= |\t)'
