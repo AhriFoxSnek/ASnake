@@ -5777,7 +5777,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if tmp:
                             tmpcheck = ''
                             for tt in range(lexIndex + tmp, len(lex) - 1):
-                                if lex[tt].type in typeNewline+('ENDIF',):
+                                if lex[tt].type in typeNewline + ('ENDIF','AND','OR'):
                                     break
                                 else:
                                     tmpcheck += lex[tt].value
