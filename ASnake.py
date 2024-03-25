@@ -1296,6 +1296,27 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             # ^ store function name and current indent
             lex.append(tok)
         elif tok.type == 'PYDEF':
+            tmpFuncArgs = REsearch(r'\((.*)\)(?=:|\n|$)', tok.value)
+            if tmpFuncArgs:
+                # extracts out function argument variables and types
+                tmpFuncArgs = tmpFuncArgs.group()[1:-1]
+                tmpREChecks = (r'[^,]+\[.*\](?:,|$)', r'[^,]+?\((?:.*?,?)*?\)(?: *,|$)', r'[^,]+\{(?:.*,?)*\}(?:,|$)',r'[^,]+(?:,|,?.*?$)')
+                tmpf = []
+                for REcheck in tmpREChecks:
+                    tmp = REfindall(REcheck, tmpFuncArgs)
+                    if tmp:
+                        for t in tmp:
+                            if t:  tmpFuncArgs = tmpFuncArgs.replace(t, '') ; tmpf.append(t)
+                tmpFuncArgs = {}
+                for t in tmpf:
+                    if ':' in t:
+                        tmp = t.split(':')
+                        tmp2 = REsearch(r' *\w+,?(?=\=|$)', tmp[1])
+                        if tmp2: tmpFuncArgs[tmp[0].strip()] = tmp2.group().replace(',', '').strip()
+                    else: tmpFuncArgs[t.split('=')[0].strip()] = None
+                for arg in tmpFuncArgs:
+                    if arg in ASnakeKeywords: reservedIsNowVar.append(arg)
+
             funcName = tok.value.split('def')[1].split('(')[0].replace(' ', '')  # get function name
             if funcName not in definedFunctions: definedFunctions[funcName] = currentTab
             tmp=tok.value.split() ; tmpFound = False
@@ -1321,6 +1342,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lex.append(tok)
         else:
             if reservedIsNowVar and tok.value in reservedIsNowVar: tok.type='ID'
+            elif tok.type in typeOperators and tok.type in codeDict:
+                if (lex[lexIndex].type in typeNewline) or (lex[lexIndex].type in {'CONSTANT','TYPE','COMMA'}): pass
+                else: tok.value = codeDict[tok.type]
             lex.append(tok)
         # checks
         if lex and lex[lexIndex].type == 'TYPE' and tok.type != 'ID' and lex[lexIndex-1].type not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT')+typeNewline and tok.type != 'CONSTANT':
