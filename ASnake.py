@@ -165,7 +165,7 @@ class Lexer(Lexer):
     LOOP    = r'loop(?= |\n)'
     ASYNC   = r'(async|await)(?= |\t)'
     CONSTANT= r'const(ant)?'
-    ANYOF   = r'(any|all) (of )?'
+    ANYOF   = r'(any|all) +(of )?'
     INS     = r'(not|in)( |(?=\n))'
     ARE     = r"(arent|aren\'t|are)(?= |\n|\t)"
     BOOL    = r'True|False|None'
