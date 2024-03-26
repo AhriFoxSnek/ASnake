@@ -6732,7 +6732,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if lex[tmpi].type in typeNewline:
                                 if lex[tmpi].type == 'TAB': lex[tmpi].type='THEN'
                                 break
-                    elif optimize and tok.value.strip() == 'in' and not inLoop[0] and listScope<=0 and optFuncTricksDict['inTo__contains__'] and lex[lexIndex+1].type == 'ID' and checkVarType(lex[lexIndex+1].value, ('LIST','TUPLE')) and lex[lexIndex-1].type != 'INS':
+                    elif optimize and tok.value.strip() == 'in' and not inLoop[0] and listScope<=0 and optFuncTricksDict['inTo__contains__'] and lex[lexIndex+1].type == 'ID' and checkVarType(lex[lexIndex+1].value, ('LIST','TUPLE')) and lex[lexIndex-1].type != 'INS' and lex[lexIndex+2].type not in {'LINDEX','LIST'}:
                         # xValue in yList --> yList.__contains__(xValue)
                         # faster in Pyston , though not for small lists
                         # better to optimize for the large cases probably unless length can be determined
