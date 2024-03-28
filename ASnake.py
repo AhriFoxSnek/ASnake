@@ -1342,8 +1342,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lex.append(tok)
         else:
             if reservedIsNowVar and tok.value in reservedIsNowVar: tok.type='ID'
-            elif tok.type in typeOperators and tok.type in codeDict:
-                if (lex[lexIndex].type in typeNewline) or (lex[lexIndex].type in {'CONSTANT','TYPE','COMMA'}): pass
+            elif tok.type in typeOperators+typeCheckers and tok.type in codeDict:
+                if ((lex[lexIndex].type in typeNewline) or (lex[lexIndex].type in {'CONSTANT','TYPE','COMMA'})): pass
                 else: tok.value = codeDict[tok.type]
             lex.append(tok)
         # checks
