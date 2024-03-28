@@ -5024,6 +5024,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     else:
                         line.append('\n')
 
+                if anyCheck != 'none':
+                    return AS_SyntaxError(f'{anyCheck} requires an are or arent.',f'if {anyCheck} False,True,False are True', lineNumber, data)
 
 
                 if len(code)==0: code.append(''.join(line)) ; line=[]
