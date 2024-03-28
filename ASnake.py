@@ -165,7 +165,7 @@ class Lexer(Lexer):
     LOOP    = r'loop(?= |\n)'
     ASYNC   = r'(async|await)(?= |\t)'
     CONSTANT= r'const(ant)?'
-    ANYOF   = r'(any|all) +(of )?'
+    ANYOF   = r'(any|all|each) +(of )?'
     INS     = r'(not|in)( |(?=\n))'
     ARE     = r"(arent|aren\'t|are)(?= |\n|\t)"
     BOOL    = r'True|False|None'
@@ -235,7 +235,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     setUpdateMethods=('.add','.clear','.discard','.difference_update','.intersection_update','.pop','.remove','.symmetric_difference_update','.update')
     pyBuiltinFunctions=('abs', 'delattr', 'hash', 'memoryview', 'set', 'all', 'dict', 'help', 'min', 'setattr', 'any', 'dir', 'hex', 'next', 'slice', 'ascii', 'divmod', 'id', 'object', 'sorted', 'bin', 'enumerate', 'input', 'oct', 'staticmethod', 'bool', 'int', 'open', 'str', 'breakpoint', 'isinstance', 'ord', 'sum', 'bytearray', 'filter', 'issubclass', 'pow', 'super', 'bytes', 'float', 'iter', 'print', 'tuple', 'callable', 'format', 'len', 'property', 'type', 'chr', 'frozenset', 'list', 'range', 'vars', 'classmethod', 'getattr', 'locals', 'repr', 'zip', 'compile', 'globals', 'map', 'reversed', 'complex', 'hasattr', 'max', 'round', 'exec', 'eval', '__import__', 'exit')
     pyReservedKeywords=('False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield')
-    ASnakeKeywords=('nothing', 'minus', 'plus', 'times', 'greater', 'end', 'of', 'until', 'then', 'do', 'does', 'less', 'than', 'equals', 'power', 'remainder', 'loop', 'case', 'match', 'pipe', 'all', 'any')
+    ASnakeKeywords=('nothing', 'minus', 'plus', 'times', 'greater', 'end', 'of', 'until', 'then', 'do', 'does', 'less', 'than', 'equals', 'power', 'remainder', 'loop', 'case', 'match', 'pipe', 'all', 'any', 'each', 'divide', 'modulo')
     # ^ match, case, all, any
     # ^ are not ASnake keywords, however can be reassigned in Python, so better to leave it in ASnakeKeywords
     metaPyCompat = {'pythonCompatibility','pycompat','pyCompatibility','pyCompat','pythonCompat'}
@@ -1340,6 +1340,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lexIndex -= 1
             else:
                 lex.append(tok)
+        elif tok.type == 'ANYOF' and 'each' in tok.value: tok.value = 'all' ; lex.append(tok)
         else:
             if reservedIsNowVar and tok.value in reservedIsNowVar: tok.type='ID'
             elif tok.type in typeOperators+typeCheckers and tok.type in codeDict:
