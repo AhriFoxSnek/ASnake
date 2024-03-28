@@ -5840,6 +5840,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 else:
                                     line.append(f"len(set({tmpfirst})) == 1")
                             else:
+                                if lex[lexIndex].value != 'are' and check in {'<','>','=<','=>','<=','>='}:
+                                    check = {'>':'<','>':'<','=<':'=>','=>':'=<','<=':'=>','>=':'=<'}[check] # converts to opposite check
                                 line.append(f"{anyCheck}(True if _ {check} {tmpcheck} else False for _ in {tmpfirst})")
                         lex[lexIndex+1].type = 'IGNORE' ; lex[lexIndex-1].type = 'IGNORE'
                         anyCheck='none'
