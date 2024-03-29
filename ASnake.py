@@ -6930,12 +6930,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     pythonVersion = tmp
                     # in pre-phase it already checked if it was float, no need for try except
                 elif tmpf in {'noDefExpOnFunc','defExpIgnoreFunction','defaultExpressionIgnoreFunction','ignoreDefExpFunction'}:
-                    if tmp in {'true', 'yes', 'on'}:
-                        metaDefaultExpressionWithFunction = True
-                    elif tmp in {'no', 'false', 'off'}:
-                        metaDefaultExpressionWithFunction = False
-                    else:
-                        metaDefaultExpressionWithFunction = False
+                    metaDefaultExpressionWithFunction = metaHandling(tok.value, metaDefaultExpressionWithFunction)
 
 
 
