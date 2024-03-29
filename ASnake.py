@@ -224,7 +224,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     typeAssignables=('STRING','NUMBER','ID','LIST','LISTEND','DICT','BINARY','LBRACKET','BOOL')
     typeOperators=('PLUS','MINUS','TIMES','DIVIDE','RDIVIDE','EXPONENT','BITWISE','MODULO')
     typeCheckers=('LESS','LESSEQ','GREATEQ','GREATER', 'EQUAL', 'PYIS','NOTEQ')
-    typePrintable=typeAssignables+typeOperators+typeCheckers+('LINDEX','RINDEX','INDEX','LPAREN','RPAREN','MODULO','IGNORE','INC','INS','DIVMOD','COMMA')
+    typePrintable=typeAssignables+typeOperators+typeCheckers+('LINDEX','RINDEX','INDEX','LPAREN','RPAREN','MODULO','IGNORE','INC','INS','DIVMOD','COMMA','BITWISE')
     mopConv={'TIMES':'*=','PLUS':'+=','DIVIDE':'/=','RDIVIDE':'//=','MINUS':'-='}
     typeMops=tuple(i for i in mopConv)
     typeConditionals=('IF','ELIF','ELSE','OF','WHILE')
@@ -6679,8 +6679,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if ttmp in storedVarsHistory and 'value' in storedVarsHistory[ttmp]:
                             del storedVarsHistory[ttmp]['value']
                             # if function changes variable, then the last value may not be valid
-                elif tok.type == 'MINUS':
-                    tok.value=codeDict[tok.type]
+                elif tok.type in {'MINUS','BITWISE'}:
+                    if tok.type in codeDict: tok.value=codeDict[tok.type]
                     if startOfLine and not inIf:
                         doPrint = True
                         for tmpi in range(lexIndex + 1, len(lex) - 1):
@@ -6690,6 +6690,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 doPrint = False
                         if doPrint: line.append(
                             decideIfIndentLine(indent, f'{expPrint[-1]}(')); bigWrap = True; rParen += 1
+                    
 
                 if tok.type == 'LBRACKET': bracketScope+=1
                 elif tok.type == 'RBRACKET':
