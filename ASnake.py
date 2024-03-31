@@ -6405,7 +6405,16 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         else:
                             if lex[lexIndex-1].type in {'NRANGE','INC'}:
                                 tmpfunc.append(f'({line[-1]})')
-                            else: tmpfunc.append(f'({lex[lexIndex-1].value})')
+                            else:
+                                # vvvv hack section
+                                if line and lex[lexIndex-1].type == 'NUMBER' and lex[lexIndex-1].value == line[-1]:
+                                    line=line[:-1]
+                                    if line[-1] == '-' and lex[lexIndex-2].type == 'MINUS': line=line[:-1]
+                                # ^ this section is a hack. past (even ancient) versions of ASnake handled this case just fine:
+                                # f"{12 to chr}"  past/expected: f"{chr(12)}  what-happens-if-you-remove-this-line: f"{12chr(12)}"
+                                # i sure hope this line doesn't cause other bugs (which it might), because its going to be a pain to debug this regression.
+                                # even weirder, this bug only exists for NUMBER tokens. old asnake even fixes the minus case
+                                tmpfunc.append(f'({lex[lexIndex-1].value})') # 'the default'
                             if len(line)>0 and line[-1] != '[' and lex[lexIndex-1].type not in typeAssignables:
                                 if line[-1].endswith(':\n'): pass
                                 else: line=line[:-1]
