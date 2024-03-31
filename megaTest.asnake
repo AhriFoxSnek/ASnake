@@ -355,6 +355,11 @@ $start
 if ix into str into float is 12.0 do $worked
 else 'pipe double into' $failed
 
+$start
+f"{69 to chr}"
+if result is 'E' do $worked
+else 'pipe number in fstring' $failed
+
 
 $ ignoreIndent = True
 
