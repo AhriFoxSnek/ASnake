@@ -2649,7 +2649,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 wasImported[importName]=[]
                                 if len(tmp) > 2 and tmp[2] == 'as': # indicate the original import name so it may switch to it later
                                     wasImported[importName]=[f"AS!{tmp[1]+'.'}"]
-                    elif lex[token].type in ('BUILTINF','FUNCTION') or (lex[token].type == 'TYPE' and lex[token+1].type=='LPAREN'):
+                    elif lex[token].type in {'BUILTINF','FUNCTION'} or (lex[token].type == 'TYPE' and lex[token+1].type=='LPAREN'):
                         if optFromFunc:
                             tmpf = [i for i in wasImported if i in lex[token].value]
                             if len(tmpf) > 0:
@@ -2685,6 +2685,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         if lex[t].type == 'BUILTINF' and lex[t].value == f'{tmpf[0]}{f}': lex[t].value=f'AS{f}'
                                                         elif lex[t].type == 'FUNCTION' and lex[t].value == f: lex[t].value=f'AS{f}'
                                             elif f not in wasImported[tmpf[0]]:
+                                                # check if its a conflicting name
+                                                for imported in wasImported:
+                                                    if imported == tmpf[0]: # skip if self
+                                                        continue
+                                                    for importsFunction in wasImported[imported]:
+                                                        if importsFunction == f: # if there is a match
+                                                            f = f"{tmpf[0][:-1]}_{f}"
+                                                            lex[token].value = f
+                                                            if lex[token].type == 'FUNCTION': lex[token].value+='('
+                                                            break
+
                                                 wasImported[tmpf[0]].append(f)
                                     newOptimization=True
 
@@ -3828,7 +3839,22 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if len(wasImported[importedName]) > 0:
                             tmpf=[i for i in wasImported if i == importedName][0]
                             if len(wasImported[tmpf]) > 1 or wasImported[tmpf][0] != '':
-                                lex[token].value='from %s import %s'%(importedName[:-1], ', '.join([wasImported[tmpf][i] for i in range(0,len(wasImported[tmpf]))]))
+                                tmpImportThese=wasImported[tmpf]
+                                tmpConflictingNames=[]
+                                for tfunc in tmpImportThese:
+                                    for imported in wasImported:
+                                        if imported == tmpf:
+                                            continue
+                                        for importsFunction in wasImported[imported]:
+                                            if importsFunction == tfunc:
+                                                tmpConflictingNames.append(tfunc)
+                                                break
+                                if tmpConflictingNames:
+                                    tmpImportThese = [_ for _ in wasImported[tmpf] if _ not in tmpConflictingNames]
+                                    for conflict in tmpConflictingNames:
+                                        lex.insert(token+1, makeToken(tok, f'from {importedName[:-1]} import {conflict} as {importedName[:-1]}_{conflict}','IMPORT'))
+                                        lex.insert(token+1, makeToken(tok, ';', 'THEN'))
+                                lex[token].value='from %s import %s'%(importedName[:-1], ', '.join([tmpImportThese[i] for i in range(0,len(tmpImportThese))]))
                             else: lex[token].value=f'from {importedName} import *'
                             del wasImported[importedName]
                     
