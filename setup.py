@@ -1,6 +1,11 @@
 from setuptools import setup, find_packages
 from __version__ import ASnakeVersion
 
+
+# run: python setup.py sdist bdist_wheel
+# to build.
+
+
 if __name__ == '__main__':
     setup(
     name='ASnake',
