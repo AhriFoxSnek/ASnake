@@ -3,7 +3,7 @@ requires = ["sly","autopep8"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ASnake_YOUR_USERNAME_HERE"
+name = "ASnake_Ahri_Fox"
 dynamic = ["version"]
 authors = [
   { name="Ahri Fox"},
