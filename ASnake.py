@@ -18,7 +18,8 @@ from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 from subprocess import check_output, CalledProcessError, STDOUT
 
-ASnakeVersion='v0.13.34'
+# in library
+from __version__ import ASnakeVersion
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
