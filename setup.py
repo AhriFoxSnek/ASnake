@@ -1,5 +1,5 @@
 from setuptools import setup, find_packages
-from ASnake import ASnakeVersion
+from __version__ import ASnakeVersion
 
 if __name__ == '__main__':
     setup(
