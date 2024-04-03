@@ -4,10 +4,12 @@ Optimizing Python transpiler for the ASnake programming language.
 A proper readme is yet to come. If you are super interested, we have a lot more info (including some draft documentation) on this Discord:
 https://discord.gg/ySDFchT
 
-To install, clone this repository or download a release. Open a terminal in the directory and run:
+To install run:
 ```console
-pip install -e .
+python -m pip install ASnake
 ```
+You may have to use `py` or `python3` or similar depending on what you have installed for a Python interpreter.
+
 After that, ASnake and all it's compiler flags can be callable via:
 ```console
 python -m ASnake
