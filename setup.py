@@ -1,9 +1,10 @@
 from setuptools import setup, find_packages
 from __version__ import ASnakeVersion
 
-
-# run: python setup.py sdist bdist_wheel
+# python setup.py sdist bdist_wheel
 # to build.
+# python -m twine upload dist/*
+# to upload
 
 
 if __name__ == '__main__':
@@ -15,7 +16,7 @@ if __name__ == '__main__':
     description='Optimizing Python transpiler for the ASnake programming language.',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
-    packages=find_packages(),
+    py_modules=['ASnake','__version__'],
     install_requires=[
         'sly>=0.4',
         'autopep8>=1.5.5',
