@@ -1,0 +1,11 @@
+ASnake.py
+LICENSE.txt
+README.md
+pyproject.toml
+ASnake_Ahri_Fox.egg-info/PKG-INFO
+ASnake_Ahri_Fox.egg-info/SOURCES.txt
+ASnake_Ahri_Fox.egg-info/dependency_links.txt
+ASnake_Ahri_Fox.egg-info/top_level.txt
+data/ASnakeAlias.bat
+data/megaTest.asnake
+data/setAlias.asnake

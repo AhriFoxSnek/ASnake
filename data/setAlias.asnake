@@ -1,0 +1,95 @@
+from subprocess import check_output, CalledProcessError, STDOUT
+from os import system as os_system
+from os import path as os_path
+from os import makedirs
+import platform
+$ defprint = os_system
+$ def dc = .decode()
+
+
+def add_PowerShell_alias():
+    # Get the path to the PowerShell profile
+    profile_path = os_path.expanduser("~\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1")
+
+    # Construct the alias command
+    alias_command = """
+	function ASnake {
+    param(
+        [Parameter(ValueFromRemainingArguments=$true)]
+        [string[]]$Arguments
+    )
+    
+    py -m ASnake $Arguments
+}
+
+	"""
+
+    # Check if the profile directory exists, if not create it
+    profile_directory = os_path.dirname(profile_path)
+    if not os_path.exists(profile_directory):
+        makedirs(profile_directory)
+
+    # Check if the profile file exists, if not create it
+    if not os_path.isfile(profile_path):
+        with open(profile_path, 'w'):
+            pass
+
+    # Append the alias command to the profile file
+    with open(profile_path, 'a') as profile_file:
+        profile_file.write('\n' + alias_command)
+
+    print(f"Alias ASnake added to PowerShell profile.")
+
+if platform.system() is 'Windows'
+    #if check_output().decode() is
+    import ASnake
+    ASnakePath = ASnake.__file__.replace('\\\\','\\').replace('\\ASnake.py','')
+    f'reg add "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Command Processor" /v AutoRun /t REG_SZ /d "{ASnakePath}\\ASnake\\data\\ASnakeAlias.bat" /f'
+    print "ASnake alias added to cmd"
+    
+    powershell False
+    try
+        if 'Restricted' not in check_output(["powershell", "-Command", "Get-ExecutionPolicy"]).decode()
+            add_PowerShell_alias()
+            powershell True
+    except CalledProcessError
+        pass
+    if not powershell
+        print "PowerShell is not allowed to run scripts. At your own risk, open Powershell as admin and enter this command:"
+        print "\tset-executionpolicy remotesigned"
+        print "Then re-run this script."
+    print "Aliases added! Probably. Try it out. You may need to restart your terminal."
+    
+elif platform.system() is 'Linux'
+    bool:
+        bash zsh fish False
+    $ def check = check_output(
+    $ def isThere =  p!, stderr=STDOUT!p , shell=True).decode()
+    try 
+        $check 'ls ~/.bashrc' $isThere
+        bash = True
+    except do nothing
+    try
+        $check 'ls ~/.zshrc' $isThere
+        zsh = True
+    except do nothing
+    try 
+        if len( $check 'whereis fish' $isThere )  > 6
+            fish = True
+    except do nothing
+
+    pyCall = 'python'
+    if len(check_output(['which', 'python3']).decode()) > 0
+          pyCall = 'python3'
+    
+    print "The following shells were found:"
+    print f"\tbash={bash} zsh={zsh} fish={fish}"
+    user = "Would you like to add ASnake as an alias to all of the detected shells? (N/y): " to input
+    if 'y' in user.lower()
+        if bash do f'echo "alias ASnake=\'{pyCall} -m ASnake\'" >> ~/.bashrc && source ~/.bashrc'
+        if zsh  do f'echo "alias ASnake=\'{pyCall} -m ASnake\'" >> ~/.zshrc && source ~/.zshrc'
+        if fish do f'alias ASnake "{pyCall} -m ASnake" && funcsave ASnake'
+    else
+        print "Alias add aborted. For manual alias assignment guide visit link:\nhttps://asnake.org/docs/installing%20asnake.html#setting%20up%20ASnake%20alias"
+        exit()
+    print "Aliases added! Probably. Try it out."

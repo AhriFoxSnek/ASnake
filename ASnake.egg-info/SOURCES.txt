@@ -1,0 +1,13 @@
+ASnake.py
+LICENSE.txt
+README.md
+__version__.py
+megaTest.asnake
+setup.cfg
+setup.py
+ASnake.egg-info/PKG-INFO
+ASnake.egg-info/SOURCES.txt
+ASnake.egg-info/dependency_links.txt
+ASnake.egg-info/entry_points.txt
+ASnake.egg-info/requires.txt
+ASnake.egg-info/top_level.txt

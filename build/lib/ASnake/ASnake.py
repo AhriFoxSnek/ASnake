@@ -18,8 +18,8 @@ from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 from subprocess import check_output, CalledProcessError, STDOUT
 
-ASnakeVersion = 'v0.13.36'
-__version__ = ASnakeVersion
+# in library
+from __version__ import ASnakeVersion
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -153,7 +153,7 @@ class Lexer(Lexer):
     WHILE   = r'while '
     NOTHING = r'(pass|nothing,?)(?= |$|\n)'
     MATCH   = r'match +'
-    EXPONENT= r'\*\*|power(?:\sof(?= |\t))?(?= |\t)|exponent(?= |\t)'
+    EXPONENT= r'\*\*|power(?:\sof(?= |\t))?|exponent(?= |\t)'
     OF      = r'((case)|(of))( |(?=[\W]))'
     END     = r'end(?=\s|;)'
     PIPE    = r'(into|to)(?!\S)'
@@ -823,6 +823,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     lex.append(makeToken(tok, f'import {t.strip()}', 'IMPORT'))
                     if debug: print('--',lex[-1])
                     lexIndex += 2
+            elif tok.value.startswith('from '):
+                # imported functions should be tracked (to later line wrap)
+                tmpFunctions=[_.strip() for _ in ''.join(tok.value.split('import')[1:]).split(',')]
+                for f in tmpFunctions:
+                    definedFunctions[f] = currentTab
+                lex.append(tok)
             else:
                 lex.append(tok)
         elif tok.type == 'ID':
@@ -2685,13 +2691,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         continue
                                                     for importsFunction in wasImported[imported]:
                                                         if importsFunction == f: # if there is a match
-                                                            ff=f
-                                                            #f = f"{tmpf[0][:-1]}_{f}"
-                                                            lex[token].value = f"{tmpf[0][:-1]}_{f}"
-                                                            f='AS!'+f
+                                                            f = f"{tmpf[0][:-1]}_{f}"
+                                                            lex[token].value = f
                                                             if lex[token].type == 'FUNCTION': lex[token].value+='('
                                                             break
-                                                if f not in wasImported[tmpf[0]]: wasImported[tmpf[0]].append(f)
+
+                                                wasImported[tmpf[0]].append(f)
                                     newOptimization=True
 
                         if optFuncTricks:
@@ -3844,12 +3849,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             if importsFunction == tfunc:
                                                 tmpConflictingNames.append(tfunc)
                                                 break
-                                for tfunc in range(0,len(wasImported[importedName])):
-                                    if wasImported[importedName][tfunc].startswith('AS!'):
-                                        tmpAlreadyConflicting=wasImported[importedName][tfunc][3:]
-                                        tmpConflictingNames.append(tmpAlreadyConflicting)
-                                        wasImported[importedName][tfunc]=tmpAlreadyConflicting
-
                                 if tmpConflictingNames:
                                     tmpImportThese = [_ for _ in wasImported[tmpf] if _ not in tmpConflictingNames]
                                     for conflict in tmpConflictingNames:
@@ -7452,7 +7451,7 @@ if __name__ == '__main__':
             except:
                 pass
             rename(tmpPath, tmpPrevious)
-
+            
             with open(tmpPath, 'wb') as file:
                 file.write(ASnek.content)
             print('# Downloaded latest ASnake.')

@@ -1,0 +1,2 @@
+ASnake
+__version__

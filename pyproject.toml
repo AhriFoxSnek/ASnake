@@ -1,5 +1,5 @@
 [build-system]
-requires = ["sly","autopep8"]
+requires = ["setuptools>=46.4.0", "wheel", "sly>=0.4", "autopep8>=1.5.5"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -11,6 +11,7 @@ authors = [
 description = "Python optimizing compiler for the ASnake programming language."
 readme = "README.md"
 requires-python = ">=3.6"
+license = { file = "LICENSE.txt" }
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: Apache Software License",
@@ -32,3 +33,22 @@ keywords = ["programming language","transpiler","pyston","compiler"]
 Homepage = "https://asnake.org"
 Github = "https://github.com/AhriFoxSnek/ASnake"
 Issues = "https://github.com/AhriFoxSnek/ASnake/issues"
+
+[options]
+python_requires = ">=3.6"
+install_requires = [
+    "sly>=0.4",
+    "autopep8>=1.5.5"
+]
+
+[tool.setuptools.package-data]
+"data" = ["*.bat", "*.asnake", "*.py"]
+
+[tool.setuptools.dynamic]
+version = {attr = "ASnake.__version__"}
+
+[entry-points]
+console_scripts = [
+    "ASnake = ASnake:main"
+]
+
