@@ -147,8 +147,8 @@ if __name__ == '__main__':
             runCode = True
         elif args.asnake_script:
             tmpASnakeScriptPath=__file__.replace('ASnake.py','')
-            if '\\' in tmpASnakeScriptPath: tmpASnakeScriptPath=tmpASnakeScriptPath+'ASnakeData\\'
-            else: tmpASnakeScriptPath=tmpASnakeScriptPath+'ASnakeData/'
+            if '\\' in tmpASnakeScriptPath: tmpASnakeScriptPath=tmpASnakeScriptPath+'data\\'
+            else: tmpASnakeScriptPath=tmpASnakeScriptPath+'data/'
             if not args.asnake_script.endswith('.asnake'): args.asnake_script+='.asnake'
             if path.isfile(tmpASnakeScriptPath+args.asnake_script):
                 ASFile = args.asnake_script
@@ -168,7 +168,7 @@ if __name__ == '__main__':
             from sys import argv
             print(f'ASnake Compile Error:\n\tCouldn\'t open file. Make sure to provide a path for a file, and that the path is correct.\nSuggestion:\n\t{argv[0]} -r {tmp}')
             exit()
-            
+
     else:
         ASFile = args.file.name
         data=args.file.read()
