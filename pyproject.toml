@@ -34,8 +34,8 @@ Homepage = "https://asnake.org"
 Github = "https://github.com/AhriFoxSnek/ASnake"
 Issues = "https://github.com/AhriFoxSnek/ASnake/issues"
 
-[entry-points]
-ASnake = "ASnake:ASnake:main"
+[project.scripts]
+ASnake = "ASnake.ASnake:main"
 
 [build-system]
 requires = ["setuptools", "wheel", "sly>=0.4", "autopep8>=1.5.5"]
