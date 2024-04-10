@@ -1,17 +1,10 @@
-[build-system]
-requires = ["setuptools>=46.4.0", "wheel", "sly>=0.4", "autopep8>=1.5.5"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "ASnake"
-#dynamic = ["version"]
-version="0.13.36"
 authors = [
   { name="Ahri Fox"},
 ]
 description = "Python optimizing compiler for the ASnake programming language."
 readme = "README.md"
-requires-python = ">=3.6"
 license = { file = "LICENSE.txt" }
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -29,27 +22,27 @@ classifiers = [
     "Topic :: Software Development :: Version Control :: Git"
 ]
 keywords = ["programming language","transpiler","pyston","compiler"]
+requires-python = ">=3.6"
+dependencies = [
+    "sly>=0.4",
+    "autopep8>=1.5.5"
+]
+dynamic = ["version"]
 
 [project.urls]
 Homepage = "https://asnake.org"
 Github = "https://github.com/AhriFoxSnek/ASnake"
 Issues = "https://github.com/AhriFoxSnek/ASnake/issues"
 
-[options]
-python_requires = ">=3.6"
-install_requires = [
-    "sly>=0.4",
-    "autopep8>=1.5.5"
-]
+[project.scripts]
+ASnake = "ASnake:ASnake:main"
 
-
-[tool.setuptools.package-data]
-"ASnakeData" = ["*.bat", "*.asnake", "*.py", "ASnake.py"]
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
-version = {attr = "ASnake.__version__"}
+version = {attr = "ASnake.ASnake.__version__"}
 
-[entry-points]
-console_scripts = [
-    "ASnake = ASnake:main"
-]
+[tool.setuptools.package-data]
+"ASnake" = ["*.bat", "*.asnake"]
