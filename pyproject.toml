@@ -3,8 +3,9 @@ requires = ["setuptools>=46.4.0", "wheel", "sly>=0.4", "autopep8>=1.5.5"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ASnake_Ahri_Fox"
-dynamic = ["version"]
+name = "ASnake"
+#dynamic = ["version"]
+version="0.13.36"
 authors = [
   { name="Ahri Fox"},
 ]
@@ -41,8 +42,9 @@ install_requires = [
     "autopep8>=1.5.5"
 ]
 
+
 [tool.setuptools.package-data]
-"data" = ["*.bat", "*.asnake", "*.py"]
+"ASnakeData" = ["*.bat", "*.asnake", "*.py", "ASnake.py"]
 
 [tool.setuptools.dynamic]
 version = {attr = "ASnake.__version__"}
@@ -51,4 +53,3 @@ version = {attr = "ASnake.__version__"}
 console_scripts = [
     "ASnake = ASnake:main"
 ]
-

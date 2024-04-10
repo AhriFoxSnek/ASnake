@@ -187,13 +187,13 @@ else 'int to range' $failed
 
 
 $start
-ฯ€ is 3.14
-if ฯ€ is 3.14 $worked
+π is 3.14
+if π is 3.14 $worked
 else 'non-ascii variable' $failed
 
 $start
-๐ค๐’๐งก is 'love'
-if ๐ค๐’๐งก is 'love' $worked
+🤍💚🧡 is 'love'
+if 🤍💚🧡 is 'love' $worked
 else '(multi) emoji variable' $failed
 
 

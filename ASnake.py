@@ -6,7 +6,7 @@ from sly import Lexer
 from autopep8 import fix_code
 
 # standard library
-from os import path, remove
+from os import path, remove, listdir
 from copy import copy
 from time import monotonic
 from re import sub as REsub
@@ -19,7 +19,7 @@ from unicodedata import category as unicodeCategory
 from subprocess import check_output, CalledProcessError, STDOUT
 
 ASnakeVersion = 'v0.13.36'
-__version__ = ASnakeVersion
+__version__ = ASnakeVersion[1:]
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
@@ -7337,38 +7337,56 @@ def execPy(code,fancy=True,pep=True,run=True,execTime=False,headless=False,runti
 
         
 if __name__ == '__main__':
-    from argparse import ArgumentParser, FileType
+    from argparse import ArgumentParser, FileType, ArgumentError
     from sys import stdin
     from os import rename, chdir, listdir
-    argParser=ArgumentParser()
-    argParser.add_argument('-r', '--run', action='store_true', help="Compiles file in memory then runs it.")
-    argParser.add_argument('-e', '--eval', action='store', help="Compiles ASnake in a string to Python and runs it.")
-    argParser.add_argument('-v', '--version', action='store', help="Specify which Python version to compile to.")
-    argParser.add_argument('-c', '--compile', action='store_true', help="Compiles file to .py and writes it on disk. On Cython will attempt to compile to .so file.")
-    argParser.add_argument('-o', '--optimize', action='store_true', help="Toggles optimization on and off. On by default.")
-    argParser.add_argument('-fm', '--format', action='store_true', help="Turns off code formatting if on, and turns it off if on.")
-    argParser.add_argument('-f', '--fast', action='store_true', help="Turns off code formatting, and turns off optimization. Useful for fast compile times.")
-    argParser.add_argument('-pc', '--python-compatibility', action='store_true', help="Disables ASnake syntax to be compatible with most Python scripts. Useful for optimizing Python scripts written without ASnake in mind.")
-    argParser.add_argument('-nc', '--no-comment', action='store_true', help="Turns off comments in the compiled file.")
-    argParser.add_argument('-p', '--path', action='store', help="Custom path for compiled file.")
-    argParser.add_argument('-np', '--no-print', action='store_true', help="Doesn't print the compiled file on console.")
-    argParser.add_argument('-jr', '--just-run', action='store_true', help="Will run compiled version of file if it exists, otherwise will compile and run it.")
-    argParser.add_argument('-cy', '--cython', '--Cython', action='store_true', help="Compiles the code to Cython and .pyx")
-    argParser.add_argument('-cd', '--codon', '--Codon', action='store_true', help="Compiles the code to Codon.")
-    argParser.add_argument('-pp', '--pypy', '--PyPy', action='store_true', help="Compiles to be compatible with PyPy3 Runtime.")
-    argParser.add_argument('-ps', '--pyston', '--Pyston', action='store_true', help="Compiles to be compatible with Pyston runtime.")
-    argParser.add_argument('-mp', '--micropython', '--MicroPython', action='store_true',help="Compiles to be compatible with MicroPython runtime.")
-    argParser.add_argument('-rc', '--run-command', action='store', help="Specifies the command to call Python when using --run. Useful for when there are multiple Python aliases, and you want a specific one.")
-    argParser.add_argument('-a', '--annotate', action='store_true',help="When compiling to Cython, will compile a html file showing Python to C conversions.")
-    argParser.add_argument('-d', '--debug', action='store_true', help="Debug info for compiler developers.")
-    argParser.add_argument('-t', '--test', action='store_true', help="Headless run debug for compiler developers.")
-    argParser.add_argument('--update', action='store_true', help="Updates ASnake to the latest version. Temporary until ASnake is installable by pip.")
-    argParser.add_argument("file", type=FileType("r"), nargs='?', const='notGiven', help="Your ASnake file to compile.")
+    def makeParser(error=False):
+        argParser=ArgumentParser(exit_on_error=error)
+        argParser.add_argument('-r', '--run', action='store_true', help="Compiles file in memory then runs it.")
+        argParser.add_argument('-e', '--eval', action='store', help="Compiles ASnake in a string to Python and runs it.")
+        argParser.add_argument('-v', '--version', action='store', help="Specify which Python version to compile to.")
+        argParser.add_argument('-c', '--compile', action='store_true', help="Compiles file to .py and writes it on disk. On Cython will attempt to compile to .so file.")
+        argParser.add_argument('-o', '--optimize', action='store_true', help="Toggles optimization on and off. On by default.")
+        argParser.add_argument('-fm', '--format', action='store_true', help="Turns off code formatting if on, and turns it off if on.")
+        argParser.add_argument('-f', '--fast', action='store_true', help="Turns off code formatting, and turns off optimization. Useful for fast compile times.")
+        argParser.add_argument('-pc', '--python-compatibility', action='store_true', help="Disables ASnake syntax to be compatible with most Python scripts. Useful for optimizing Python scripts written without ASnake in mind.")
+        argParser.add_argument('-nc', '--no-comment', action='store_true', help="Turns off comments in the compiled file.")
+        argParser.add_argument('-p', '--path', action='store', help="Custom path for compiled file.")
+        argParser.add_argument('-np', '--no-print', action='store_true', help="Doesn't print the compiled file on console.")
+        argParser.add_argument('-jr', '--just-run', action='store_true', help="Will run compiled version of file if it exists, otherwise will compile and run it.")
+        argParser.add_argument('-cy', '--cython', '--Cython', action='store_true', help="Compiles the code to Cython and .pyx")
+        argParser.add_argument('-cd', '--codon', '--Codon', action='store_true', help="Compiles the code to Codon.")
+        argParser.add_argument('-pp', '--pypy', '--PyPy', action='store_true', help="Compiles to be compatible with PyPy3 Runtime.")
+        argParser.add_argument('-ps', '--pyston', '--Pyston', action='store_true', help="Compiles to be compatible with Pyston runtime.")
+        argParser.add_argument('-mp', '--micropython', '--MicroPython', action='store_true',help="Compiles to be compatible with MicroPython runtime.")
+        argParser.add_argument('-rc', '--run-command', action='store', help="Specifies the command to call Python when using --run. Useful for when there are multiple Python aliases, and you want a specific one.")
+        argParser.add_argument('-a', '--annotate', action='store_true',help="When compiling to Cython, will compile a html file showing Python to C conversions.")
+        argParser.add_argument('-d', '--debug', action='store_true', help="Debug info for compiler developers.")
+        argParser.add_argument('-t', '--test', action='store_true', help="Headless run debug for compiler developers.")
+        argParser.add_argument('--update', action='store_true', help="Updates ASnake to the latest commit. Not recommended, instead use pip to update.")
+        argParser.add_argument('-as','--asnake-script', action='store',help="Sets path to ASnake's data folder, so you can run ASnake's collection of scripts included with the compiler. Running bare will list files in the data directory.")
+        argParser.add_argument("file", type=FileType("r", encoding='utf-8'), nargs='?', const='notGiven', help="Your ASnake file to compile.")
+        return argParser
 
     enforceTyping=compileAStoPy=runCode=headless=debug=justRun=False
     comment=optimize=pep=fancy=True
 
-    args = argParser.parse_args()
+    try:
+        args = makeParser().parse_args()
+    except ArgumentError as e:
+        if 'No such file' in str(e):
+            from sys import argv
+            tmpHandle='' ; tmpArgs = ' '.join(argv[1:])
+            if '.asnake' in tmpArgs: tmpHandle='asnake'
+            elif '.py'   in tmpArgs: tmpHandle='py'
+            if tmpHandle:
+                print('File not found. Perhaps try one of these files:')
+                print('\t'+('\n\t'.join([_ for _ in listdir() if _.endswith('.'+tmpHandle)])),end='')
+                print()
+            makeParser(True).parse_args()
+        else:
+            print(e)
+        exit()
 
     data: str = ''
     if not stdin.isatty():
@@ -7379,6 +7397,21 @@ if __name__ == '__main__':
             data = args.eval
             ASFile = False
             runCode = True
+        elif args.asnake_script:
+            tmpASnakeScriptPath=__file__.replace('ASnake.py','')
+            if '\\' in tmpASnakeScriptPath: tmpASnakeScriptPath=tmpASnakeScriptPath+'ASnakeData\\'
+            else: tmpASnakeScriptPath=tmpASnakeScriptPath+'ASnakeData/'
+            if not args.asnake_script.endswith('.asnake'): args.asnake_script+='.asnake'
+            if path.isfile(tmpASnakeScriptPath+args.asnake_script):
+                ASFile = args.asnake_script
+                args.path = tmpASnakeScriptPath
+                with open(tmpASnakeScriptPath+args.asnake_script, 'r', encoding='utf-8') as f:
+                    data=f.read()
+            else:
+                print(f'{args.asnake_script} not found. Here is the ASnake script directory:')
+                print('\t'+('\n\t'.join([_ for _ in listdir(tmpASnakeScriptPath) if _.endswith('.asnake')])),end='')
+                exit()
+
         else:
             tmp=[i for i in listdir() if i.endswith('.asnake')]
             if not tmp:
