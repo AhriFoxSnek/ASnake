@@ -45,4 +45,4 @@ build-backend = "setuptools.build_meta"
 version = {attr = "ASnake.ASnake.__version__"}
 
 [tool.setuptools.package-data]
-"ASnake" = ["*.bat", "*.asnake"]
+"ASnake.data" = ["*.bat", "*.asnake"]
