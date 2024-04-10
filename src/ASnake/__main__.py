@@ -1,4 +1,4 @@
-from ASnake import build, ASnakeVersion, latestPythonVersionSupported
+from .ASnake import build, ASnakeVersion, latestPythonVersionSupported
 
 # dependencies
 from autopep8 import fix_code
@@ -146,7 +146,7 @@ if __name__ == '__main__':
             ASFile = False
             runCode = True
         elif args.asnake_script:
-            tmpASnakeScriptPath=__file__.replace('ASnake.py','')
+            tmpASnakeScriptPath=__file__.replace('__main__.py','')
             if '\\' in tmpASnakeScriptPath: tmpASnakeScriptPath=tmpASnakeScriptPath+'data\\'
             else: tmpASnakeScriptPath=tmpASnakeScriptPath+'data/'
             if not args.asnake_script.endswith('.asnake'): args.asnake_script+='.asnake'
