@@ -1,6 +1,5 @@
 [project]
 name = "ASnake"
-version="0.13.36"
 authors = [
   { name="Ahri Fox"},
 ]
@@ -28,6 +27,7 @@ dependencies = [
     "sly>=0.4",
     "autopep8>=1.5.5"
 ]
+dynamic = ["version"]
 
 [project.urls]
 Homepage = "https://asnake.org"
@@ -40,6 +40,9 @@ ASnake = "ASnake:ASnake:main"
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+version = {attr = "ASnake.ASnake.__version__"}
 
 [tool.setuptools.package-data]
 "ASnake" = ["*.bat", "*.asnake"]
