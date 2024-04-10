@@ -112,7 +112,6 @@ if __name__ == '__main__':
         argParser.add_argument('-a', '--annotate', action='store_true',help="When compiling to Cython, will compile a html file showing Python to C conversions.")
         argParser.add_argument('-d', '--debug', action='store_true', help="Debug info for compiler developers.")
         argParser.add_argument('-t', '--test', action='store_true', help="Headless run debug for compiler developers.")
-        argParser.add_argument('--update', action='store_true', help="Updates ASnake to the latest commit. Not recommended, instead use pip to update.")
         argParser.add_argument('-as','--asnake-script', action='store',help="Sets path to ASnake's data folder, so you can run ASnake's collection of scripts included with the compiler. Running bare will list files in the data directory.")
         argParser.add_argument("file", type=FileType("r", encoding='utf-8'), nargs='?', const='notGiven', help="Your ASnake file to compile.")
         return argParser
@@ -166,11 +165,10 @@ if __name__ == '__main__':
             if not tmp:
                 tmp='myScript.asnake'
             else: tmp=tmp[0]
-            if not args.update:
-                import sys
-                print(f'ASnake Compile Error:\n\tCouldn\'t open file. Make sure to provide a path for a file, and that the path is correct.\nSuggestion:\n\t{sys.argv[0]} -r {tmp}')
-                exit()
-            else: ASFile = False
+            from sys import argv
+            print(f'ASnake Compile Error:\n\tCouldn\'t open file. Make sure to provide a path for a file, and that the path is correct.\nSuggestion:\n\t{argv[0]} -r {tmp}')
+            exit()
+            
     else:
         ASFile = args.file.name
         data=args.file.read()
@@ -210,39 +208,6 @@ if __name__ == '__main__':
     else: compileTo='Python'
 
     if not fancy and not compileAStoPy: pep = False
-
-    if args.update:
-        try:
-            from requests import get
-        except ModuleNotFoundError:
-            print('Update failed. Module requests required. Please do something like:\n\tpython -m pip install requests') ; exit()
-        if path.isfile('ASnake.py'):
-            ASnek = get("https://raw.githubusercontent.com/AhriFoxSnek/ASnake/main/ASnake.py")
-            if 'ASnake.py' in listdir():
-                tmpPath='ASnake.py'
-                tmpPrevious="previous_ASnake.py"
-            else:
-                from sys import executable
-                tmp = check_output(f"""{executable} -c "from ASnake import __file__ ; print(__file__)" """,stderr=STDOUT).decode()
-                if 'ModuleNotFoundError' in tmp:
-                    pass
-                else:
-                    tmpPath = tmp
-                    tmpPrevious = '/'.join(tmp.split('/')[:-1])+"previous_ASnake.py"
-            try:
-                remove(tmpPrevious)
-            except:
-                pass
-            rename(tmpPath, tmpPrevious)
-
-            with open(tmpPath, 'wb') as file:
-                file.write(ASnek.content)
-            print('# Downloaded latest ASnake.')
-            if ASFile == False and not args.eval and not data:
-                exit()
-            else:
-                print("# Warning: To run the latest ASnake you must do the command again, currently you are using the last version of ASnake.")
-        else: print('ASnake file not found.')
 
     if not args.version:
         pythonVersion = latestPythonVersionSupported
