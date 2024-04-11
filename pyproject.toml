@@ -38,7 +38,7 @@ Issues = "https://github.com/AhriFoxSnek/ASnake/issues"
 ASnake = "ASnake.ASnake:main"
 
 [build-system]
-requires = ["setuptools", "wheel", "sly>=0.4", "autopep8>=1.5.5"]
+requires = ["setuptools", "wheel", "sly>=0.4"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]

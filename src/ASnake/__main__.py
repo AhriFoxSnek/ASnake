@@ -1,4 +1,7 @@
-from .ASnake import build, ASnakeVersion, latestPythonVersionSupported
+try:
+    from .ASnake import build, ASnakeVersion, latestPythonVersionSupported
+except ImportError:
+    from ASnake import build, ASnakeVersion, latestPythonVersionSupported
 
 # dependencies
 from autopep8 import fix_code
