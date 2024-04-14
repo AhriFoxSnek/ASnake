@@ -215,6 +215,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     "DQUOTE":'"',"SQUOTE":"'", 'LBRACKET':'{','RBRACKET':'}'}
 
     convertType={'int':'NUMBER','float':'NUMBER','Py_ssize_t':'NUMBER','bool':'BOOL','bint':'BOOL','str':'STRING','list':'LIST','dict':'DICT','type':'TYPE','tuple':'TUPLE','set':'SET','bytes':'STRING','object':'ID','range':'FUNCTION','complex':'NUMBER','frozenset':'FUNCTION','bytearray':'STRING','memoryview':'FUNCTION'}
+    cythonConvertType = {'int': 'long long int', 'bool': 'bint'}
+    for t in cythonConvertType: convertType[cythonConvertType[t]]=convertType[t]
     typeTypes=tuple([t for t in convertType])
 
     # useful types of sets of tokens or other things
@@ -4609,8 +4611,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                 elif i.value in convertType:
                                     tmptype=i
-                                    if compileTo=='Cython' and tmptype.value=='bool' and noKwargs:
-                                        insertAtTopOfCodeIfItIsNotThere(f'cdef extern from "stdbool.h":\n{" "*prettyIndent}ctypedef bint bool')
                                 elif i.type == 'ASSIGN': assign=True
                                 elif i.type in {'TIMES','EXPONENT','MINUS'}: kwargs=i.type ; continue
                                 elif assign:
@@ -6023,10 +6023,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         secondType=tok.value.split('[')[1].replace(']','')
                         multiType=True
                         if secondType=='bool' and compileTo=='Cython':
-                            tok.value='bool'
+                            tok.value='bint'
 
-                    if compileTo=='Cython' and tok.value=='bool':
-                        insertAtTopOfCodeIfItIsNotThere(f'cdef extern from "stdbool.h":\n{" "*prettyIndent}ctypedef bint bool')
                     if lexIndex+2 < len(lex):
                         if lex[lexIndex+2].type == 'DEFFUNCT':
                             return AS_SyntaxError('type assigned to the wrong spot',f'myFunction does {tok.value}',lineNumber,data)
@@ -6068,8 +6066,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if lex[tmpi].type == 'ID': tmp.append(lex[tmpi].value)
                                         elif lex[tmpi].type == 'COMMA': pass
                                         else: break
-                                    for varname in tmp: code.append(f"{' ' * (indent)}cdef {tok.value} {varname}")
-                                else: line.append(decideIfIndentLine(indent,f"cdef {tok.value} "))
+                                    for varname in tmp: code.append(f"{' ' * (indent)}cdef {cythonConvertType[tok.value] if tok.value in cythonConvertType else tok.value} {varname}")
+                                else:
+                                    tok.value = cythonConvertType[tok.value] if tok.value in cythonConvertType else tok.value
+                                    line.append(decideIfIndentLine(indent,f"cdef {tok.value} "))
                             else:# compileTo == 'Python':
                                 if pythonVersion >= 3.06:
                                     if lex[lexIndex+2].type == 'COMMA':
@@ -6124,6 +6124,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     elif lex[lexIndex+1].type == 'COMMAGRP' and '=' in lex[lexIndex+1].value and lastType in typeNewline+('CONST',):
                         tmpf = lex[lexIndex + 1].value.split('=')[0].split(',') ; tmpf=[t.replace(' ','') for t in tmpf]
                         if compileTo == 'Cython' and any(True for t in tmpf if t in storedVarsHistory)==False and inLoop[0]==False and lastIndent[2] == []:
+                            tok.value = cythonConvertType[tok.value] if tok.value in cythonConvertType else tok.value
                             line.append(decideIfIndentLine(indent, f"cdef {tok.value} {lex[lexIndex + 1].value.split('=')[0]}\n"))
                         else:
                             line.append(decideIfIndentLine(indent, ' '.join([f"{t}: {tok.value} ;" for t in tmpf])+'\n'  ))
