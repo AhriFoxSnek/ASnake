@@ -215,7 +215,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     "DQUOTE":'"',"SQUOTE":"'", 'LBRACKET':'{','RBRACKET':'}'}
 
     convertType={'int':'NUMBER','float':'NUMBER','Py_ssize_t':'NUMBER','bool':'BOOL','bint':'BOOL','str':'STRING','list':'LIST','dict':'DICT','type':'TYPE','tuple':'TUPLE','set':'SET','bytes':'STRING','object':'ID','range':'FUNCTION','complex':'NUMBER','frozenset':'FUNCTION','bytearray':'STRING','memoryview':'FUNCTION'}
-    cythonConvertType = {'int': 'long long int', 'bool': 'bint'}
+    cythonConvertType = {'int': 'long long int', 'bool': 'bint', 'float': 'double'}
     for t in cythonConvertType: convertType[cythonConvertType[t]]=convertType[t]
     typeTypes=tuple([t for t in convertType])
 
