@@ -123,7 +123,7 @@ class Lexer(Lexer):
     TYPEWRAP= fr'({"|".join(defaultTypes)})( ?\[\w*\])? *: *(#.*)?(?=\n)'
     TYPE    = '\\s%s\\s'%f'({"|".join(defaultTypes)})'
     LAMBDA  = r'lambda ?(\w* *,?)*:'
-    FSTRFRMT = r': *(?:\=?[><^|%.])?\d+(?:\.\d+)?[dfxsn]?'  # for formatting at end of fstrings brackets
+    FSTRFRMT = r':,? *(?:\=?[><^|%.])?\d+(?:\.\d+)?[dfxsn]?'  # for formatting at end of fstrings brackets
     LISTCOMP= r'\-?\w*: ([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*'
     STRING  = r'((f|u|b)?\"(?:\\\\|\\\"|[^\"])*\")|((f|u|b)?\'(?:\\\\|\\\'|[^\'])*\')'
     #SET    = r'{.+?}'
