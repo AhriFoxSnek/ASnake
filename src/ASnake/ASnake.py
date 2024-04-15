@@ -2030,7 +2030,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                     # a ID and FSTR with nothing inbetween implies comparison,
                                                                     # whereas FSTR + FSTR implies addition
                                                                     # so we insert comparison to not break behaviour
-                                                                    lex.insert(tmpi+1,makeToken(lex[token],'==','EQUAL'))
+                                                                    tmpInFString = False
+                                                                    for t in range(tmpi,0,-1): # check to make sure we are not in fstring first
+                                                                        if lex[t].type == 'FSTR' and lex[t].value.endswith('{'):
+                                                                            tmpInFString = True ; break
+                                                                        elif lex[t].type in {'TAB','NEWLINE'}: break
+                                                                    if not tmpInFString: lex.insert(tmpi+1,makeToken(lex[token],'==','EQUAL'))
                                                                 if lex[tmpi+1].type == 'PIPE' and tmpf[0].type == 'RPAREN' and tmpf[-1].type == 'LPAREN':
                                                                     # when folding tuple onto pipe, add another paren as to not inherit the tuple.
                                                                     tmpf.append(makeToken(tmpf[0], '(', 'LPAREN'))
@@ -3134,13 +3139,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     tmpCurrentIndent = lex[ii].value.count(' ')
                                                     if tmpCurrentIndent < tmptmpIndent: break
                                                     if tmpCurrentIndent > tmptmpIndent and tmpFound: tmpFound=False ; break
-                                                    if tmpFound: tmpInsertHere = ii + 1; break
+                                                    if tmpFound and lex[ii+1].type not in {'ELIF','OF','ELSE'}: tmpInsertHere = ii + 1; break
                                                 elif lex[ii].type == 'NEWLINE':
                                                     if tmptmpIndent == None: tmptmpIndent = 0
                                                     tmpCurrentIndent = 0
                                                     if tmpCurrentIndent < tmptmpIndent: break
                                                     if tmpCurrentIndent > tmptmpIndent and tmpFound: tmpFound = False; break
-                                                    if tmpFound: tmpInsertHere = ii + 1; break
+                                                    if tmpFound and lex[ii+1].type not in {'ELIF','OF','ELSE'}: tmpInsertHere = ii + 1; break
                                                 elif lex[ii].type == 'FUNCTION' and lex[ii].value == t[0]+'(' and tmpCurrentIndent == tmptmpIndent:
                                                     tmpFound=True ; tmpChangeTheseIfFound.append(ii)
                                             if tmpFound:
@@ -3908,14 +3913,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         # tmpIndent is var's indent, tmpCurrentIndent is iterations indent
                         # outOfBlock signifies that if we are in a function or class, we are safe from previous classes
                         tmpSkipCheck = lex[token] in varWasFolded # bypasses checking if the var is dead, assumes it is dead
+                        tmpInsideFunction = False # determine if inside a function
+                        tmpLowestIndent=(None,0) # track lowest indent 1st: in func 2nd: lowest indent
                         for tmpi in range(token-1, -1, -1):
-                            #print(lex[token].value, '-!', lex[tmpi].value, lex[tmpi].type, tmpIndent,check)
+                            #print(lex[token].value, '-!', lex[tmpi].value, lex[tmpi].type, tmpIndent,check,tmpInsideFunction)
                             if tmpSkipCheck and delPoint != None: check=True ; break
                             if lex[tmpi].type == 'TAB':
                                 if tmpIndent==None: tmpIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
                                 if delPoint==None: delPoint=tmpi
                                 tmpCurrentIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
                                 inCase=False
+                                if tmpCurrentIndent < tmpLowestIndent[1]: tmpLowestIndent = (tmpLowestIndent[0], tmpCurrentIndent)
                             elif lex[tmpi].type == 'NEWLINE':
                                 if tmpIndent==None:
                                     if isConstant: check = False ; break # constants on global scope should not be eliminated
@@ -3923,6 +3931,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if delPoint==None: delPoint=tmpi
                                 tmpCurrentIndent = 0
                                 inCase=False
+                                if tmpLowestIndent[0] in {True,False}: tmpLowestIndent = (tmpLowestIndent[0], 0)
+                                else: tmpLowestIndent = (False, 0)
                             elif lex[tmpi].type == 'THEN':
                                 if delPoint==None: delPoint=tmpi
                                 inCase=False
@@ -3937,6 +3947,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         outOfBlock=True
                                     elif lex[tmpi-1].type == 'TAB' and lex[tmpi-1].value.count(' ') < tmpIndent:
                                         outOfBlock = True
+                                if tmpLowestIndent[0] == None:
+                                    tmpFuncNLPlacement=1 if lex[tmpi].type == 'PYDEF' else 2
+                                    if   lex[tmpi - tmpFuncNLPlacement].type == 'NEWLINE' and tmpLowestIndent[1] > 0:
+                                        tmpInsideFunction = True
+                                    elif lex[tmpi - tmpFuncNLPlacement].type == 'TAB' and lex[tmpi - 1].value.count(' ') < tmpLowestIndent[1]:
+                                        tmpInsideFunction = True
+                                    if tmpInsideFunction:
+                                        tmpLowestIndent[0] = True
                             elif (lex[tmpi].type in typeConditionals or (lex[tmpi].type == 'TRY' and 'try' in lex[tmpi].value)) and delPoint:
                                 # prevents dead variables defined in conditionals from breaking syntax
                                 tmpReplaceWithPass = True
@@ -3966,7 +3984,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             tmpCurrentIndent=tmpIndent # tmpIndent is indent of OG var, tmpCurrentIndent is current
                             for tmpi in range(token + 1, len(lex) - 1):
                                 #print(lex[token].value,'+!',lex[tmpi].value,lex[tmpi].type,ttenary,tmpIndent,check,tmpCallsFunction,tmpCurrentIndent,tmpIndent)
-                                if not inCase and lex[tmpi].type in {'ID', 'INC', 'BUILTINF','FUNCTION'} and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value) and not tmpInOtherFunction:
+                                if not inCase and lex[tmpi].type in {'ID', 'INC', 'BUILTINF','FUNCTION'} and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value) and (not tmpInOtherFunction or not tmpInsideFunction):
                                     if lex[tmpi+1].type != 'ASSIGN' or (lex[tmpi+1].value.strip() not in {'=','is'} or determineIfAssignOrEqual(tmpi+1)):
                                         check=False ; break
                                     elif pyIs and lex[tmpi+1].type == 'ASSIGN' and '=' not in lex[tmpi+1].value:
