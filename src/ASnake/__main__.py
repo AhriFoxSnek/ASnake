@@ -93,7 +93,10 @@ if __name__ == '__main__':
     from sys import stdin
     from os import rename, chdir, listdir
     def makeParser(error=False):
-        argParser=ArgumentParser(exit_on_error=error)
+        try:
+            argParser=ArgumentParser(exit_on_error=error)
+        except TypeError:
+            argParser = ArgumentParser()
         argParser.add_argument('-r', '--run', action='store_true', help="Compiles file in memory then runs it.")
         argParser.add_argument('-e', '--eval', action='store', help="Compiles ASnake in a string to Python and runs it.")
         argParser.add_argument('-v', '--version', action='store', help="Specify which Python version to compile to.")
@@ -134,14 +137,17 @@ if __name__ == '__main__':
                 print('File not found. Perhaps try one of these files:')
                 print('\t'+('\n\t'.join([_ for _ in listdir() if _.endswith('.'+tmpHandle)])),end='')
                 print()
-            makeParser(True).parse_args()
+            from platform import python_version
+            tmpPyVer=python_version().split('.')
+            if tmpPyVer[0] == '3' and int(tmpPyVer[1]) >= 9: # exit_on_error added to argparse in 3.9
+                makeParser(True).parse_args()
         else:
             print(e)
         exit()
 
     data: str = ''
     if not stdin.isatty():
-        data = sys.stdin.read()
+        data = stdin.read()
         ASFile = False
     elif args.file == None or not path.isfile(args.file.name):
         if args.eval:
