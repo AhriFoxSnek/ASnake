@@ -1753,7 +1753,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmpIDshow=0 ; tmpAddToIgnoresWhenNL = 0
                                     #print('-----')
                                     for tmpi in range(valueStop+1,len(lex)): # check if we can determine its a constant
-                                        #print(lex[token].value,search,lex[tmpi].type,lex[tmpi].value,tmpIDshow)
+                                        #print(lex[token].value,search,lex[tmpi].type,lex[tmpi].value,ignores,tmpAddToIgnoresWhenNL,tmpi,tmpIDshow)
                                         if not search and (enforceTyping and not linkType): break
                                         if lex[tmpi].type=='INC' or (tmpi+1 < len(lex) and lex[tmpi+1].type=='LINDEX' and lex[tmpi].value in (lex[token].value,)+tmpListOfVarsInside) \
                                         or ((lex[tmpi].type in {'ID','INC'} and lex[tmpi].value.replace('++','').replace('--','') in (lex[token].value,)+tmpListOfVarsInside and (lex[tmpi-1].type not in {'ELIF','OF','IF','OR','AND','FSTR'})  ) and lex[tmpi+1].type in typeAssignables+('ASSIGN',) ):
@@ -1786,7 +1786,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                 tmpAddToIgnoresWhenNL = ii
                                                                 break
 
-                                            if not wasInDefs and lex[tmpi+1].type in typeAssignables+('ASSIGN',):
+                                            if not wasInDefs and lex[tmpi+1].type in typeAssignables+('ASSIGN',) and not tmpAddToIgnoresWhenNL:
                                                 # wasInDefs used to not have the `not`, I think saying "if we are not in (another) function" makes sense.
                                                 # but because the prior intent is not clear, just be aware of this as a suspect if something breaks later.
                                                 tmpSafe=False
@@ -1939,7 +1939,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     #if debug: print(tmpi,lex[tmpi].type,f'ignore={ignore}',f'skip/end={ignores}')
 
                                                 if search and ignore == False:
-                                                    #print(lex[token].value,lex[tmpi].type,lex[tmpi].value,search,linkType,ignores,tmpi, tmpLastIndent,tmpindent)
+                                                    #print('~',lex[token].value,lex[tmpi].type,lex[tmpi].value,search,linkType,ignores,tmpi, tmpLastIndent,tmpindent)
                                                     if lex[tmpi].type == 'ID' and lex[tmpi].value==lex[token].value and (lex[tmpi+1].type not in typeAssignables+('ASSIGN',) or (lex[tmpi-1].type in typeConditionals+('OR','AND','INS') and lex[tmpi-1].type!='ELSE') or (lex[tmpi+1].type == 'ASSIGN' and 'is' in lex[tmpi+1].value and determineIfAssignOrEqual(tmpi+1)) or (lex[tmpi+1].type == 'LIST' and lex[tmpi-1].type not in typeNewline+('TYPE','CONSTANT','ELSE')+typeAssignables)) and lex[tmpi-1].type not in {'FOR','LOOP'}:
                                                         if lex[tmpi-1].type in typeConditionals and lex[tmpi+1].type == 'ASSIGN' and ':' in lex[tmpi+1].value: continue
                                                         tmpsafe=True
