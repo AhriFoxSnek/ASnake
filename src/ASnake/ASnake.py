@@ -522,11 +522,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     else:
                         newString+=char
 
-    def isANegativeNumberTokens(lexIndex):
+    def isANegativeNumberTokens(suspectedMinusIndex):
         # arg should be suspected minus
-        if lex[lexIndex].type == 'MINUS' and lex[lexIndex+1].type == 'NUMBER' \
-        and lex[lexIndex-1].type not in {'ID','RPAREN','BUILTINF','NUMBER','STRING','RINDEX','LISTEND','RBRACKET'}:
+        if lex[suspectedMinusIndex].type == 'MINUS' and lex[suspectedMinusIndex+1].type == 'NUMBER' \
+        and lex[suspectedMinusIndex-1].type not in {'ID','RPAREN','BUILTINF','NUMBER','STRING','RINDEX','LISTEND','RBRACKET'}:
             return True
+        elif lex[suspectedMinusIndex].type == 'NUMBER' and lex[suspectedMinusIndex].value[0] == '-': return True
         return False
 
 
@@ -3679,7 +3680,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmpTypeSafe = typeNewline + ('RPAREN', 'ASSIGN', 'FUNCTION', 'LPAREN', 'ELSE', 'DEFEXP', 'LINDEX')
                         check=False
                         # these blocks help follow the order of operations for more accuracy
-                        if token+3 < len(lex)-1 and ((lex[token+3].type == 'PIPE' and lex[token+3].value == 'to') or lex[token+1].type in typeNewline or lex[token+2].type in typeNewline): pass
+                        if                                        (token+3 < len(lex)-1 and lex[token + 3].type == 'RPAREN' and lex[token - 3].type == 'LPAREN' and lex[token - 2].type == lex[token + 2].type == 'NUMBER' and orderOfOps[lex[token - 1].type] == orderOfOps[lex[token + 1].type]) \
+                        or (isANegativeNumberTokens(token - 1) and token+4 < len(lex)-1 and lex[token + 3].type == 'RPAREN' and lex[token - 4].type == 'LPAREN' and lex[token - 3].type == lex[token + 2].type == 'NUMBER' and orderOfOps[lex[token - 2].type] == orderOfOps[lex[token + 1].type]):
+                            # if order of ops is equal, preference goes towards left
+                            #print('#0',lex[token].value)
+                            lex.insert(token + 1, makeToken(lex[token], ')', 'RPAREN'))
+                            lex.insert(token - 3, makeToken(lex[token], '(', 'LPAREN'))
+                            newOptimization=True # needs another iteration
+                        elif token+3 < len(lex)-1 and ((lex[token+3].type == 'PIPE' and lex[token+3].value == 'to') or lex[token+1].type in typeNewline or lex[token+2].type in typeNewline): pass
                         elif lex[token-1].type in orderOfOps and lex[token+1].type in orderOfOps and not (lex[token-1].type == 'MINUS' and lex[token-2].type in tuple(orderOfOps)+tmpTypeSafe):
                             #print('#-1', lex[token].value)
                             if (lex[token-1].type in {'LPAREN','FUNCTION'} or (orderOfOps[lex[token-1].type] < orderOfOps[lex[token+1].type]) or (lex[token-1].type=='MINUS' and lex[token-2].type in orderOfOps and (lex[token-2].type=='LPAREN' or orderOfOps[lex[token-2].type] < orderOfOps[lex[token+1].type])) ) \
@@ -3710,6 +3718,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         else:
                                             check = True
                                         #print('#1.2', lex[token].value)
+                                    
                                 else:
                                     check=True
                                     #print('#1.3',lex[token].value)
@@ -3759,14 +3768,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                         if check:
                             if lex[token].type == 'NUMBER' and lex[token+1].type in typeOperators and (lex[token+2].type == 'NUMBER' or (lex[token+2].type == 'LPAREN' and lex[token+3].type == 'NUMBER') or isANegativeNumberTokens(token+2)):
-
                                 tmpf=[] ; tmpscope=0 ; tmpLastOperator=fail=False
                                 for tmpi in range(token,len(lex)-1):
                                     if lex[tmpi].type in typeOperators+('NUMBER','LPAREN','RPAREN'):
                                         if   lex[tmpi].type == 'LPAREN': tmpscope-=1 ; tmpLastOperator=False
                                         elif lex[tmpi].type == 'RPAREN': tmpscope+=1 ; tmpLastOperator=False
                                         elif lex[tmpi].type in typeOperators:
-                                            if tmpLastOperator and orderOfOps[lex[tmpi].type] >= orderOfOps[tmpLastOperator]:
+                                            if tmpLastOperator and lex[tmpi].type == 'MINUS' and lex[tmpi+1].type == 'NUMBER':
+                                                tmpf.append(lex[tmpi]) ; continue
+                                            elif tmpLastOperator and orderOfOps[lex[tmpi].type] >= orderOfOps[tmpLastOperator]:
                                                 break
                                             else:
                                                 tmpLastOperator = lex[tmpi].type
@@ -3864,6 +3874,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         else:
                             lex[token-1].type='IGNORE'
                         lex[token+1].type='IGNORE'
+                        del lex[token+1]
                         token-=2
 
                     token+=1
