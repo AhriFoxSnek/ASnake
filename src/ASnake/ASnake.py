@@ -2965,6 +2965,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             f'You are rounding to {tmpE} instead of a integer.',
                                             f'round({lex[token+1+tmpAdjust].value}, {tmpE.split(".")[0]})',
                                             lex[token].lineno, data, 'Function Argument Error:')
+                                    tmpTolerance=lex[token+3+tmpAdjust].value ; tmpFloat = lex[token+1+tmpAdjust].value
                                     tmp=f"{round(float(lex[token+1+tmpAdjust].value),int(lex[token+3+tmpAdjust].value))}"
                                     lex[token].type = 'LPAREN' ; lex[token].value = '('
                                 else:
@@ -3709,7 +3710,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         elif lex[token-1].type in orderOfOps and lex[token+1].type in orderOfOps and not (lex[token-1].type == 'MINUS' and lex[token-2].type in tuple(orderOfOps)+tmpTypeSafe):
                             #print('#-1', lex[token].value)
                             if (lex[token-1].type in {'LPAREN','FUNCTION'} or (orderOfOps[lex[token-1].type] < orderOfOps[lex[token+1].type]) or (lex[token-1].type=='MINUS' and lex[token-2].type in orderOfOps and (lex[token-2].type=='LPAREN' or orderOfOps[lex[token-2].type] < orderOfOps[lex[token+1].type])) ) \
-                            and ((lex[token+3].type in typeNewline+('RPAREN',) or (isANegativeNumberTokens(token+2) and lex[token+4].type in typeNewline+('RPAREN',))) or not ((lex[token+3].type in orderOfOps and (orderOfOps[lex[token+3].type] >= orderOfOps[lex[token+1].type])) or (isANegativeNumberTokens(token+2) and lex[token+4].type in orderOfOps and orderOfOps[lex[token+4].type] >= orderOfOps[lex[token+1].type]))) \
+                            and token+4 < len(lex)-1 and ((lex[token+3].type in typeNewline+('RPAREN',) or (isANegativeNumberTokens(token+2) and lex[token+4].type in typeNewline+('RPAREN',))) or not ((lex[token+3].type in orderOfOps and (orderOfOps[lex[token+3].type] >= orderOfOps[lex[token+1].type])) or (isANegativeNumberTokens(token+2) and lex[token+4].type in orderOfOps and orderOfOps[lex[token+4].type] >= orderOfOps[lex[token+1].type]))) \
                             and not (token+3 < len(lex) and lex[token+1].type == 'EXPONENT' and lex[token+3].type == 'EXPONENT') and not (token+4 < len(lex) and lex[token+1].type == 'EXPONENT' and isANegativeNumberTokens(token+2) and lex[token+4].type == 'EXPONENT'):
                                 # 'normal'
                                 #print('#1', lex[token].value)
