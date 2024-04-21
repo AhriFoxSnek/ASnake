@@ -2948,22 +2948,35 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             or (lex[token].value in {'round','round(','ASround(','ASround'} and lex[token+1].type == 'LPAREN'  and lex[token+2].type in {'ID','NUMBER'} and lex[token+3].type == 'COMMA' and lex[token+4].type == 'NUMBER' and lex[token+5].type == 'RPAREN'):
                                 # fast rounding, majorly accurate
                                 # forumula: int(some_float * (10 ** TOLERANCE) - (.5 if some_float < 0 else -.5)) / (10 ** TOLERANCE)
-                                lex[token+2].type=lex[token+3].type='IGNORE'
+
                                 if lex[token+1].type == 'LPAREN':
                                       tmpAdjust=1 ; lex[token+4].type='IGNORE'
                                 else: tmpAdjust=0
-                                lex[token+1].type = 'IGNORE'
+
 
                                 if optLoopAttr and preAllocated and 'ASint' in (p[1] for p in preAllocated): lex[token].value='ASint('
                                 elif compileTo == 'Cython': lex[token].value = '<int>('
                                 else: lex[token].value='int('
-                                tmpFloat = lex[token+1+tmpAdjust].value
-                                tmpTolerance = 10**int(lex[token+3+tmpAdjust].value)
-                                tmp=f"{tmpFloat} * ({tmpTolerance}) - (.5 if {tmpFloat} < 0 else -.5)) / ({tmpTolerance}"
+                                if optCompilerEval and lex[token+1+tmpAdjust].type == 'NUMBER' == lex[token+3+tmpAdjust].type:
+                                    try: int(lex[token+3+tmpAdjust].value)
+                                    except ValueError:
+                                        tmpE=lex[token+3+tmpAdjust].value
+                                        return AS_SyntaxError(
+                                            f'You are rounding to {tmpE} instead of a integer.',
+                                            f'round({lex[token+1+tmpAdjust].value}, {tmpE.split(".")[0]})',
+                                            lex[token].lineno, data, 'Function Argument Error:')
+                                    tmp=f"{round(float(lex[token+1+tmpAdjust].value),int(lex[token+3+tmpAdjust].value))}"
+                                    lex[token].type = 'LPAREN' ; lex[token].value = '('
+                                else:
+                                    tmpFloat = lex[token+1+tmpAdjust].value
+                                    tmpTolerance = 10**int(lex[token+3+tmpAdjust].value)
+                                    tmp=f"{tmpFloat} * ({tmpTolerance}) - (.5 if {tmpFloat} < 0 else -.5)) / ({tmpTolerance}"
                                 if debug: print(f'! fast-round: round({tmpFloat},{tmpTolerance})  -->  {tmp}')
+                                lex[token + 1].type = lex[token + 2].type = lex[token + 3].type = 'IGNORE'
                                 autoMakeTokens(tmp, token)
                                 newOptimization=True
                                 lex.insert(token,makeToken(lex[token],'DONTDEXP','DONTDEXP'))
+
 
                             if optFuncTricksDict['insertMathConstants'] and lex[token].type == 'BUILTINF' and \
                             (  ((lex[token].value == 'pi' or lex[token].value == 'math.pi') and 'math.' in wasImported and 'pi' in wasImported['math.'])
