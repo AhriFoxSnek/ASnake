@@ -2944,16 +2944,21 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex[token].type = 'LBRACKET' ; lex[token].value = '{'
                                     lex[token + 1].type = 'RBRACKET' ; lex[token + 1].value = '}'
 
-
-                            if optFuncTricksDict['roundFast'] and lex[token].value == 'round(' and lex[token+1].type in {'ID','NUMBER'} and lex[token+2].type == 'COMMA' and lex[token+3].type == 'NUMBER' and lex[token+4].type == 'RPAREN':
+                            if optFuncTricksDict['roundFast'] and (lex[token].value in {'round','round(','ASround(','ASround'} and lex[token+1].type in {'ID','NUMBER'} and lex[token+2].type == 'COMMA' and lex[token+3].type == 'NUMBER' and lex[token+4].type == 'RPAREN') \
+                            or (lex[token].value in {'round','round(','ASround(','ASround'} and lex[token+1].type == 'LPAREN'  and lex[token+2].type in {'ID','NUMBER'} and lex[token+3].type == 'COMMA' and lex[token+4].type == 'NUMBER' and lex[token+5].type == 'RPAREN'):
                                 # fast rounding, majorly accurate
                                 # forumula: int(some_float * (10 ** TOLERANCE) - (.5 if some_float < 0 else -.5)) / (10 ** TOLERANCE)
-                                lex[token+1].type=lex[token+2].type=lex[token+3].type='IGNORE'
+                                lex[token+2].type=lex[token+3].type='IGNORE'
+                                if lex[token+1].type == 'LPAREN':
+                                      tmpAdjust=1 ; lex[token+4].type='IGNORE'
+                                else: tmpAdjust=0
+                                lex[token+1].type = 'IGNORE'
+
                                 if optLoopAttr and preAllocated and 'ASint' in (p[1] for p in preAllocated): lex[token].value='ASint('
                                 elif compileTo == 'Cython': lex[token].value = '<int>('
                                 else: lex[token].value='int('
-                                tmpFloat = lex[token+1].value
-                                tmpTolerance = 10**int(lex[token+3].value)
+                                tmpFloat = lex[token+1+tmpAdjust].value
+                                tmpTolerance = 10**int(lex[token+3+tmpAdjust].value)
                                 tmp=f"{tmpFloat} * ({tmpTolerance}) - (.5 if {tmpFloat} < 0 else -.5)) / ({tmpTolerance}"
                                 if debug: print(f'! fast-round: round({tmpFloat},{tmpTolerance})  -->  {tmp}')
                                 autoMakeTokens(tmp, token)
