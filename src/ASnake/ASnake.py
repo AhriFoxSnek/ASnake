@@ -3680,8 +3680,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmpTypeSafe = typeNewline + ('RPAREN', 'ASSIGN', 'FUNCTION', 'LPAREN', 'ELSE', 'DEFEXP', 'LINDEX')
                         check=False
                         # these blocks help follow the order of operations for more accuracy
-                        if                                        (token+3 < len(lex)-1 and lex[token + 3].type == 'RPAREN' and lex[token - 3].type == 'LPAREN' and lex[token - 2].type == lex[token + 2].type == 'NUMBER' and orderOfOps[lex[token - 1].type] == orderOfOps[lex[token + 1].type]) \
-                        or (isANegativeNumberTokens(token - 1) and token+4 < len(lex)-1 and lex[token + 3].type == 'RPAREN' and lex[token - 4].type == 'LPAREN' and lex[token - 3].type == lex[token + 2].type == 'NUMBER' and orderOfOps[lex[token - 2].type] == orderOfOps[lex[token + 1].type]):
+                        if                                        (token+3 < len(lex)-1 and lex[token + 3].type == 'RPAREN' and lex[token - 3].type == 'LPAREN' and lex[token - 2].type == lex[token + 2].type == 'NUMBER' and lex[token - 1].type in orderOfOps and  lex[token + 1].type in orderOfOps and orderOfOps[lex[token - 1].type] == orderOfOps[lex[token + 1].type]) \
+                        or (isANegativeNumberTokens(token - 1) and token+4 < len(lex)-1 and lex[token + 3].type == 'RPAREN' and lex[token - 4].type == 'LPAREN' and lex[token - 3].type == lex[token + 2].type == 'NUMBER' and lex[token - 2].type in orderOfOps and  lex[token + 1].type in orderOfOps and orderOfOps[lex[token - 2].type] == orderOfOps[lex[token + 1].type]):
                             # if order of ops is equal, preference goes towards left
                             #print('#0',lex[token].value)
                             lex.insert(token + 1, makeToken(lex[token], ')', 'RPAREN'))
