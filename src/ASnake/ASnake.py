@@ -625,6 +625,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             returnValue = not returnValue
         return returnValue
 
+    def debugPrintWholeScript():
+        [print(_.value, end=' ') for _ in lex if _.type != 'IGNORE']
+
 
 
     prettyIndent = 4
@@ -1605,10 +1608,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         #    if lex[tmpi].type in typeNewline: break
                         #    else: tmpf.append(copy(lex[tmpi]))
                         safe = False
+                        if lex[token+tmpStart].type == 'MINUS' and lex[token+tmpStart+1].type == 'NUMBER':
+                            tmpStart+=1
+                            lex[token+tmpStart-1].type='IGNORE'
+                            lex[token+tmpStart].value = '-'+lex[token+tmpStart].value
                         if lex[token+tmpStart].type in {'STRING','NUMBER'}:
                             tmpf = copy(lex[token+tmpStart])
-                            if   tmpStart == 2 and lex[token+tmpStart+1].type == 'RPAREN': safe=True
-                            elif tmpStart == 1 and lex[token+tmpStart+1].type in typeNewline: safe=True
+                            if   lex[token+tmpStart+1].type == 'RPAREN': safe=True
+                            elif lex[token+tmpStart+1].type in typeNewline: safe=True
                             if lex[token+tmpStart].type == 'STRING' and lex[token+tmpStart].value[0] not in {'"',"'"}: safe=False
                         if safe:
                             # check backwards for print
@@ -1635,7 +1642,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 tmpEndWith = tmpEndWith[3:-3]
                                             else:
                                                 tmpEndWith = tmpEndWith[1:-1]
-                                    if safe: break
+                                    break
                         if tmpFound and tmpf and (lex[tmpFound].value.endswith("'''") or lex[tmpFound].value.endswith('"""'))\
                         and (tmpf.value.endswith("'''") or tmpf.value.endswith('"""')):
                             safe=False # TODO: COULD be safe, I just don't feel like handling it rn
@@ -1681,6 +1688,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex[tmpFound].value = f"{tmpStrType}{tmpQuoteType}{lex[tmpFound].value}{tmpEndWith}{tmpf.value}{tmpQuoteType}"
                                 lex[tmpFound].type = 'STRING'
                             newOptimization=True
+                            if debug: print(f'! combined print: {lex[tmpFound].value}')
 
                     elif lex[token].type == 'ID':
                         if optConstantPropagation:
@@ -3790,12 +3798,16 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmpTypeSafe = typeNewline + ('RPAREN', 'ASSIGN', 'FUNCTION', 'LPAREN', 'ELSE', 'DEFEXP', 'LINDEX')
                         check=False
                         # these blocks help follow the order of operations for more accuracy
-                        if                                        (token+3 < len(lex)-1 and lex[token + 3].type == 'RPAREN' and lex[token - 3].type == 'LPAREN' and lex[token - 2].type == lex[token + 2].type == 'NUMBER' and lex[token - 1].type in orderOfOps and  lex[token + 1].type in orderOfOps and orderOfOps[lex[token - 1].type] == orderOfOps[lex[token + 1].type]) \
-                        or (isANegativeNumberTokens(token - 1) and token+4 < len(lex)-1 and lex[token + 3].type == 'RPAREN' and lex[token - 4].type == 'LPAREN' and lex[token - 3].type == lex[token + 2].type == 'NUMBER' and lex[token - 2].type in orderOfOps and  lex[token + 1].type in orderOfOps and orderOfOps[lex[token - 2].type] == orderOfOps[lex[token + 1].type]):
+                        if                                        (token+3 < len(lex)-1 and lex[token + 3].type == 'RPAREN' and lex[token - 3].type in {'LPAREN','FUNCTION'} and lex[token - 2].type == lex[token + 2].type == 'NUMBER' and lex[token - 1].type in orderOfOps and  lex[token + 1].type in orderOfOps and orderOfOps[lex[token - 1].type] == orderOfOps[lex[token + 1].type]) \
+                        or (isANegativeNumberTokens(token - 1) and token+4 < len(lex)-1 and lex[token + 3].type == 'RPAREN' and lex[token - 4].type in {'LPAREN','FUNCTION'} and lex[token - 3].type == lex[token + 2].type == 'NUMBER' and lex[token - 2].type in orderOfOps and  lex[token + 1].type in orderOfOps and orderOfOps[lex[token - 2].type] == orderOfOps[lex[token + 1].type]):
                             # if order of ops is equal, preference goes towards left
                             #print('#0',lex[token].value)
-                            lex.insert(token + 1, makeToken(lex[token], ')', 'RPAREN'))
-                            lex.insert(token - 3, makeToken(lex[token], '(', 'LPAREN'))
+                            if isANegativeNumberTokens(token - 1) and lex[token-4].type in {'LPAREN',}:
+                                lex.insert(token + 1, makeToken(lex[token], ')', 'RPAREN'))
+                                lex.insert(token - 4, makeToken(lex[token], '(', 'LPAREN'))
+                            else:
+                                lex.insert(token + 1, makeToken(lex[token], ')', 'RPAREN'))
+                                lex.insert(token - 3, makeToken(lex[token], '(', 'LPAREN'))
                             newOptimization=True # needs another iteration
                         elif token+3 < len(lex)-1 and ((lex[token+3].type == 'PIPE' and lex[token+3].value == 'to') or lex[token+1].type in typeNewline or lex[token+2].type in typeNewline): pass
                         elif lex[token-1].type in orderOfOps and lex[token+1].type in orderOfOps and not (lex[token-1].type == 'MINUS' and lex[token-2].type in tuple(orderOfOps)+tmpTypeSafe):
@@ -3833,7 +3845,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     check=True
                                     #print('#1.3',lex[token].value)
                             elif (lex[token].type == 'STRING' and ((lex[token+1].type == 'TIMES' and lex[token+2].type == 'NUMBER') or (lex[token+1].type == 'PLUS' and lex[token+2].type == 'STRING' and lex[token-1].type != 'TIMES'))) \
-                            or ((lex[token-1].type in {'LPAREN','FUNCTION'} or orderOfOps[lex[token-1].type] <= 2) and lex[token].type == 'NUMBER' and lex[token+1].type == 'TIMES' and lex[token+2].type == 'STRING'):
+                            or ((lex[token-1].type in {'LPAREN','FUNCTION'} or (lex[token-1].type in orderOfOps and orderOfOps[lex[token-1].type] <= 2)) and lex[token].type == 'NUMBER' and lex[token+1].type == 'TIMES' and lex[token+2].type == 'STRING'):
                                 # simple string eval
                                 #print("1.4", lex[token].value)
                                 check=True
@@ -3976,8 +3988,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex[token+1].type = 'IGNORE'
                             newOptimization = True
                     if optCompilerEval \
-                    and ((lex[token-1].type == 'LPAREN' and lex[token+1].type == 'RPAREN' and lex[token-2].type in ('LPAREN','ASSIGN','DEFEXP')+typeNewline+typeOperators and lex[token].type != 'FUNCTION') \
-                    or (lex[token-1].type == 'MINUS' and lex[token-2].type == 'LPAREN' and lex[token+1].type == 'RPAREN' and lex[token-3].type in ('LPAREN','ASSIGN','DEFEXP')+typeNewline+typeOperators and lex[token].type != 'FUNCTION')):
+                    and ((lex[token-1].type == 'LPAREN' and lex[token+1].type == 'RPAREN' and (lex[token-2].type in ('LPAREN','ASSIGN','DEFEXP')+typeNewline+typeOperators or (lex[token-2].type == 'FUNCTION' and lex[token-2].value[-1] == '(')) and lex[token].type != 'FUNCTION') \
+                    or (lex[token-1].type == 'MINUS' and lex[token-2].type == 'LPAREN' and lex[token+1].type == 'RPAREN' and (lex[token-3].type in ('LPAREN','ASSIGN','DEFEXP')+typeNewline+typeOperators or (lex[token-3].type == 'FUNCTION' and lex[token-3].value[-1] == '(')) and lex[token].type != 'FUNCTION')):
+                        # remove useless paren like:  (-12)
                         #print(lex[token-2].type,lex[token-1].type,lex[token].type,lex[token].value,lex[token+1].type,888888888888)
                         if lex[token-1].type == 'MINUS':
                             lex[token-2].type='IGNORE'
@@ -3986,7 +3999,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         lex[token+1].type='IGNORE'
                         del lex[token+1]
                         token-=2
-
                     token+=1
 
         # last optimizations, run at the end (until no more optimization)
