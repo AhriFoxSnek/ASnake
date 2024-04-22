@@ -1599,7 +1599,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         # combines current print with the print on the prior line, to reduce function calls
                         # TODO handle defexp (when its print)
                         # also fstrings (done when prior is, not current)
-                        tmpFound = False ; tmpEndWith='\\n'
+                        tmpFound = False ; tmp2ndEndWith=tmpEndWith='\\n'
                         tmpf=[] # the print's args
                         if lex[token].type == 'ID' and lex[token+1].type == 'LPAREN':
                               tmpStart=2
@@ -1614,8 +1614,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex[token+tmpStart].value = '-'+lex[token+tmpStart].value
                         if lex[token+tmpStart].type in {'STRING','NUMBER'}:
                             tmpf = copy(lex[token+tmpStart])
-                            if   lex[token+tmpStart+1].type == 'RPAREN': safe=True
-                            elif lex[token+tmpStart+1].type in typeNewline: safe=True
+                            if lex[token+tmpStart+1].type in ('RPAREN',)+typeNewline: safe=True
+                            elif token+tmpStart+4 < len(lex)-1 and lex[token+tmpStart+1].type == 'COMMA' and lex[token+tmpStart+2].type == 'ID' and lex[token+tmpStart+2].value == 'end' \
+                            and lex[token+tmpStart+3].type == 'ASSIGN' and lex[token+tmpStart+4].type == 'STRING':
+                                safe=True ; tmp2ndEndWith=lex[token+tmpStart+4].value
                             if lex[token+tmpStart].type == 'STRING' and lex[token+tmpStart].value[0] not in {'"',"'"}: safe=False
                         if safe:
                             # check backwards for print
@@ -1687,6 +1689,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if not tmpQuoteType: tmpQuoteType="'"
                                 lex[tmpFound].value = f"{tmpStrType}{tmpQuoteType}{lex[tmpFound].value}{tmpEndWith}{tmpf.value}{tmpQuoteType}"
                                 lex[tmpFound].type = 'STRING'
+                            if lex[tmpFound+1].type == 'COMMA' and lex[tmpFound+2].type == 'ID' and lex[tmpFound+2].value == 'end' \
+                            and lex[tmpFound+3].type == 'ASSIGN' and lex[tmpFound+4].type == 'STRING':
+                                if tmp2ndEndWith == '\\n': tmp2ndEndWith="'\\n'"
+                                lex[tmpFound+4].value=tmp2ndEndWith
                             newOptimization=True
                             if debug: print(f'! combined print: {lex[tmpFound].value}')
 
