@@ -1496,6 +1496,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         optNestedLoopItertoolsProduct=True
         optSplitMultiAssign=True
         optUnModAssignment=True
+        optCompressPrint=True
         # v these are done in main phase v
         optIfTrue=True # hybrid
         optSortedToSort=True
@@ -1591,7 +1592,97 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 else:
                                     optimize = not optimize
                     #if debug: print('!',blah,token,lex[token])
-                    if lex[token].type == 'ID':
+                    if optCompressPrint and lex[token].type in {'ID','FUNCTION'} and lex[token].value.startswith('print'):
+                        # combines current print with the print on the prior line, to reduce function calls
+                        # TODO handle defexp (when its print)
+                        # also fstrings (done when prior is, not current)
+                        tmpFound = False ; tmpEndWith='\\n'
+                        tmpf=[] # the print's args
+                        if lex[token].type == 'ID' and lex[token+1].type == 'LPAREN':
+                              tmpStart=2
+                        else: tmpStart=1
+                        #for tmpi in range(token+tmpStart,len(lex)):
+                        #    if lex[tmpi].type in typeNewline: break
+                        #    else: tmpf.append(copy(lex[tmpi]))
+                        safe = False
+                        if lex[token+tmpStart].type in {'STRING','NUMBER'}:
+                            tmpf = copy(lex[token+tmpStart])
+                            if   tmpStart == 2 and lex[token+tmpStart+1].type == 'RPAREN': safe=True
+                            elif tmpStart == 1 and lex[token+tmpStart+1].type in typeNewline: safe=True
+                            if lex[token+tmpStart].type == 'STRING' and lex[token+tmpStart].value[0] not in {'"',"'"}: safe=False
+                        if safe:
+                            # check backwards for print
+                            safe = False ; tmpPrintIndent=tmpCurrentIndent=None ; tmpFound=-1
+                            for tmpi in range(token-1, 0, -1):
+                                if lex[tmpi].type in typeNewline:
+                                    if lex[tmpi].type == 'NEWLINE':
+                                        tmpCurrentIndent = 0
+                                        if tmpPrintIndent == None: tmpPrintIndent=tmpCurrentIndent
+                                    elif lex[tmpi].type == 'TAB':
+                                        tmpCurrentIndent = lex[tmpi].value.count(' ')
+                                        if tmpPrintIndent == None: tmpPrintIndent=tmpCurrentIndent
+                                    if tmpCurrentIndent != tmpPrintIndent: break
+                                elif lex[tmpi].type in {'ID','FUNCTION'} and lex[tmpi].value.startswith('print') and lex[tmpi-1].type in typeNewline:
+                                    for tmpii in range(tmpi + 1, len(lex)):
+                                        if lex[tmpii].type in typeNewline: break
+                                        elif lex[tmpii].type in {'FSTR','STRING','NUMBER'} and lex[tmpii-1].type != 'ASSIGN' \
+                                        and ((lex[tmpii+1].type in typeNewline or (lex[tmpii+1].type == 'RPAREN' and lex[tmpii+2].type in typeNewline)) \
+                                        or (lex[tmpii+1].type == 'COMMA' and lex[tmpii+2].type == 'ID' and lex[tmpii+2].value == 'end' and lex[tmpii+3].type == 'ASSIGN')):
+                                            safe=True ; tmpFound=tmpii
+                                        elif lex[tmpii].type in {'FSTR','STRING'} and lex[tmpii-1].type == 'ASSIGN' and lex[tmpii-2].type == 'ID' and lex[tmpii-2].value == 'end' and lex[tmpii-3].type == 'COMMA':
+                                            tmpEndWith=lex[tmpii].value
+                                            if tmpEndWith.endswith("'''") or tmpEndWith.endswith('"""'):
+                                                tmpEndWith = tmpEndWith[3:-3]
+                                            else:
+                                                tmpEndWith = tmpEndWith[1:-1]
+                                    if safe: break
+                        if tmpFound and tmpf and (lex[tmpFound].value.endswith("'''") or lex[tmpFound].value.endswith('"""'))\
+                        and (tmpf.value.endswith("'''") or tmpf.value.endswith('"""')):
+                            safe=False # TODO: COULD be safe, I just don't feel like handling it rn
+                        if safe:
+                            # delete self
+                            for tmpi in range(token, len(lex)):
+                                if lex[tmpi].type in typeNewline: break
+                                else: lex[tmpi].type='IGNORE'
+                            # cull quotes
+                            tmpQuoteType=False
+                            if tmpf.type == 'STRING':
+                                if tmpf.value.endswith("'''") or tmpf.value.endswith('"""'):
+                                      tmpQuoteType = tmpf.value[-1]*3
+                                      tmpf.value = tmpf.value[3:-3]
+                                else: tmpf.value = tmpf.value[1:-1]
+                            # add to other print
+                            tmpStrType = ''
+                            if lex[tmpFound].type in {'FSTR','STRING'}:
+                                if lex[tmpFound].value.endswith("'''") or lex[tmpFound].value.endswith('"""'):
+                                    tmp=1
+                                    for _ in lex[tmpFound].value:
+                                        if _ in {'"',"'"}:
+                                            tmpQuoteType = _
+                                            break
+                                        tmp+=1 ; tmpStrType+=_
+                                    tmpFoundCutAmount=(tmp,3)
+                                elif lex[tmpFound].type == 'FSTR':
+                                    tmpFoundCutAmount = (0, 1) ; tmpQuoteType=lex[tmpFound].value[-1]
+                                else:
+                                    if not tmpQuoteType: tmpQuoteType="'" if lex[tmpFound].value[-1] == "'" else '"'
+                                    tmp=1
+                                    for _ in lex[tmpFound].value:
+                                        if _ in {'"', "'"}:
+                                            break
+                                        tmp += 1; tmpStrType += _
+                                    tmpFoundCutAmount = (tmp, 1)
+                                if lex[tmpFound].type == 'STRING':
+                                    lex[tmpFound].value=f"{tmpStrType}{tmpQuoteType}{lex[tmpFound].value[tmpFoundCutAmount[0]:-tmpFoundCutAmount[1]]}{tmpEndWith}{tmpf.value}{tmpQuoteType*tmpFoundCutAmount[1]}"
+                                else:
+                                    lex[tmpFound].value = f"{tmpStrType}{lex[tmpFound].value[tmpFoundCutAmount[0]:-tmpFoundCutAmount[1]]}{tmpEndWith}{tmpf.value}{tmpQuoteType * tmpFoundCutAmount[1]}"
+                            elif lex[tmpFound].type == 'NUMBER':
+                                if not tmpQuoteType: tmpQuoteType="'"
+                                lex[tmpFound].value = f"{tmpStrType}{tmpQuoteType}{lex[tmpFound].value}{tmpEndWith}{tmpf.value}{tmpQuoteType}"
+                                lex[tmpFound].type = 'STRING'
+                            newOptimization=True
+
+                    elif lex[token].type == 'ID':
                         if optConstantPropagation:
                             tmpi=None
                             if lex[token-1].type not in typeConditionals+('OR','AND','LOOP'):
