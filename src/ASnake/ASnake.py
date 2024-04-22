@@ -1691,8 +1691,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex[tmpFound].type = 'STRING'
                             if lex[tmpFound+1].type == 'COMMA' and lex[tmpFound+2].type == 'ID' and lex[tmpFound+2].value == 'end' \
                             and lex[tmpFound+3].type == 'ASSIGN' and lex[tmpFound+4].type == 'STRING':
-                                if tmp2ndEndWith == '\\n': tmp2ndEndWith="'\\n'"
-                                lex[tmpFound+4].value=tmp2ndEndWith
+                                if tmp2ndEndWith == '\\n':
+                                    lex[tmpFound+1].type=lex[tmpFound+2].type=lex[tmpFound+3].type=lex[tmpFound+4].type='IGNORE'
+                                else:
+                                    lex[tmpFound+4].value=tmp2ndEndWith
                             newOptimization=True
                             if debug: print(f'! combined print: {lex[tmpFound].value}')
 
