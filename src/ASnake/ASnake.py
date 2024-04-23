@@ -3595,7 +3595,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         tmp=tmp[1:-1]
                                     lex[token].value=lex[token].value.replace('%s',tmp,1)
                                 elif len(tmpf[0]) == 1 and tmpf[0][0].type == 'NUMBER':
+                                    if debug: tmp = lex[token].value
                                     lex[token].value=lex[token].value.replace('%s',tmpf[0][0].value,1)
+                                    if '{' not in lex[token].value and '}' not in lex[token].value: lex[token].value=lex[token].value[1:]
+                                    if debug: print('! converted to fstring:', tmp, '-->', lex[token].value)
+                                    newOptimization = True
                                 else:
                                     if debug: tmp = lex[token].value
                                     lex[token].value=lex[token].value.replace('%s','{%s}'%''.join([l.value+' ' for l in tmpf[0]]),1)
