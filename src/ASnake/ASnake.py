@@ -7186,7 +7186,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif tmpf in metaPyIs:
                     pyIs = metaHandling(tok.value, pyIs)
                 elif tmpf in metaPyCompat:
-                    pyIs=True ; functionPassing=True ; expPrint.append('') ; autoEnumerate=False ; intVsStrDoLen=False
+                    pyCompatibility = metaHandling(metaCall, pyCompatibility)
+                    if pyCompatibility:
+                        pyIs=True ; functionPassing=True ; expPrint.append('') ; autoEnumerate=False ; intVsStrDoLen=False
                 elif tmpf in {'asnake','Asnake','ASnake'}:
                     pyIs=False ; functionPassing=False
                 elif tmpf in {'Cython','cython'}:
