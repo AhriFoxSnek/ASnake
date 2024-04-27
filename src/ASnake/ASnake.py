@@ -1809,6 +1809,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         tmpListOfVarsInside=tuple([_.value for _ in tmpf if _.type == 'ID']) # for keeping track of vars inside that may change
                                     else: tmpf=[l for l in tmpf if tmpf.type != 'IGNORE']
 
+                                    linkType = True if (enforceTyping or compileTo == 'Cython') else False
+
                                     tmpindent = 0  # keeping track if constant is in indented block
                                     tmpFoundIndent = tmpFoundThen = tmpInTypeWrap = tmpCheckForDef = False
                                     # tmpCheckForDef when not False, checks to see if inside function before canceling optimization
@@ -1843,6 +1845,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             tmpCheckForDef = True  # previous version of self found on previous indent, bail!
                                         elif tmpCheckForDef and lex[tmpi].type in {'PYDEF', 'DEFFUNCT'}:
                                             tmpCheckForDef = False
+                                        elif lex[tmpi].type == 'PYCLASS':
+                                            linkType=False
                                         #print(lex[token].value, lex[tmpi].type, tmptmpIndent, tmpindent)
 
                                     def handleIgnoreOnNL():
@@ -1855,7 +1859,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             ignores.append((-tmpAddToIgnoresWhenNL,tmpi))
                                             tmpAddToIgnoresWhenNL = 0
 
-                                    search=True ; linkType=True if (enforceTyping or compileTo == 'Cython') else False ; ignores=[] ; inDef=wasInDefs=inFrom=inCase=tmpInConditionalStatement=False
+                                    search=True ; ignores=[] ; inDef=wasInDefs=inFrom=inCase=tmpInConditionalStatement=False
                                     # wasInDefs is for determining if a later define could break behaviour inside of functions
                                     # inDef i think is for determining if its the name of a function??
                                     tmpIDshow=0 ; tmpAddToIgnoresWhenNL = 0
@@ -4415,7 +4419,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         tmpval=tok.value ; tmptype=tok.type
         if tok.value in storedVarsHistory and 'staticType' in storedVarsHistory[tok.value]:
             if storedVarsHistory[tok.value]['staticType'] == 'int':
-                line.append(f'{" "*(indent)}printf("%d\\n",{tmpval})\n')
+                line.append(f'{" "*(indent)}printf("%llu\\n",{tmpval})\n')
                 check=True
             else: line.append(f'{" "*(indent)}print({tmpval})')
         elif tmptype in {'STRING','STRLIT','STRRAW'}:
@@ -4430,7 +4434,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             check=True
         elif tmptype == 'NUMBER':
             if '.' in tmpval: line.append(f'{" "*(indent)}printf("%.14f",{tmpval})\n')
-            else: line.append(f'{" "*(indent)}printf("%d\\n",{tmpval})\n')
+            else: line.append(f'{" "*(indent)}printf("%llu\\n",{tmpval})\n')
             check=True
         else:
             if tmpval in storedCustomFunctions:
