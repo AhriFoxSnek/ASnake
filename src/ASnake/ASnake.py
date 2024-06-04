@@ -1485,6 +1485,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'EvalStr': True,
                             'ExponentToTimes': True,
                             'inTo__contains__': False, # main phase, only good for Pyston
+                            'intToFloat': True, # main phase, not good in PyPy
                             }
         optConstantPropagation=True
         optMathEqual=True
@@ -1517,7 +1518,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             optLoopToMap=optLoopAttr=False
         elif compileTo == 'PyPy3':
             # v seems to be slower for some reason on PyPy but faster on Python v
-            optNestedLoopItertoolsProduct=optFuncCache=optLoopToMap=optListPlusListToExtend=False
+            optNestedLoopItertoolsProduct=optFuncCache=optLoopToMap=optListPlusListToExtend=optFuncTricksDict['intToFloat']=False
             # v faster in pypy v
             optWalrus=True
         elif compileTo == 'Pyston':
@@ -6810,6 +6811,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex[lexIndex + 3].type = 'IGNORE'
                             lex[lexIndex + 4].type = 'IGNORE'
                             continue
+
+                        elif optFuncTricks and optFuncTricksDict['intToFloat'] and lex[lexIndex].value == 'float(' and lex[lexIndex+1].type == 'ID' and lex[lexIndex+2].type == 'RPAREN' \
+                        and lex[lexIndex+1].value in storedVarsHistory and 'staticType' in storedVarsHistory[lex[lexIndex+1].value] and storedVarsHistory[lex[lexIndex+1].value]['staticType'] == 'int':
+                            lex[lexIndex].type = 'LPAREN' ; lex[lexIndex].value='(' ; autoMakeTokens(f"/ 1",lexIndex+1)
 
                         elif compileTo == 'Cython' and tok.value == 'len(' and lex[lexIndex+1].type == 'STRING' and lex[lexIndex+2].type == 'RPAREN':
                             insertAtTopOfCodeIfItIsNotThere('from libc.string cimport strlen as CYlen\n')
