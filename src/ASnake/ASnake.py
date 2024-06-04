@@ -1486,6 +1486,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'ExponentToTimes': True,
                             'inTo__contains__': False, # main phase, only good for Pyston
                             'intToFloat': True, # main phase, not good in PyPy
+                            'EvalIntToFloat': True,
                             }
         optConstantPropagation=True
         optMathEqual=True
@@ -3009,6 +3010,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             lex[t].type='IGNORE'
                                         newOptimization = True
 
+                            if optFuncTricksDict['EvalIntToFloat'] and optCompilerEval and lex[token].type == 'FUNCTION' and lex[token].value == 'float(' and lex[token + 1].type == 'NUMBER' and '.' not in lex[token + 1].value and lex[token + 2].type == 'RPAREN':
+                                lex[token + 1].value += '.0'; lex[token].type = lex[token + 2].type = 'IGNORE'
 
 
                             if optFuncTricksDict['optCythonTypeFromConversionFunction'] and compileTo=='Cython' and any(True for x in convertType if x == lex[token].value.replace('(','')):
