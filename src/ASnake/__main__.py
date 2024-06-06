@@ -11,15 +11,20 @@ from subprocess import check_output, CalledProcessError, STDOUT
 from os import path, remove, listdir
 from time import monotonic
 from re import sub as REsub
+from platform import python_version, python_version_tuple
 
-def execPy(code, fancy=True, pep=True, run=True, execTime=False, headless=False, runtime='Python', windows=False,runCommand=None):
+
+def execPy(code, fancy=True, pep=True, run=True, execTime=False, headless=False, runtime='Python', windows=False, runCommand=None, version=latestPythonVersionSupported):
     if pep:
         if execTime:
             print('# autopep8 time: ', end='', flush=True)
             s = monotonic()
-        code = fix_code(code, options={
-            'ignore': ['E114', 'E115', 'E116', 'E261', 'E262', 'E265', 'E266', 'E301', 'E302', 'E305', 'E4', 'E701',
-                       'E702', 'E704', 'E722', 'E731', 'W3', 'W5', 'W6']})
+        ignoreCodes=['E114', 'E115', 'E116', 'E261', 'E262', 'E265', 'E266', 'E301', 'E302', 'E305', 'E4', 'E701',
+                       'E702', 'E704', 'E722', 'E731', 'W3', 'W5', 'W6']
+        cpv = python_version_tuple() ; cpv = cpv[0] + '.' + cpv[1]
+        if float(version) < 3.12 <= float(cpv): ignoreCodes.append('E501')
+        # ^ breaks behaviour on fstrings when targeting a lower version and compiler's version is higher
+        code = fix_code(code, options={'ignore': ignoreCodes}) ; del ignoreCodes
         if execTime:
             print(round(monotonic() - s, 4))
     if fancy:
@@ -203,7 +208,7 @@ if __name__ == '__main__':
         justRun=True ; fancy=False ; runCode=True ; pep=False
     if args.version:
         try: pythonVersion=float(args.version)
-        except: pass
+        except: pythonVersion = latestPythonVersionSupported
     if args.python_compatibility:
         data = "$ pythonCompatibility\n" + data
     if args.cython:
@@ -218,10 +223,7 @@ if __name__ == '__main__':
 
     if not fancy and not compileAStoPy: pep = False
 
-    if not args.version:
-        pythonVersion = latestPythonVersionSupported
     if not args.pypy and not args.pyston and not args.version:
-        from platform import python_version_tuple
         pv = python_version_tuple()
         pythonVersion = pv[0] + '.' + pv[1]
 
@@ -271,7 +273,7 @@ if __name__ == '__main__':
         if ASFileExt == 'py' and path.isfile(filePath+fileName):
             fileName="AS_"+fileName
         if code.startswith(f'# ASnake {ASnakeVersion} ERROR'):
-            execPy(code, run=True, execTime=False, pep=False, headless=False, fancy=False, windows=WINDOWS,runCommand=args.run_command)
+            execPy(code, run=True, execTime=False, pep=False, headless=False, fancy=False, windows=WINDOWS,runCommand=args.run_command,version=pythonVersion)
             exit()
         with open(filePath+fileName,'w',encoding='utf-8') as f:
             f.write(code)
@@ -336,13 +338,13 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                 if runCode:
                     if filePath:
                         chdir(filePath)
-                    execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=False,windows=WINDOWS)
+                    execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=False,windows=WINDOWS,version=pythonVersion)
                     if '/' in ASFile: tmp=f"import sys\nsys.path.append('{ASFile.split('/')[-1]}')\nimport {ASFile.split('/')[-1]}"
                     else: tmp=f'import {ASFile}'
                     if args.pyston: runtime = 'Pyston'
                     elif args.pypy: runtime = 'PyPy'
                     else: runtime = 'Cython'
-                    execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=fancy,runtime=runtime,windows=WINDOWS,runCommand=args.run_command)
+                    execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=fancy,runtime=runtime,windows=WINDOWS,runCommand=args.run_command,version=pythonVersion)
         elif compileTo == 'Codon':
             fileName=f'{ASFile}.codon'
             with open(fileName, 'w') as f:
@@ -389,14 +391,14 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
 
         if compileTo == 'Cython':
             ASFile='.'.join(ASFile.rsplit('.')[:-1])
-            execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=fancy,windows=WINDOWS,runCommand=args.run_command)
+            execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=fancy,windows=WINDOWS,runCommand=args.run_command,version=pythonVersion)
             if '/' in ASFile:
                 tmpASFile=ASFile.split('/')[-1].replace("'","\\'")
                 ASFile=ASFile.replace("'","").replace("_",'')
                 tmp=f"import sys\nsys.path.append('{tmpASFile}');import {ASFile.split('/')[-1]}"
             else: tmp=f'import {ASFile}'
-            execPy(tmp,run=runCode,execTime=True,pep=False,headless=False,fancy=False,runtime=runtime,windows=WINDOWS,runCommand=args.run_command)
+            execPy(tmp,run=runCode,execTime=True,pep=False,headless=False,fancy=False,runtime=runtime,windows=WINDOWS,runCommand=args.run_command,version=pythonVersion)
         else:
-            execPy(code,run=runCode,execTime=fancy,pep=pep,headless=headless,fancy=fancy,runtime=runtime,windows=WINDOWS,runCommand=args.run_command)
+            execPy(code,run=runCode,execTime=fancy,pep=pep,headless=headless,fancy=fancy,runtime=runtime,windows=WINDOWS,runCommand=args.run_command,version=pythonVersion)
 
 
