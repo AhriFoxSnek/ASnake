@@ -122,8 +122,8 @@ class Lexer(Lexer):
     TYPEWRAP= fr'({"|".join(defaultTypes)})( ?\[\w*\])? *: *(#.*)?(?=\n)'
     TYPE    = '\\s%s\\s'%f'({"|".join(defaultTypes)})'
     LAMBDA  = r'lambda ?(\w* *,?)*:'
-    FSTRFRMT = r':,? *(?:\=?[><^|%.])?\d+(?:\.\d+)?[dfxsn]?'  # for formatting at end of fstrings brackets
-    LISTCOMP= r'\-?\w*: ([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*'
+    FSTRFRMT= r':,? *(?:\=?[><^|%.])?\d+(?:\.\d+)?[dfxsn]?'  # for formatting at end of fstrings brackets
+    LISTCOMP= r'''\-?\w*: ([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*(?!"|')'''
     STRING  = r'((f|u|b)?\"(?:\\\\|\\\"|[^\"])*\")|((f|u|b)?\'(?:\\\\|\\\'|[^\'])*\')'
     #SET    = r'{.+?}'
     LBRACKET= r'{'
@@ -5483,6 +5483,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         return AS_SyntaxError(
                             f'Variable \"{lastValue}\" is a reserved keyword, use a different name.',
                             f'variableName {tok.value} {lex[lexIndex + 1].value}', lineNumber, data)
+                    doElse=True
                     if (inIf or fstrQuote!='' or parenScope>0) and tok.value.strip() == 'is':
                         if lex[lexIndex+1].type == 'INS' and lex[lexIndex+1].value.startswith('not') and tok.value.startswith('is'):
                             # is not -> !=
@@ -5495,6 +5496,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex.insert(lexIndex+1,makeToken(tok,'==','EQUAL'))
                             else:
                                 line.append('== ')
+                        doElse = False
                     elif lastType not in {'ID','INDEX','COMMAGRP','BUILTINF','RINDEX','LISTEND','RPAREN','META'} and findEndOfFunction(lexIndex-1,goBackwards=True)==False: # syntax error
                         if lastType in typeConditionals:
                             return AS_SyntaxError(
@@ -5519,21 +5521,28 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             return AS_SyntaxError(f'Line {lineNumber} does not assign to anything.',
                             'variableName is 12'
                             ,lineNumber,data)
+                        doElse = False
                     elif pythonVersion < 3.08 and ':' in tok.value:
                         return AS_SyntaxError(f'Walrus assignment not allowed when compiling to {compileTo if compileTo != "Python" else "Python"+str(pythonVersion)}',
                             'a is 12'
                             ,lineNumber,data)
                     elif pythonVersion < 3.08 and fstrQuote != '' and ':' not in tok.value:
-                        tmp='}' ; tmpf=[]
-                        for i in range(lexIndex,0,-1):
-                            if lex[i].type in typeNewline: break
-                            tmpf.append(lex[i].value)
-                        tmpf=tmpf[::-1][:-1]
-                        return AS_SyntaxError(
-                            f'Assignment not allowed inside F-String when compiling to Python{str(pythonVersion)}',
-                            f'{"".join(tmpf)}{tmp}{fstrQuote}'
-                            , lineNumber, data)
-                    else:
+                        tmpSafe=False
+                        for ii in range(lexIndex-1,0,-1):
+                            if lex[ii].type == 'FUNCTION': tmpSafe=True ; break
+                            elif lex[ii].type == 'FSTR': break
+                        if not tmpSafe:
+                            tmp='}' ; tmpf=[]
+                            for i in range(lexIndex,0,-1):
+                                if lex[i].type in typeNewline: break
+                                tmpf.append(lex[i].value)
+                            tmpf=tmpf[::-1][:-1]
+                            return AS_SyntaxError(
+                                f'Assignment not allowed inside F-String when compiling to Python{str(pythonVersion)}',
+                                f'{"".join(tmpf)}{tmp}{fstrQuote}'
+                                , lineNumber, data)
+                        else: doElse=True
+                    if doElse:
                         if lastType == 'META' and lex[lexIndex-1].value.replace("$","").split('=')[0].strip() not in inlineReplace:
                             return AS_SyntaxError(
                                 'Assignment to meta not allowed when meta is not defined as inline.',
