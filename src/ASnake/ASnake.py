@@ -124,7 +124,7 @@ class Lexer(Lexer):
     LAMBDA  = r'lambda ?(\w* *,?)*:'
     FSTRFRMT= r':,? *(?:\=?[><^|%.])?\d+(?:\.\d+)?[dfxsn]?'  # for formatting at end of fstrings brackets
     LISTCOMP= r'''\-?\w*: ([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*(?!"|')'''
-    STRING  = r'((f|u|b)?\"(?:\\\\|\\\"|[^\"])*\")|((f|u|b)?\'(?:\\\\|\\\'|[^\'])*\')'
+    STRING  = r"((f|u|b)?\"\"\"(?:[^\"\\]|\\.|\"(?!\"\"))*\"\"\")|((f|u|b)?'''(?:[^'\\]|\\.|'(?!''))*''')|((f|u|b)?\"(?:\\.|[^\"\\])*\")|((f|u|b)?'(?:\\.|[^'\\])*')"
     #SET    = r'{.+?}'
     LBRACKET= r'{'
     RBRACKET= r'}'
@@ -191,7 +191,7 @@ class Lexer(Lexer):
     # DONTDEXP = do not perform default expression wrap
     # IGNORE   = ignore the token, preferably deleting it later.
 
-latestPythonVersionSupported='3.11'
+latestPythonVersionSupported='3.12'
 
 def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonVersion=latestPythonVersionSupported,enforceTyping=False,variableInformation={},outputInternals=False,metaInformation=False):
     # data is the string version of code for parsing
@@ -1305,7 +1305,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             if tmpFuncArgs:
                 # extracts out function argument variables and types
                 tmpFuncArgs = tmpFuncArgs.group()[1:-1]
-                tmpREChecks = (r'[^,]+\[.*\](?:,|$)', r'[^,]+?\((?:.*?,?)*?\)(?: *,|$)', r'[^,]+\{(?:.*,?)*\}(?:,|$)',r'[^,]+(?:,|,?.*?$)')
+                tmpREChecks = (r'[^,]+\[.*\](?:,|$)', r'[^,]+?\((?:.*?,?)*?\)(?: *,|$)', r'[^,]+\{.*\}(?:,|$)',r'[^,]+(?:,|,?.*?$)')
                 tmpf = []
                 for REcheck in tmpREChecks:
                     tmp = REfindall(REcheck, tmpFuncArgs)
