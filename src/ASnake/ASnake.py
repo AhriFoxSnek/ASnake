@@ -4019,7 +4019,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         lex[token+1].type='IGNORE'
                         del lex[token+1]
                         token-=2
+                    elif optCompilerEval and lex[token].type == 'NUMBER' and (lex[token-1].type == 'FSTR' or (lex[token-1].type in orderOfOps and lex[token-2].type == 'ID' and lex[token-3].type == 'FSTR')) and lex[token+1].type in orderOfOps and lex[token+2].type == 'NUMBER' and lex[token+3].type == 'FSTR':
+                        # add paren inside fstrings so compiler eval can understand it easier
+                        if lex[token-1].type in orderOfOps:
+                            lex.insert(token-2,makeToken(tok, '(', 'LPAREN'))
+                        else:
+                            lex.insert(token  ,makeToken(tok, '(', 'LPAREN'))
+                        lex.insert(token+4,makeToken(tok, ')', 'RPAREN'))
                     token+=1
+
 
         # last optimizations, run at the end (until no more optimization)
         newOptimization = True ; optRounds=0
@@ -6224,8 +6232,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     return AS_SyntaxError(f"Type must be declared to a variable. '{lex[lexIndex+1].value}' is invalid.",f'{tok.value} variable = value', lineNumber, data)
                 elif lastType in typeCheckers:
                     line.append(tok.value)
-                elif lastType not in typeNewline+('CONSTANT','DEFFUNCT','TYPEWRAP'):
-                    return AS_SyntaxError(f'Invalid token \'{lastType}\' before type declaration.',f'{tok.value} {lex[lexIndex+1].value} = value',lineNumber,data)
+                elif lex[lexIndex-1].type not in typeNewline+('CONSTANT','DEFFUNCT','TYPEWRAP','IGNORE'):
+                    return AS_SyntaxError(f'Invalid token \'{lex[lexIndex-1].type}\' before type declaration.',f'{tok.value} {lex[lexIndex+1].value} = value',lineNumber,data)
                 elif lex[lexIndex+1].type == 'ID' and lex[lexIndex+2].type == 'LISTCOMP':
                     tok.type='ID' ; line.append(tok.value)
                 elif tok.value  == 'range' and lex[lexIndex+1].type == 'NRANGE': tok.type='IGNORE' ; continue
