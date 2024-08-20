@@ -187,13 +187,13 @@ else 'int to range' $failed
 
 
 $start
-π is 3.14
-if π is 3.14 $worked
+ฯ€ is 3.14
+if ฯ€ is 3.14 $worked
 else 'non-ascii variable' $failed
 
 $start
-🤍💚🧡 is 'love'
-if 🤍💚🧡 is 'love' $worked
+๐ค๐’๐งก is 'love'
+if ๐ค๐’๐งก is 'love' $worked
 else '(multi) emoji variable' $failed
 
 
@@ -231,6 +231,27 @@ of 4 do result is False
 else result is False
 if result is True $worked
 else 'basic asnake case switch' $failed
+
+$start
+if True
+    match 2
+    of 1 do False do of 2 do True
+	of 3 do False
+if result is True $worked
+else 'asnake of then nest' $failed
+
+$start
+if True
+    match 2
+    of 1 do False
+	of 2
+		match 1
+		of 1 do True
+		of 2 do False
+		of 3 do False
+	of 3 do False
+if result is True $worked
+else 'asnake nested match' $failed
 
 $ ifVersion = 3.10
 	$start
