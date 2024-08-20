@@ -4714,7 +4714,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         storedVarsHistory=variableInformation
     else:
         storedVarsHistory={} # {'ASVarExample':{'type':'STRING','value':'AS is cool! sometimes'}}
-    switchCase={'case':False}
+    switchCase={'case':False} ; switchCases=[]
     # idMAIN
     for tok in lex:
         lineNumber=tok.lineno
@@ -4725,7 +4725,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         # ^ delays hasPiped settings to false by one instruction, for multiple pipes per line. hasPiped is to prevent pipe overrides
         if switchCase['case'] and 'indent' in switchCase and indent<=switchCase['indent'] and tok.type not in {'OF','TAB'} and lastType != 'MATCH':
             if lex[lexIndex].type == 'ELSE': pass  # ELSE is an exception where switch-case doesn't end yet
-            else: switchCase={'case':False}
+            else:
+                switchCase={'case':False}
+                if switchCases: switchCase = switchCases.pop() ; indent=switchCase['indent']
         # ^ resets switch-case if it detects indentation is smaller or equal, as this means the switch is over
         if expPrint[0] > indent:
             expPrint[0]=indent
@@ -5237,6 +5239,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if startOfLine: line.append(f'{" "*indent}[') ; startOfLine=False
                     else: line.append('[')
             elif tok.type == 'MATCH': # idMATCH
+                if switchCase['case']: switchCases.append(switchCase)
                 if fstrQuote!='':
                     if 'match' in storedVarsHistory:
                         tok.type='ID' ; line.append('match ') ; continue
@@ -5313,10 +5316,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if len(code)==0: code.append(''.join(line)) ; line=[]
                 if tok.type == 'TAB' and (lastType not in ('THEN','DEFFUNCT','ENDIF') or (not code[-1].endswith(':\n') and lastType != 'ENDIF')) and indentSoon and inReturn==False:
                     line.append(':\n')
-                    if lexIndex < len(lex) - 1 and lex[lexIndex + 1].type == 'OF' and switchCase['case'] == True and switchCase['firstIf'] == False:
-                        return AS_SyntaxError(
-                            f'{switchCase["type"]} keyword needs line end syntax (tab, newline, then) then expression, not another {switchCase["type"]}',
-                            f'{switchCase["type"]} 12 do "my fav num"', lineNumber, data)
                 elif tok.type == 'THEN' and indentSoon and lastType not in typeNewline+('DEFFUNCT','ENDIF') and parenScope<=0 and bracketScope<=0 and listScope<=0 and (line and line[-1].endswith(':\n')==False):
                     if line and line[-1] == '\n': line = line[:-1]
                     line.append(':\n') ; indentSoon=False
@@ -5362,12 +5361,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 # vv indent magic
                 if tok.type == 'TAB':
                     check=True
+
+
+
                     if lexIndex+3 < len(lex) \
                     and lex[lexIndex+3].type in ('ELSE','ELIF'): check=False
                     elif lastType == 'THEN' and lexIndex-2 > 0 \
                     and lex[lexIndex-2].type == 'OF': check=False
                     elif lex[lexIndex+1].type == 'THEN': check=False
                     elif lastType == 'ELSE': check=False
+                    elif lexIndex < len(lex) - 1 and switchCase['case'] and lex[lexIndex + 1].type == 'OF' and 'indent' in switchCase:
+                        check = False ; indent = switchCase['indent']
                     if lastType=='FUNCTION' and lex[lexIndex-1].value[-1]=='(': check=False
                     if check:
                         tmpcheck=tok.value.replace('\t',' ').count(' ')
@@ -5382,6 +5386,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                         if switchCase['case'] and not indentSoon and 'indent' in switchCase and tmpcheck <= switchCase['indent']-prettyIndent and lex[lexIndex+1].type != 'OF':
                             switchCase = {'case': False}
+                            if switchCases: switchCase = switchCases.pop()
                         if switchCase['case'] and switchCase['type'] == 'case' and 'addExtraIndent' in switchCase and switchCase['addExtraIndent']:
                             tmpcheck=tmpcheck+prettyIndent
 
@@ -5418,10 +5423,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     and inIf == True and inReturn==False:
                         if len(line)==0 or line[-1].endswith(':\n') == False:
                             line.append(':\n')
-                            if lexIndex<len(lex)-1 and lex[lexIndex + 1].type == 'OF' and switchCase['case']==True and switchCase['firstIf']==False:
-                                return AS_SyntaxError(
-                                    f'of keyword needs line end syntax (tab, newline, then) then expression, not another of',
-                                    f'of 12 do "my fav num"', lineNumber, data)
                         elif lexIndex+1 < len(lex) and lex[lexIndex+1].type=='NEWLINE':
                             # when doing multi line conditionals on 0 indent, : at the end seems to break the auto-assume-indent. this is due to the NEWLINE token being after THEN token with value of :
                             lex[lexIndex+1].type='IGNORE'
@@ -5661,6 +5662,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif switchCase['case']==True and 'indent' in switchCase and indent == switchCase['indent']:
                                 lastIndent[2].append(indent) # not so sure on this bit
                                 switchCase['case']=False
+                                if switchCases: switchCase=switchCases.pop()
 
                             line.append(decideIfIndentLine(indent,f'{codeDict[tok.type]}'))
                             if lex[lexIndex+1].type != 'ENDIF' and inIf == False and parenScope==0:
@@ -5695,6 +5697,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                       f"match {' '.join([i.value for i in switchCase['var']])}\n\t\tof {tmp}\n\t\t\t'something'",
                                                       lineNumber, data)
                             else:
+                                if lastType not in typeNewline:
+                                    return AS_SyntaxError(
+                                        f'{switchCase["type"]} keyword needs line end syntax (tab, newline, then) then expression, not another {switchCase["type"]}',
+                                        f'{switchCase["type"]} 12 do "my fav num"', lineNumber, data)
                                 if comment: line.append(f'{" "*indent}# of\n')
                                 if switchCase['firstIf'] == True:
                                     line.append(decideIfIndentLine(indent,'if '))
