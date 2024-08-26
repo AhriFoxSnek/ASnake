@@ -107,7 +107,7 @@ class Lexer(Lexer):
     PYDEF   = r'(c|cp)?def +([\w.\[\d:,\] ]* )?\w+ *\(((?!: *return).)*\)*( *((-> *)?\w* *):?)'
     PYCLASS = r'class ([a-z]|[A-Z])\w*(\(.*\))?:?'
     STRLIT  = r'(r|f)?\"\"\"[\w\W]+?\"\"\"|(r|f)?\'\'\'[\w\W]+?\'\'\''
-    INDEX   = r'''((((\w[\w\d_]*)|(\)( |\t)*)|(?!.*("|')))(\[(((.(?! \w))*?:[^#:\n\[]*?)|(([^,])*?)|.*\(.*\))[^\[,\n]*\])+(?= *[\.+)-\\*\n=\w]| *))|\[ *\])'''
+    INDEX   = r'''(?:([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*?\.)?([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*?(?:\[[^\[\]]*(?:\[[^\[\]]*\])?[^\[\]]*\])+'''
     LIST    = r'\['
     LISTEND = r'\]'
     #DICT    = r'''(?!['"].*){([^{}]*:([^⍼]*?),?\n?)*}(?= then|do|[ +\-\/*\n\[\];)])'''
@@ -443,6 +443,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             i.lineno = lineNumber
             if i.type not in typeNewline:
                 if i.type == 'LISTCOMP':
+                    tmpPreColon=i.value.split(':')[0]
+                    if tmpPreColon:
+                        if tmpPreColon.isdigit():
+                            insertOrAppend(token, makeToken(tok, tmpPreColon, 'NUMBER'))
+                        else:
+                            insertOrAppend(token,makeToken(tok, tmpPreColon, 'ID'))
                     insertOrAppend(token,makeToken(tok, ':', 'COLON'))
                     lex[tmpLI].lineno = lineNumber
                     insertOrAppend(token,[ii for ii in miniLex(i.value.split(':')[-1])][0])
@@ -5631,7 +5637,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 else:
                     if tok.type in {'ELSE','ELIF','OF'}:
                         if debug and tok.type == 'OF': print(switchCase) # needs to be if, not elif
-                        if tok.type == 'ELSE' and tenary==False and listScope <= 0: # idELSE
+                        if tok.type == 'ELSE' and not tenary and listScope <= 0: # idELSE
                             tmpFoundIF=False ; tmpFoundReturn=False ; tmpListScope=0
                             for t in range(lexIndex,0,-1): # i guess another tenary detection of sorts
                                 if lex[t].type == 'RETURN': tmpFoundReturn=True
@@ -6672,14 +6678,27 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         elif lex[lexIndex-1].type == 'IGNORE' and lexIndex-2 > 0 and lex[lexIndex-2].type=='DIVMOD':
                             tmpfunc.append(f"({line[-1]})") ; line=line[:-1]
                         elif lex[lexIndex-1].type == "LISTEND":
+                            tmpSafe=True
                             for tmpii in range(0,len(line)):
                                 if '[' in line[tmpii]:
-                                    tmp=line[tmpii:]
-                                    line=line[:tmpii]
-                                    line.insert(0,tmp[0].split('[')[0])
-                                    tmp[0]=tmp[0].split('[')[-1]+'(['
-                                    tmpfunc.append(''.join(tmp)+'])')
-                                    break
+                                    if tmpii-1 > 0 and line[tmpii-1].endswith(')'):
+                                        # is index to function
+                                        tmpTheSplitIndex=0
+                                        for tmpiii in range(tmpii,0,-1):
+                                            if line[tmpiii].endswith('('):
+                                                tmpTheSplitIndex=tmpiii
+                                        tmpfunc.append('('+(''.join(line[tmpTheSplitIndex:]))+'])')
+                                        line=line[:tmpTheSplitIndex]
+                                        tmpSafe = False ; break
+                            if tmpSafe:
+                                for tmpii in range(0, len(line)):
+                                    if '[' in line[tmpii]:
+                                        tmp=line[tmpii:]
+                                        line=line[:tmpii]
+                                        line.insert(0,tmp[0].split('[')[0])
+                                        tmp[0]=tmp[0].split('[')[-1]+'(['
+                                        tmpfunc.append(''.join(tmp)+'])')
+                                        break
                         elif lex[lexIndex-1].type == "RINDEX":
                             for tmpii in range(0,len(line)):
                                 if '[' in line[tmpii]:
@@ -7039,6 +7058,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex.insert(lexIndex+1,tmptok) ; del tmptok
                         elif lex[lexIndex+1].type == 'NEWLINE':
                             lex[lexIndex+1].type='TAB' ; lex[lexIndex+1].value=f"\n{' '*indent}"
+                    elif lex[lexIndex+1].type not in typeNewline: tok.type = 'COLON'
             elif tok.type in {'INS','LIST','COMMAGRP','BOOL','DICT','SET','ASYNC','RETURN','BREAK','LAMBDA'}: # printing value with space
                 if tok.type == 'INS':
                     if 'are in' in tok.value: tok.value='in'
@@ -7074,8 +7094,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmp=tok.value.split('=')[0].split(',')
                         for t in tmp: storedVarsHistory[t.replace(' ','')]={'type':convertType[lastValue],'staticType':True}
                     else:
-                        listScope += tok.value.count('[')
-                        listScope -= tok.value.count(']')
+                        tmp = [_ for _ in REfindall(r"""(?:["\'].*?["\'])|(\[\])""",tok.value) if _ and _[0] not in {'"',"'"}]
+                        # ^ discards quotes
+                        listScope += tmp.count('[')
+                        listScope -= tmp.count(']')
                 elif tok.type == 'LIST': inIf=True
                 elif tok.type == 'RETURN':
                     if 'yield' not in tok.value and lastType not in typeNewline:
@@ -7106,7 +7128,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if tmpFuncArgs:
                     # extracts out function argument variables and types
                     tmpFuncArgs = tmpFuncArgs.group()[1:-1]
-                    tmpREChecks=(r'[^,]+\[.*\](?:,|$)',r'[^,]+?\((?:.*?,?)*?\)(?: *,|$)',r'[^,]+\{(?:.*,?)*\}(?:,|$)',r'[^,]+(?:,|,?.*?$)')
+                    tmpREChecks=(r'[^,]+\[.*\](?:,|$)',r'[^,]+?\((?:.*?,?)*?\)(?: *,|$)',r'[^,]+?\{(?:.*?,?)*?\}(?:,|$)',r'[^,]+(?:,|,?.*?$)')
                     tmpf=[]
                     for REcheck in tmpREChecks:
                         tmp=REfindall(REcheck, tmpFuncArgs)
@@ -7472,7 +7494,19 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.type == 'RINDEX':
                 listScope -= 1
                 if listScope < 0: listScope = 0
-                if lex[lexIndex+1].type in typeAssignables:
+
+                tmpSafe=True
+                if lex[lexIndex+1].type in typeAssignables and lex[lexIndex+1].type in {'LINDEX','LIST'}:
+                    # check for if index, and if next is index, and cancel assignment/comparison if so
+                    tmpListScope=listScope
+                    for tmpi in range(lexIndex,0,-1):
+                        if lex[tmpi].type in typeNewline: break
+                        elif lex[tmpi].type in {'LIST','LINDEX'}: tmpListScope -= 1
+                        elif lex[tmpi].type in {'LISTEND', 'RINDEX'}: tmpListScope += 1
+                        elif tmpListScope == 0 and lex[tmpi].type in {'ID','BUILTINF'} and lex[tmpi+1].type in {'LIST','LINDEX'}:
+                            tmpSafe = False
+
+                if lex[lexIndex+1].type in typeAssignables and tmpSafe and lex[lexIndex+1].type != 'LISTEND':
                     if inIf: line.append(tok.value+' == ')
                     else: line.append(tok.value+' = ')
                 else: line.append(tok.value)
