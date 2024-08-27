@@ -4098,14 +4098,16 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         # tmpIndent is var's indent, tmpCurrentIndent is iterations indent
                         # outOfBlock signifies that if we are in a function or class, we are safe from previous classes
                         tmpSkipCheck = lex[token] in varWasFolded # bypasses checking if the var is dead, assumes it is dead
-                        tmpInsideFunction = False # determine if inside a function. outOfBlock seems to be pretty much the same thing.
+                        tmpInsideFunction = None # determine if inside a function. outOfBlock seems to be pretty much the same thing.
                         tmpLowestIndent=(None,0) # track lowest indent 1st: in func 2nd: lowest indent
                         for tmpi in range(token-1, -1, -1):
                             #print(lex[token].value, '-!', lex[tmpi].value, lex[tmpi].type, tmpIndent,check,tmpInsideFunction)
-                            if tmpSkipCheck and delPoint != None: check=True ; break
+                            if tmpSkipCheck and delPoint != None and (outOfBlock or tmpCurrentIndent == 0): check=True ; break
                             if lex[tmpi].type == 'TAB':
                                 if tmpIndent==None: tmpIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
-                                if delPoint==None: delPoint=tmpi
+                                if delPoint==None:
+                                    delPoint=tmpi
+                                    if lex[tmpi-1].type in typeConditionals+('PYDEF', 'DEFFUNCT'): tmpReplaceWithPass = True
                                 tmpCurrentIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
                                 inCase=False
                                 if tmpCurrentIndent < tmpLowestIndent[1]: tmpLowestIndent = (tmpLowestIndent[0], tmpCurrentIndent)
@@ -4113,7 +4115,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if tmpIndent==None:
                                     if isConstant: check = False ; break # constants on global scope should not be eliminated
                                     tmpIndent = 0
-                                if delPoint==None: delPoint = tmpi
+                                if delPoint==None:
+                                    delPoint = tmpi
+                                    if lex[tmpi-1].type in typeConditionals+('PYDEF','DEFFUNCT'): tmpReplaceWithPass = True
                                 tmpCurrentIndent = 0
                                 inCase=False
                                 if tmpLowestIndent[0] in {True,False}: tmpLowestIndent = (tmpLowestIndent[0], 0)
@@ -4125,7 +4129,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 check=False ; break
                             elif lex[tmpi].type == 'FROM' and not delPoint: break
                             elif not inCase and lex[tmpi].type in {'ID', 'INC', 'BUILTINF','FUNCTION'} and (lex[tmpi].value.replace('(','').replace('+','').replace('-', '') == lex[token].value or lex[token].value+'.' in lex[tmpi].value):
-                                check = False ; break
+                                if tmpInsideFunction == None:
+                                    tmptmpIndent=tmpCurrentIndent
+                                    for tmptmp in range(tmpi-1,0,-1):
+                                        if lex[tmptmp].type == 'NEWLINE': tmpInsideFunction=False ; break
+                                        elif lex[tmptmp].type == 'TAB': tmptmpIndent=lex[tmptmp].value.count(' ')
+                                        elif lex[tmptmp].type in {'PYDEF','DEFFUNCT'} \
+                                        and ( (lex[tmptmp].type == 'PYDEF'    and (lex[tmptmp-1].type == 'NEWLINE' or (lex[tmptmp-1].type == 'TAB' and lex[tmptmp-1].value.count(' ') < tmptmpIndent))) \
+                                        or    (lex[tmptmp].type == 'DEFFUNCT' and (lex[tmptmp-2].type == 'NEWLINE' or (lex[tmptmp-1].type == 'TAB' and lex[tmptmp-2].value.count(' ') < tmptmpIndent)))):
+                                            check=False ; tmpInsideFunction=True ; break
+                                    if not check: break
+                                else:
+                                    check = False ; break
                             elif lex[tmpi].type in {'PYDEF','DEFFUNCT'} and not outOfBlock and tmpIndent:
                                 if lex[tmpi].type == 'PYDEF':
                                     if lex[tmpi-1].type == 'NEWLINE' or (lex[tmpi-1].type in {'ASYNC','FUNCMOD'} and lex[tmpi-2].type == 'NEWLINE') or (lex[tmpi-1].type == 'ASYNC' and lex[tmpi-2].type == 'FUNCMOD' and lex[tmpi-3].type == 'NEWLINE'):
@@ -4160,6 +4175,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lex[tmpi].type == 'FUNCTION' and '(' in lex[tmpi].value: tmpParenScope+=1
                             elif lex[tmpi].type == 'RPAREN': tmpParenScope-=1
                             elif lex[tmpi].type == 'CONSTANT' and not delPoint: isConstant = True
+                        if tmpInsideFunction == None: tmpInsideFunction = False
                         if tmpParenScope > 0: check=False
                         if delPoint == None or tmpIndent == None: check=False
                         if (token-1<=0): check=True ; delPoint = tmpIndent = 0
@@ -4167,7 +4183,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             breakOnNextNL = ttenary = inCase = tmpCallsFunction = tmpOutOfAssign = tmpInConditional = tmpOutOfStartingBlock = tmpInOtherFunction = False
                             tmpCurrentIndent = tmpIndent  # tmpIndent is indent of OG var, tmpCurrentIndent is current
                             for tmpi in range(token + 1, len(lex) - 1):
-                                #print(lex[token].value,'+!',lex[tmpi].value,lex[tmpi].type,ttenary,tmpCallsFunction,tmpCurrentIndent,tmpIndent)
+                                #print(lex[token].value,'+!',lex[tmpi].value,lex[tmpi].type,ttenary,tmpCallsFunction,tmpInOtherFunction,tmpCurrentIndent,tmpIndent)
                                 if not inCase and lex[tmpi].type in {'ID', 'INC', 'BUILTINF', 'FUNCTION'} and (lex[tmpi].value.replace('(', '').replace('+', '').replace('-', '') == lex[token].value or lex[token].value + '.' in lex[tmpi].value) and (not tmpInOtherFunction or not tmpInsideFunction):
                                     if lex[tmpi + 1].type != 'ASSIGN' or (lex[tmpi + 1].value.strip() not in {'=', 'is'} or determineIfAssignOrEqual(tmpi + 1)):
                                         check = False
@@ -4216,10 +4232,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmpInConditional = True
                                 elif lex[tmpi].type in {'ELIF', 'OF'}:
                                     tmpInConditional = True
-                                elif lex[tmpi].type == 'PYDEF' and REfindall(f'=.*?{lex[token].value}',lex[tmpi].value):
-                                    # if var is in function default argument like:
-                                    # def thing(arg=var)
-                                    check = False;
+                                elif lex[tmpi].type == 'PYDEF' :
+                                    if REfindall(f'=.*?{lex[token].value}',lex[tmpi].value):
+                                        # if var is in function default argument like:
+                                        # def thing(arg=var)
+                                        check = False
+                                    elif tmpOutOfStartingBlock: tmpInOtherFunction = True
                                 elif lex[tmpi].type in typeNewline:
                                     if not ttenary: tmpOutOfAssign = True
                                     if lex[tmpi].type == 'NEWLINE':
