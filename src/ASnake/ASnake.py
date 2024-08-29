@@ -13,7 +13,7 @@ from re import MULTILINE as REMULTILINE
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-ASnakeVersion = 'v0.13.39'
+ASnakeVersion = 'v0.13.40'
 __version__ = ASnakeVersion[1:]
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
