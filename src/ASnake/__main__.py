@@ -11,10 +11,14 @@ from subprocess import check_output, CalledProcessError, STDOUT
 from os import path, remove, listdir
 from time import monotonic
 from re import sub as REsub
+from re import findall as REfindall
 from platform import python_version, python_version_tuple
 
+def fetchErrorLine(error_message, theCode):
+  theLine = int(REfindall(r'File "(?:.+?)", line (\d+), in .+', error_message)[-1])
+  return (theLine, theCode.split('\n')[theLine - 1].strip())
 
-def execPy(code, fancy=True, pep=True, run=True, execTime=False, headless=False, runtime='Python', windows=False, runCommand=None, version=latestPythonVersionSupported):
+def execPy(code, fancy=True, pep=True, run=True, execTime=False, headless=False, runtime='Python', windows=False, runCommand=None, version=latestPythonVersionSupported, sourceCode=''):
     if pep:
         if execTime:
             print('# autopep8 time: ', end='', flush=True)
@@ -59,9 +63,9 @@ def execPy(code, fancy=True, pep=True, run=True, execTime=False, headless=False,
                 else:
                     pyCall = 'py'
 
+        err=False
         if fancy:
             print(f'\t____________\n\t~ {runtime} Eval\n')
-
         if headless:
             from os import getcwd
             with open('ASnakeExec.py', 'w') as f:
@@ -71,21 +75,20 @@ def execPy(code, fancy=True, pep=True, run=True, execTime=False, headless=False,
             child = Popen(f'{pyCall} ASnakeExec.py', stdout=PIPE, cwd=getcwd(), shell=True)
             child.communicate()
         else:
-            if runtime == 'Codon':
-                with open('ASnakeExec.py', 'w') as f:
-                    f.write(code)
-                commandString = (path.expanduser('~/.codon/bin/codon'), 'run', '--release', 'ASnakeExec.py')
-                headless = True
-            else:
-                commandString = (pyCall, '-c', code)
             if execTime:
                 s = monotonic()
-            spRun(commandString)
+            err = Popen((pyCall, '-c', code), stderr=PIPE).communicate()[1]
 
         if fancy:
             print('\t____________')
         if execTime:
             print('exec time:', monotonic() - s)
+        if err:
+            err = str(err, 'utf-8')
+            if sourceCode or code:
+                print(('\t~~~~~~~~~~~~' if fancy else '')+'\n\t!!! '+runtime+" Error\n\nOffending compiled line #%s:\n\t%s\n\n" % (fetchErrorLine(err, sourceCode if sourceCode else code)) + err)
+            else:
+                print(err)
     if headless:
         try:
             remove('ASnakeExec.py')
@@ -115,7 +118,6 @@ if __name__ == '__main__':
         argParser.add_argument('-np', '--no-print', action='store_true', help="Doesn't print the compiled file on console.")
         argParser.add_argument('-jr', '--just-run', action='store_true', help="Will run compiled version of file if it exists, otherwise will compile and run it.")
         argParser.add_argument('-cy', '--cython', '--Cython', action='store_true', help="Compiles the code to Cython and .pyx")
-        argParser.add_argument('-cd', '--codon', '--Codon', action='store_true', help="Compiles the code to Codon.")
         argParser.add_argument('-pp', '--pypy', '--PyPy', action='store_true', help="Compiles to be compatible with PyPy3 Runtime.")
         argParser.add_argument('-ps', '--pyston', '--Pyston', action='store_true', help="Compiles to be compatible with Pyston runtime.")
         argParser.add_argument('-mp', '--micropython', '--MicroPython', action='store_true',help="Compiles to be compatible with MicroPython runtime.")
@@ -218,7 +220,6 @@ if __name__ == '__main__':
     elif args.pyston: compileTo='Pyston'
     elif args.pypy: compileTo='PyPy3'
     elif args.micropython: compileTo = 'MicroPython'
-    elif args.codon: compileTo='Codon'
     else: compileTo='Python'
 
     if not fancy and not compileAStoPy: pep = False
@@ -344,22 +345,7 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                     if args.pyston: runtime = 'Pyston'
                     elif args.pypy: runtime = 'PyPy'
                     else: runtime = 'Cython'
-                    execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=fancy,runtime=runtime,windows=WINDOWS,runCommand=args.run_command,version=pythonVersion)
-        elif compileTo == 'Codon':
-            fileName=f'{ASFile}.codon'
-            with open(fileName, 'w') as f:
-                f.write(code)
-            try:
-                print('# Codon compile time:', end='', flush=True)
-                s = monotonic()
-                check_output(f"{path.expanduser('~/.codon/bin/codon')} build --release {fileName}", shell=True).decode()
-                print(round(monotonic() - s, 2))
-                error = False
-            except CalledProcessError as e:
-                print(e.output.decode())
-                error = True
-            if not error:
-                print(check_output(f"./{ASFile.split('.')[0]}",shell=True).decode())
+                    execPy(tmp,run=runCode,execTime=True,pep=False,headless=headless,fancy=fancy,runtime=runtime,windows=WINDOWS,runCommand=args.run_command,version=pythonVersion,sourceCode=code)
 
 
         if fancy:
@@ -386,7 +372,6 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
         if args.pyston: runtime = 'Pyston'
         elif args.pypy: runtime = 'PyPy'
         elif args.micropython: runtime='MicroPython'
-        elif args.codon: runtime = 'Codon'
         else: runtime = 'Python'
 
         if compileTo == 'Cython':
@@ -397,7 +382,11 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
                 ASFile=ASFile.replace("'","").replace("_",'')
                 tmp=f"import sys\nsys.path.append('{tmpASFile}');import {ASFile.split('/')[-1]}"
             else: tmp=f'import {ASFile}'
-            execPy(tmp,run=runCode,execTime=True,pep=False,headless=False,fancy=False,runtime=runtime,windows=WINDOWS,runCommand=args.run_command,version=pythonVersion)
+            tmpSrc=''
+            if justRun and ASFile+'.pyx' in listdir():
+                with open(ASFile+'.pyx', 'r') as f:
+                    tmpSrc=f.read()
+            execPy(tmp,run=runCode,execTime=True,pep=False,headless=False,fancy=False,runtime=runtime,windows=WINDOWS,runCommand=args.run_command,version=pythonVersion,sourceCode=tmpSrc)
         else:
             execPy(code,run=runCode,execTime=fancy,pep=pep,headless=headless,fancy=fancy,runtime=runtime,windows=WINDOWS,runCommand=args.run_command,version=pythonVersion)
 
