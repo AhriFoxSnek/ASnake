@@ -16,7 +16,7 @@ from platform import python_version, python_version_tuple
 
 def fetchErrorLine(error_message, theCode):
     try:
-        theLine = int(REfindall(r'File "(?:.+?)", line (\d+)', error_message)[-1])
+        theLine = int(REfindall(r'Traceback \(most recent call last\):\n  File "(?:.+?)", line (\d+)', error_message)[-1])
         return (theLine, theCode.split('\n')[theLine - 1].strip())
     except IndexError:
         return False
