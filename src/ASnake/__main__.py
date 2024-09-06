@@ -15,8 +15,11 @@ from re import findall as REfindall
 from platform import python_version, python_version_tuple
 
 def fetchErrorLine(error_message, theCode):
-  theLine = int(REfindall(r'File "(?:.+?)", line (\d+), in .+', error_message)[-1])
-  return (theLine, theCode.split('\n')[theLine - 1].strip())
+    try:
+        theLine = int(REfindall(r'File "(?:.+?)", line (\d+)', error_message)[-1])
+        return (theLine, theCode.split('\n')[theLine - 1].strip())
+    except IndexError:
+        return False
 
 def execPy(code, fancy=True, pep=True, run=True, execTime=False, headless=False, runtime='Python', windows=False, runCommand=None, version=latestPythonVersionSupported, sourceCode=''):
     if pep:
@@ -86,7 +89,11 @@ def execPy(code, fancy=True, pep=True, run=True, execTime=False, headless=False,
         if err:
             err = str(err, 'utf-8')
             if sourceCode or code:
-                print(('\t~~~~~~~~~~~~' if fancy else '')+'\n\t!!! '+runtime+" Error\n\nOffending compiled line #%s:\n\t%s\n\n" % (fetchErrorLine(err, sourceCode if sourceCode else code)) + err)
+                errorLine = fetchErrorLine(err, sourceCode if sourceCode else code)
+                print(('\t~~~~~~~~~~~~' if fancy else '') + '\n\t!!! ' + runtime + " Error\n\n")
+                if errorLine:
+                    print("Offending compiled line #%s:\n\t%s\n\n" % (errorLine))
+                print(err)
             else:
                 print(err)
     if headless:
