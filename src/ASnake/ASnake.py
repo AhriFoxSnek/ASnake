@@ -211,7 +211,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     'LESSEQ':'<=','EQUAL':'==','ASSIGN':'=','NOTHING':'pass','NOTEQ':'!=','BUILTINF':'.','OF':'elif',
     'AND':'and','OR':'or','RETURN':'return','FOR':'for','MODULO':'%','EXPONENT':'**','COMMA':',',
     'LISTEND':']','ELLIPSIS':'...','constLPAREN':'(','COLON':':','LINDEX':'[','RINDEX':']',
-    "DQUOTE":'"',"SQUOTE":"'", 'LBRACKET':'{','RBRACKET':'}','UNPACK':'*'}
+    "DQUOTE":'"',"SQUOTE":"'", 'LBRACKET':'{','RBRACKET':'}'}
 
     convertType={'int':'NUMBER','float':'NUMBER','Py_ssize_t':'NUMBER','bool':'BOOL','bint':'BOOL','str':'STRING','list':'LIST','dict':'DICT','type':'TYPE','tuple':'TUPLE','set':'SET','bytes':'STRING','object':'ID','range':'FUNCTION','complex':'NUMBER','frozenset':'FUNCTION','bytearray':'STRING','memoryview':'FUNCTION'}
     cythonConvertType = {'int': 'long long int', 'bool': 'bint', 'float': 'double'}
@@ -1493,6 +1493,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'inTo__contains__': False, # main phase, only good for Pyston
                             'intToFloat': True, # main phase, not good in PyPy
                             'EvalIntToFloat': True,
+                            'max2compare': True,
                             }
         optConstantPropagation=True
         optMathEqual=True
@@ -2977,7 +2978,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if optFuncTricksDict['TupleSetUnpack']:
                                 if (lex[token].value.startswith('tuple') or lex[token].value.startswith('set')) \
                                 and lex[token].type == 'FUNCTION' and lex[token+1].type == 'STRING' and lex[token+2].type == 'RPAREN':
-                                    if lex[token].value.startswith('tuple'): # jumpy
+                                    if lex[token].value.startswith('tuple'):
                                         lex[token].value='(' ; lex[token].type = 'LPAREN'
                                         lex.insert(token + 1, makeToken(lex[token], '*', 'TIMES'))
                                         lex.insert(token + 3, makeToken(lex[token], ',', 'COMMA'))
@@ -3124,6 +3125,23 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if debug and lex[token+1].type == 'NUMBER': print(f'! evalStr: str({lex[token + 1].value}) --> "{lex[token + 1].value}"')
                                 elif debug: print(f'! evalStr: str({lex[token + 1].value}) --> {lex[token + 1].value}')
                                 newOptimization = True
+
+                            if optFuncTricksDict['max2compare'] and optCompilerEval and 'max' not in reservedIsNowVar and lex[token].type == 'FUNCTION' and lex[token].value == 'max(' \
+                            and lex[token+1].type in {'ID','BUILTINF','NUMBER'} and lex[token+2].type == 'COMMA' and lex[token+3].type in {'ID','BUILTINF','NUMBER'} and lex[token+4].type == 'RPAREN':
+                                # max(x,y) --> (x if x > y else y)  can only be done if there are two elements
+                                tmp1st=lex[token+1].value ; tmp2nd=lex[token+3].value
+                                lex[token].type=lex[token+1].type=lex[token+2].type=lex[token+3].type=lex[token+4].type='IGNORE'
+                                if lex[token-1].type in typeNewline and lex[token+5].type in typeNewline: lex[token].type = 'DONTDEXP'
+                                elif lex[token-1].type in typeNewline and lex[token+5].type in typePrintable: lex[token].type = 'DEFEXP'
+                                elif lex[token-1].type in typePrintable:
+                                    tmp=token ; tmpsafe=False
+                                    for t in range(token,0,-1):
+                                        if lex[token].type in typeNewline: tmp=t ; break
+                                    lex.insert(t,makeToken(lex[token],'','DEFEXP'))
+
+                                autoMakeTokens(f"({tmp1st} if {tmp1st} > {tmp2nd} else {tmp2nd})",token)
+                                if debug: print(f"! max2compare: max({tmp1st},{tmp2nd}) --> ({tmp1st} if {tmp1st} > {tmp2nd} else {tmp2nd})")
+
 
                         if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
                         and lex[token-1].type not in {'ID','ASSIGN'}:
