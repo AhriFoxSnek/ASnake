@@ -211,7 +211,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     'LESSEQ':'<=','EQUAL':'==','ASSIGN':'=','NOTHING':'pass','NOTEQ':'!=','BUILTINF':'.','OF':'elif',
     'AND':'and','OR':'or','RETURN':'return','FOR':'for','MODULO':'%','EXPONENT':'**','COMMA':',',
     'LISTEND':']','ELLIPSIS':'...','constLPAREN':'(','COLON':':','LINDEX':'[','RINDEX':']',
-    "DQUOTE":'"',"SQUOTE":"'", 'LBRACKET':'{','RBRACKET':'}'}
+    "DQUOTE":'"',"SQUOTE":"'", 'LBRACKET':'{','RBRACKET':'}','UNPACK':'*'}
 
     convertType={'int':'NUMBER','float':'NUMBER','Py_ssize_t':'NUMBER','bool':'BOOL','bint':'BOOL','str':'STRING','list':'LIST','dict':'DICT','type':'TYPE','tuple':'TUPLE','set':'SET','bytes':'STRING','object':'ID','range':'FUNCTION','complex':'NUMBER','frozenset':'FUNCTION','bytearray':'STRING','memoryview':'FUNCTION'}
     cythonConvertType = {'int': 'long long int', 'bool': 'bint', 'float': 'double'}
@@ -2977,11 +2977,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if optFuncTricksDict['TupleSetUnpack']:
                                 if (lex[token].value.startswith('tuple') or lex[token].value.startswith('set')) \
                                 and lex[token].type == 'FUNCTION' and lex[token+1].type == 'STRING' and lex[token+2].type == 'RPAREN':
-                                    if lex[token].value.startswith('tuple'):
-                                        lex[token].value='(*' ; lex[token+2].value=',)'
+                                    if lex[token].value.startswith('tuple'): # jumpy
+                                        lex[token].value='(' ; lex[token].type = 'LPAREN'
+                                        lex.insert(token + 1, makeToken(lex[token], '*', 'TIMES'))
+                                        lex.insert(token + 3, makeToken(lex[token], ',', 'COMMA'))
                                     else: # set
-                                        lex[token].value="{*"+lex[token+1].value+"}"
-                                        lex[token+1].type=lex[token+2].type='IGNORE'
+                                        lex[token].type=lex[token+1].type=lex[token+2].type='IGNORE'
+                                        autoMakeTokens("{*"+lex[token+1].value+"}",token)
                                     newOptimization=True
 
                             if optFuncTricksDict['EvalLen'] and optCompilerEval and 'len' not in reservedIsNowVar:
