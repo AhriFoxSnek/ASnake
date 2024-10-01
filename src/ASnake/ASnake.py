@@ -129,7 +129,7 @@ class Lexer(Lexer):
     LBRACKET= r'{'
     RBRACKET= r'}'
     STRRAW  = r"""f?r((f?\"(\\"|.)+?\")|(f?\'(\\'|.)+?\'))"""
-    IMPORT  = r"""(^|(?! )|from +[^'"\n ]*) ?c?import [^\n;]*"""
+    IMPORT  = r"""(^|(?! )|from +[^'"\n ]*) ?c?import(?:(?: [^\n;]*)| *\*)"""
     EQUAL   = r'==|equals?(?= |\t)'
     NOTIN   = r"isn'?t +in( |(?=\n))"
     NOTEQ   = r'!=|isnt|isn\'t|not +equal|unequal'
@@ -167,9 +167,9 @@ class Lexer(Lexer):
     BOOL    = r'True|False|None'
     MODULO  = r'%|modulo(?= |\n|\t)|remainder(?= |\n|\t)'
     INC     = r'((\+{2}|\-{2})[^\[\]\(\)\+\-\/\*\d\s,=][^\s\+\-\/\*,\(\)=><]*(\[.*\])?)|([^\[\]\(\)\+\-\/\*\d\s,=][^\s\+\-\/\*,=]*(\[.*\])?(\+{2}|\-{2}))'
-    HEXDEC  = r'0x[\da-fA-F]+'
-    NUMBER  = r'(0x\d*)|(((( \-\d|\d)\d*\.?\d*)|(\-?\.))(e(-|\+)\d+)?\.?_*\d*j?(?!\w+))'
+    HEXDEC  = r'((?<!\w)0[xXob][0-9a-fA-F]+(?!\w))'
     SCINOTAT= r'(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE]\d+)'
+    NUMBER  = r'(((( \-\d|\d)\d*\.?\d*)|(\-?\.))(e(-|\+)\d+)?\.?_*\d*j?)'
     BINARY  = r'0(o|O|x|X|b|B)\d+'
     MINUS   = r'-|minus(?= |\t)'
     PLUS    = r'\+|plus(?= |\t)'
@@ -4716,6 +4716,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     intVsStrDoLen = metaInformation[6]
     metaDefaultExpressionWithFunction = metaInformation[7]
     functionLineWrap = metaInformation[8]
+    pyCompatibility = False
     # ^ resetting METAs
 
 
@@ -7146,7 +7147,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 
                 if tok.type in {'LIST','BOOL','DICT','SET'} and startOfLine and lexIndex+1 < len(lex) and lex[lexIndex+1].type in typeNewline and lex[lexIndex-1].type not in typeConditionals and inIf==False:
                     line.append(decideIfIndentLine(indent,f'{expPrint[-1]}({tok.value})'))
-                elif fstrQuote!='' and tok.type != 'IGNORE':
+                elif (fstrQuote!='' or (lastType == 'ID' and line and line[-1][-1] != ' ')) and tok.type != 'IGNORE':
                     line.append(decideIfIndentLine(indent, f' {tok.value} '))
                 elif tok.type != 'IGNORE':
                     line.append(decideIfIndentLine(indent,f'{tok.value} '))
