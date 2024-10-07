@@ -2018,11 +2018,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         elif lex[tmpi].type == 'LAMBDA' and lex[tmpi].value[7:-1] == lex[token].value:
                                             tmpAddToIgnoresWhenNL=-tmpi
                                     if search:
+                                        tmptmpSafe = True
+                                        if not isinstance(tmpf[0], str) and len(tmpf) > 1:
+                                            for t in tmpf:
+                                                # a single token is considered safe, but multiple tokens can be safe, particularly if its a tuple of literal values
+                                                if t.type not in {'STRING', 'COMMA', 'NUMBER', 'RPAREN', 'LPAREN'}:
+                                                    tmptmpSafe = False; break
                                         if len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'SCOPE' and lex[token].value in lex[tmpi].value])>0: search=False
                                         # ^^ no global var pls
                                         elif len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TRY' and 'try' in lex[tmpi].value])>len([True for tmpi in range(token,0,-1) if lex[tmpi].type == 'TRY' and 'except' in lex[tmpi].value]): search=False
                                         # ^^ fixes it in cases where the constant is defined in the except
-                                        elif tmpIDshow > 1 and not isinstance(tmpf[0],str) and len(tmpf)>1 and (len(tmpf)-2 > 1 and not(len(tmpf)-2==2 and tmpf[2].type=='MINUS' and tmpf[1].type=='NUMBER') ) and vartype!="LIST": search=False
+                                        elif tmpIDshow > 1 and not tmptmpSafe and (len(tmpf)-2 > 1 and not(len(tmpf)-2==2 and tmpf[2].type=='MINUS' and tmpf[1].type=='NUMBER') ) and vartype!="LIST": search=False
                                         # ^^ when a constant involves operations, its better to compute it once and share the value rather than compute the value in many places.
                                         #if not isinstance(tmpf[0],str): print(search,lex[token].value,[_.value for _ in tmpf],len(tmpf),tmpIDshow)
                                     if search or linkType:
@@ -2514,7 +2520,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if safe:
                                 for tmpi in range(token,len(lex)-1):
                                     if lex[tmpi].type == 'ID': tmpVars.append([copy(lex[tmpi]),[]])
-                                    elif lex[tmpi].type == 'ASSIGN': tmpStartOfCommagrp=tmpi+1 ; break
+                                    elif lex[tmpi].type == 'ASSIGN':
+                                        if tmpi+2 < len(lex) and lex[tmpi+1].type == 'ID' and lex[tmpi+2].type == 'ASSIGN' and not determineIfAssignOrEqual(tmpi+2):
+                                            safe = False ; break # rare case so i think its not worth to salvage
+                                        tmpStartOfCommagrp=tmpi+1 ; break
                                     elif lex[tmpi].type in typeNewline+('TIMES',): safe=False ; break
 
                             if safe and lex[tmpStartOfCommagrp].type == 'STRING' and lex[tmpStartOfCommagrp+1].type in typeNewline:
