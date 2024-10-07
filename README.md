@@ -2,6 +2,7 @@
 Optimizing Python transpiler for the ASnake programming language.
 
 Documentation of the language is available at: https://asnake.org/docs/docs.html
+
 You can also get support or hang out in the ASnake discord: https://discord.gg/ySDFchT
 
 To install run:
