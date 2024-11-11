@@ -7200,6 +7200,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if tmp.endswith(','): tmp=tmp[:-1]
                             tmp=tmp.strip() ; tmp = tmp.split(' ')
                             tmpFuncArgs[tmp[1]]=tmp[0]
+                            if compileTo != "Cython":
+                                # converts to python type declaration
+                                if '=' in t:
+                                    tmp2=t.split('=')[0]
+                                else: tmp2 = t
+                                if tmp2.endswith(','): tmp2 = tmp2[:-1]
+                                tok.value=tok.value.replace(tmp2,f"{tmp[1]}: {tmp[0]}")
                         else:
                             tmpFuncArgs[t.split('=')[0].strip()]=None
                     for arg in tmpFuncArgs:
