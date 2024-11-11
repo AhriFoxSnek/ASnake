@@ -7189,9 +7189,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     for t in tmpf:
                         if ':' in t:
                             tmp=t.split(':')
-                            tmp2=REsearch(r' *\w+,?(?=\=|$)',tmp[1])
+                            tmp2=REsearch(r' *\w+ *(?!\=)',tmp[1])
                             if tmp2:
                                 tmpFuncArgs[tmp[0].strip()]=tmp2.group().replace(',','').strip()
+                            else:
+                                tmpFuncArgs[tmp[0].strip()]=None
+                        elif REsearch(fr' *(?:{"|".join(defaultTypes)}) +(?:([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*)+ *,?',t):
+                            # ^ if type, then space, and then var name
+                            tmp=t
+                            if tmp.endswith(','): tmp=tmp[:-1]
+                            tmp=tmp.strip() ; tmp = tmp.split(' ')
+                            tmpFuncArgs[tmp[1]]=tmp[0]
                         else:
                             tmpFuncArgs[t.split('=')[0].strip()]=None
                     for arg in tmpFuncArgs:
