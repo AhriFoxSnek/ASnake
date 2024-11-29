@@ -1544,6 +1544,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             optStrFormatToFString = False
         if pythonVersion < 3.08:
             optWalrus = False
+        # vv slower on certian versions vv
+        if pythonVersion < 3.10:
+            optListPlusListToExtend=False
 
 
         # meta
