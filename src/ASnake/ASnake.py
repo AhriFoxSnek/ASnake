@@ -1478,21 +1478,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         optFuncTricksDict={ 'randint':True,
                             'listString':True,
                             'TupleSetUnpack':True,
-                            'EvalLen':True,
                             'optCythonTypeFromConversionFunction':True,
                             'dictlistFunctionToEmpty':True,
                             'boolTonotnot':True,
                             'microPythonConst':True,
-                            'EvalnotBoolInversion':True, # Only provides performance to pypy, but its easy enough to leave it default
                             'sqrtMath': True,
                             'popToDel': True, # main phase
                             'roundFast': True,
                             'insertMathConstants': True,
-                            'EvalStr': True,
                             'ExponentToTimes': True,
                             'inTo__contains__': False, # main phase, only good for Pyston
                             'intToFloat': True, # main phase, not good in PyPy
-                            'EvalIntToFloat': True,
                             'max2compare': True,
                             }
         optConstantPropagation=True
@@ -1503,6 +1499,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         optLoopAttr=True
         optStrFormatToFString=True
         optCompilerEval=True # pyfuzz indicates there is likely breaking behaviour
+        optCompilerEvalDict = {
+            'evalTokens': True, # generic math and string type evals
+            'evalLen': True,
+            'evalThingInList': True,
+            'evalStrFunc': True,
+            'evalIntToFloat': True,
+            'evalNotBoolInversion': True,  # Only provides performance to pypy, but its easy enough to leave it default
+        }
         optPow=True
         optDeadVariableElimination=True
         optNestedLoopItertoolsProduct=True
@@ -1804,7 +1808,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if valueStop==None: valueStop=len(lex)-1
                                 if tmpf != None: # we got a expression now
                                     tmpListOfVarsInside=()
-                                    if vartype == 'NUMBER' and optCompilerEval:
+                                    if vartype == 'NUMBER' and optCompilerEval and optCompilerEvalDict['evalTokens']:
                                         try:
                                             tmpf=compilerNumberEval(tmpf)
                                         except (TypeError, SyntaxError, ZeroDivisionError):
@@ -2486,26 +2490,25 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     newOptimization=True
 
                         if lex[token-1].type == 'PIPE':
-                            if optFuncTricks:
-                                if optFuncTricksDict['EvalLen'] and optCompilerEval and 'len' not in reservedIsNowVar:
-                                    if lex[token].value == 'ASlen' or lex[token].value == 'len' and lex[token-2].type=='STRING' :
-                                        # eval len of string
-                                        if lex[token - 2].value.startswith('"""') or lex[token - 2].value.startswith("'''"):
-                                            tmp=6
-                                        else: tmp=2
-                                        lex[token].value = str(len(lex[token - 2].value) - tmp)
-                                        lex[token].type='NUMBER'
-                                        del lex[token - 1] ; del lex[token - 2]
-                                        newOptimization=True
-                                    elif lex[token].value in {'ASlen', 'len'} and lex[token - 2].type in {'RPAREN', 'LISTEND', 'RINDEX', 'RBRACKET'}:
-                                        # eval len of list/tuple/set
-                                        tmpf = getNumberOfElementsInList(token - 2, backwards=True)
-                                        if tmpf != None and tmpf[0] > 1:
-                                            if debug: print(f"! compilerEval: len of {lex[token-5].value}{lex[token-4].value}{lex[token-3].value}{lex[token-2].value} -->  {tmpf[0]}")
-                                            lex[token].type = 'NUMBER' ; lex[token].value = str(tmpf[0])
-                                            for t in range(token-1, tmpf[1]-1, -1):
-                                                lex[t].type = 'IGNORE'
-                                            newOptimization = True
+                            if optCompilerEval and optCompilerEvalDict['evalLen'] and 'len' not in reservedIsNowVar:
+                                if lex[token].value == 'ASlen' or lex[token].value == 'len' and lex[token-2].type=='STRING' :
+                                    # eval len of string
+                                    if lex[token - 2].value.startswith('"""') or lex[token - 2].value.startswith("'''"):
+                                        tmp=6
+                                    else: tmp=2
+                                    lex[token].value = str(len(lex[token - 2].value) - tmp)
+                                    lex[token].type='NUMBER'
+                                    del lex[token - 1] ; del lex[token - 2]
+                                    newOptimization=True
+                                elif lex[token].value in {'ASlen', 'len'} and lex[token - 2].type in {'RPAREN', 'LISTEND', 'RINDEX', 'RBRACKET'}:
+                                    # eval len of list/tuple/set
+                                    tmpf = getNumberOfElementsInList(token - 2, backwards=True)
+                                    if tmpf != None and tmpf[0] > 1:
+                                        if debug: print(f"! compilerEval: len of {lex[token-5].value}{lex[token-4].value}{lex[token-3].value}{lex[token-2].value} -->  {tmpf[0]}")
+                                        lex[token].type = 'NUMBER' ; lex[token].value = str(tmpf[0])
+                                        for t in range(token-1, tmpf[1]-1, -1):
+                                            lex[t].type = 'IGNORE'
+                                        newOptimization = True
 
                         if optLoopAttr and preAllocated and lex[token+1].type in typeAssignables+('ASSIGN',) \
                         and True in (True if p[1].startswith('AS'+lex[token].value) else False for p in preAllocated):
@@ -2653,7 +2656,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             pyIs = metaHandling(metaCall, pyIs)
 
 
-                    elif optFuncTricks and optFuncTricksDict['EvalnotBoolInversion'] and lex[token].type == 'INS' and lex[token].value.strip() == 'not' and lex[token+1].type == 'BOOL':
+                    elif optCompilerEval and optCompilerEvalDict['evalNotBoolInversion'] and lex[token].type == 'INS' and lex[token].value.strip() == 'not' and lex[token+1].type == 'BOOL':
                         if lex[token+1].value.strip() == 'True':
                             lex[token+1].value = 'False' ; lex[token].type = 'IGNORE'
                         elif lex[token+1].value.strip() == 'False':
@@ -2687,7 +2690,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if t in seen or '[' in t or ']' in t:
                                             tmpsafe = False ; break
                                         else: seen.add(t)
-                                if optCompilerEval and not inForLoop and lex[token - 2].type in {'STRING', 'NUMBER'}:
+                                if optCompilerEval and optCompilerEvalDict['evalThingInList'] and not inForLoop and lex[token - 2].type in {'STRING', 'NUMBER'}:
                                     # if 2 in [1,2,3]  -->  if True
                                     tmpsafe = False
                                     if lex[token - 2].value in seen:
@@ -2999,7 +3002,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         autoMakeTokens("{*"+lex[token+1].value+"}",token)
                                     newOptimization=True
 
-                            if optFuncTricksDict['EvalLen'] and optCompilerEval and 'len' not in reservedIsNowVar:
+                            if optCompilerEval and optCompilerEvalDict['evalThingInList'] and 'len' not in reservedIsNowVar:
                                 if lex[token].value == 'ASlen' and lex[token+1].type=='LPAREN' and lex[token+2].type=='STRING' and lex[token+3].type=='RPAREN' \
                                 or lex[token].value == 'len(' and lex[token+1].type=='STRING' and lex[token+2].type=='RPAREN':
                                     # eval len of string
@@ -3031,7 +3034,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             lex[t].type='IGNORE'
                                         newOptimization = True
 
-                            if optFuncTricksDict['EvalIntToFloat'] and optCompilerEval and lex[token].type == 'FUNCTION' and lex[token].value == 'float(' and lex[token + 1].type == 'NUMBER' and '.' not in lex[token + 1].value and lex[token + 2].type == 'RPAREN':
+                            if optCompilerEval and optCompilerEvalDict['evalIntToFloat'] and lex[token].type == 'FUNCTION' and lex[token].value == 'float(' and lex[token + 1].type == 'NUMBER' and '.' not in lex[token + 1].value and lex[token + 2].type == 'RPAREN':
                                 lex[token + 1].value += '.0'; lex[token].type = lex[token + 2].type = 'IGNORE'
 
 
@@ -3093,7 +3096,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if optLoopAttr and preAllocated and 'ASint' in (p[1] for p in preAllocated): lex[token].value='ASint('
                                 elif compileTo == 'Cython': lex[token].value = '<int>('
                                 else: lex[token].value='int('
-                                if optCompilerEval and lex[token+1+tmpAdjust].type == 'NUMBER' == lex[token+3+tmpAdjust].type:
+                                if optCompilerEval and optCompilerEvalDict['evalTokens'] and lex[token+1+tmpAdjust].type == 'NUMBER' == lex[token+3+tmpAdjust].type:
                                     try: int(lex[token+3+tmpAdjust].value)
                                     except ValueError:
                                         tmpE=lex[token+3+tmpAdjust].value
@@ -3127,7 +3130,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 # ^ in event of dead import elimination being implemented, uncomment
                                 newOptimization = True
 
-                            if optFuncTricksDict['EvalStr'] and optCompilerEval and lex[token].type == 'FUNCTION' and lex[token].value.replace('(','') == 'str' and lex[token+1].type in {'NUMBER','STRING'} and lex[token+2].type == 'RPAREN':
+                            if optCompilerEval and optCompilerEvalDict['evalStrFunc'] and lex[token].type == 'FUNCTION' and lex[token].value.replace('(','') == 'str' and lex[token+1].type in {'NUMBER','STRING'} and lex[token+2].type == 'RPAREN':
                                 # str(12) --> "12"
                                 lex[token].type = lex[token+2].type = 'IGNORE'
                                 if  lex[token+1].type == 'NUMBER':
@@ -3682,7 +3685,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
 
 
-                    elif optCompilerEval and ((lex[token].type in typeCheckers and lex[token].type != 'PYIS') or (lex[token].type == 'ASSIGN' and 'is' in lex[token].value and determineIfAssignOrEqual(token))) \
+                    elif optCompilerEval and optCompilerEvalDict['evalTokens'] and ((lex[token].type in typeCheckers and lex[token].type != 'PYIS') or (lex[token].type == 'ASSIGN' and 'is' in lex[token].value and determineIfAssignOrEqual(token))) \
                     and ( (lex[token-1].type in {'STRING','NUMBER','BOOL'} and (lex[token+1].type in {'STRING','NUMBER','BOOL'} or isANegativeNumberTokens(token+1)) and lex[token-2].type in typeConditionals+typeNewline+('AND','OR','LPAREN')) or (isANegativeNumberTokens(token-2) and (lex[token+1].type in {'STRING','NUMBER'} or isANegativeNumberTokens(token+1)) and lex[token-3].type in typeConditionals+typeNewline+('AND','OR','LPAREN') ) ):
                         # eval bool conditionals when STRING and/or NUMBER
                         if lex[token].type == 'ASSIGN' and not pyCompatibility: lex[token].type = 'EQUAL'
@@ -3850,7 +3853,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if token > len(lex)-1: break
                     if lex[token].type == 'IGNORE':
                         del lex[token] ; token-=2
-                    if optCompilerEval and lex[token].type in {'STRING','NUMBER'}: # jumpy
+                    if optCompilerEval and optCompilerEvalDict['evalTokens']and lex[token].type in {'STRING','NUMBER'}: # jumpy
                         # math or string evaluation
                         bitwiseOrderOps = {'~': 5, '<<': 4, '>>': 4, '&': 3, '^': 2, '|': 1}
                         tmpTypeSafe = typeNewline + ('RPAREN', 'ASSIGN', 'FUNCTION', 'LPAREN', 'ELSE', 'DEFEXP', 'LINDEX')
@@ -4029,7 +4032,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     newOptimization=True
                         
 
-                    if optCompilerEval and not pyCompatibility and lex[token].type == 'STRING' and lex[token+1].type == 'STRING' and lex[token+2].type not in typeOperators and lex[token-1].type not in typeOperators:
+                    if optCompilerEval and optCompilerEvalDict['evalTokens'] and not pyCompatibility and lex[token].type == 'STRING' and lex[token+1].type == 'STRING' and lex[token+2].type not in typeOperators and lex[token-1].type not in typeOperators:
                         # evaluate string comparisons when they have no compare, inside conditional
                         # if 'string' 'string'  -->  if 'string' == 'string'  -->  if True
                         safe = False
