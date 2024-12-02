@@ -1722,8 +1722,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmpi=1
                                 elif lex[token+1].type == 'ASSIGN' and lex[token+1].value.strip() in {'is','='} and lex[token+2].type in typeAssignables+('LPAREN','LBRACKET','FUNCTION','MINUS','INS','LINDEX','FSTR') and lex[token+2].type != 'LISTEND' and lex[token+3].type != 'LISTCOMP':
                                     tmpi=2
-                            if lex[token].value == 'print' or lex[token-1].type == 'COMMA': tmpi=None
-                            if optMathEqual and token+3 < len(lex) and lex[token+2].value == lex[token].value and lex[token+3].type in typeOperators: tmpi=None
+                            if tmpi and (lex[token].value == 'print' or lex[token-1].type == 'COMMA'): tmpi=None
+                            if tmpi and optMathEqual and token+3 < len(lex) and lex[token+2].value == lex[token].value and lex[token+3].type in typeOperators: tmpi=None
                             # ^ optMathEqual comes online after constant folding, which messes stuff up. so if we detect it, then dont perform folding
                             # v if in from for asnake function def, inside conditional, or constant then ignore
                             if tmpi != None:
@@ -1758,7 +1758,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 listScope -= lex[t].value.count(']')
                                             tmpf.append(copy(lex[t]))
                                 else:
-                                    tmpNoEqualsAssign=True if tmpi == 1 else False
+                                    tmpNoEqualsAssign=True
                                     tmpFstrOn=True if lex[token+tmpi].type == 'FSTR' else False
                                     for t in range(token+tmpi,len(lex)-1):
                                         #print(lex[token].value,tmpParenScope,lex[t].type,lex[t].value,[tt.value for tt in tmpf])
@@ -4251,8 +4251,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             tmp = 0 ; break
                                     if tmp < tmpIndent:
                                         breakOnNextNL = True
-                                elif lex[tmpi].type == 'ASSIGN' and ':' not in lex[tmpi].value and lex[
-                                    tmpi + 1].type == 'IF':
+                                elif lex[tmpi].type == 'ASSIGN' and ':' not in lex[tmpi].value and lex[tmpi + 1].type == 'IF':
                                     ttenary = True
                                 elif lex[tmpi].type == 'ELSE' and ttenary:
                                     ttenary = False
