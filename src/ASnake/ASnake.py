@@ -1506,6 +1506,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             'evalStrFunc': True,
             'evalIntToFloat': True,
             'evalNotBoolInversion': True,  # Only provides performance to pypy, but its easy enough to leave it default
+            'evalChrFunc': True,
         }
         optPow=True
         optDeadVariableElimination=True
@@ -3156,6 +3157,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                 autoMakeTokens(f"({tmp1st} if {tmp1st} > {tmp2nd} else {tmp2nd})",token)
                                 if debug: print(f"! max2compare: max({tmp1st},{tmp2nd}) --> ({tmp1st} if {tmp1st} > {tmp2nd} else {tmp2nd})")
+
+                            if optCompilerEval and optCompilerEvalDict['evalChrFunc'] and lex[token].value == 'chr(' and lex[token+1].type == 'NUMBER' and lex[token+2].type == 'RPAREN':
+                                try:
+                                    lex[token].value = f"'{chr(int(lex[token + 1].value))}'"
+                                    lex[token+1].type=lex[token+2].type='IGNORE'
+                                    lex[token].type = 'STRING'
+                                    if debug: print(f"! evalChrFunc: chr({lex[token + 1].value}) --> {lex[token].value}")
+                                except (TypeError, ValueError): pass
+
 
 
                         if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
