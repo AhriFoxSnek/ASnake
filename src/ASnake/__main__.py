@@ -80,7 +80,10 @@ def execPy(code, fancy=True, pep=True, run=True, execTime=False, headless=False,
         else:
             if execTime:
                 s = monotonic()
-            err = Popen((pyCall, '-c', code), stderr=PIPE).communicate()[1]
+            #err = Popen((pyCall, '-c', code), stderr=PIPE).communicate()[1]
+            err = False # above will give accurate Python error, but will also capture input('text here: ') which is more important
+            # i hope one day i find a workaround, having the exact error line pointed out was nice
+            spRun((pyCall, '-c', code))
 
         if fancy:
             print('\t____________')
