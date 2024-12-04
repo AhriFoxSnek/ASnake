@@ -1651,7 +1651,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 elif lex[tmpi].type in {'ID','FUNCTION'} and lex[tmpi].value.startswith('print') and lex[tmpi-1].type in typeNewline:
                                     for tmpii in range(tmpi + 1, len(lex)):
                                         if lex[tmpii].type in typeNewline: break
-                                        elif lex[tmpii].type in {'FSTR','STRING','NUMBER'} and lex[tmpii-1].type != 'ASSIGN' \
+                                        elif lex[tmpii].type in {'FSTR','STRING','NUMBER'} and lex[tmpii-1].type not in {'ASSIGN','TIMES'} \
                                         and ((lex[tmpii+1].type in typeNewline or (lex[tmpii+1].type == 'RPAREN' and lex[tmpii+2].type in typeNewline)) \
                                         or (lex[tmpii+1].type == 'COMMA' and lex[tmpii+2].type == 'ID' and lex[tmpii+2].value == 'end' and lex[tmpii+3].type == 'ASSIGN')):
                                             safe=True ; tmpFound=tmpii
