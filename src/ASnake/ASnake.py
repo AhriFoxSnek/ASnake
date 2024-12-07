@@ -1716,7 +1716,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if debug: print(f'! combined print: {lex[tmpFound].value}')
 
                     elif lex[token].type == 'ID':
-                        if optConstantPropagation:
+                        if optConstantPropagation: # the one, the only, THE GOAT
                             tmpi=None
                             if lex[token-1].type not in typeConditionals+('OR','AND','LOOP'):
                                 if lex[token+1].type in typeAssignables+('FSTR',) and lex[token+1].type != 'LISTEND' and lex[token+2].type not in {'PIPE','LISTCOMP'}:
@@ -2100,6 +2100,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         if vartype == 'STRING' and (lex[tmpi-1].type == 'FSTR' or lex[tmpi+1].type == 'FSTR'):
                                                             if isinstance(tmpf[0],str) == False and '\\\\' in tmpf[0].value: tmpsafe=False
                                                             elif '\\\\' in tmpf: tmpsafe=False
+                                                        if tmpsafe and pythonVersion < 3.12 and (lex[tmpi-1].type == 'FSTR' or lex[tmpi+1].type == 'FSTR'):
+                                                            for _ in tmpf:
+                                                                if _.type == 'STRING' and '\\' in _.value:
+                                                                    tmpsafe=False ; break
                                                         if tmpsafe and lex[tmpi-2].type == 'BUILTINF' and '.join' in lex[tmpi-2].value and isinstance(tmpf[0],str) == False and any(True for _ in tmpf if _.type in {'FSTR','STRING'} and ('"""' in _.value or "'''" in _.value)):
                                                             tmpsafe = False # dumb pattern fix
                                                         if tmpsafe and inLoop[0] and tmpindent >= inLoop[1] and isinstance(tmpf[0],str) == False and 'FOR' in [t.type for t in tmpf]:
