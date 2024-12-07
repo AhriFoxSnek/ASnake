@@ -12,7 +12,7 @@ from os import path, remove, listdir
 from time import monotonic
 from re import sub as REsub
 from re import findall as REfindall
-from platform import python_version, python_version_tuple
+from platform import python_version, python_version_tuple, python_implementation
 
 def fetchErrorLine(error_message, theCode):
     try:
@@ -84,6 +84,7 @@ def execPy(code, fancy=True, pep=True, run=True, execTime=False, headless=False,
             err = False # above will give accurate Python error, but will also capture input('text here: ') which is more important
             # i hope one day i find a workaround, having the exact error line pointed out was nice
             spRun((pyCall, '-c', code))
+
 
         if fancy:
             print('\t____________')
@@ -234,9 +235,27 @@ if __name__ == '__main__':
 
     if not fancy and not compileAStoPy: pep = False
 
-    if not args.pypy and not args.pyston and not args.version:
-        pv = python_version_tuple()
-        pythonVersion = pv[0] + '.' + pv[1]
+    if not args.version:
+        # v if the compile target is same as the interpreter we are using to compile with, use that version
+        tmpSafe=False
+        if args.pyston:
+            import sys
+            if hasattr(sys, "pyston_version_info"):
+                tmpSafe=True
+            del sys
+        elif args.pypy and python_implementation() == 'PyPy':
+            tmpSafe=True
+        elif python_implementation() == 'CPython':
+            tmpSafe = True
+        if tmpSafe:
+            pv = python_version_tuple()
+            pythonVersion = pv[0] + '.' + pv[1]
+        else:
+            if args.pyston:
+                pythonVersion = '3.08' # its probably gonna stay here forever
+
+
+
 
     WINDOWS=False
     if compileAStoPy or runCode:
