@@ -35,6 +35,7 @@ def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syn
     return f'# ASnake {ASnakeVersion} ERROR\nprint("""\n{showError}\n""")'
 
 defaultTypes=set('bool|int|float|complex|str|list|tuple|set|dict|bytearray|bytes|enumerate|filter|frozenset|map|memoryview|object|property|range|reversed|slice|staticmethod|super|type|zip'.split('|'))
+pureStdPythonModules = "abc,array,base64,binascii,bisect,calendar,cmath,collections,colorsys,contextvars,copy,dataclasses,decimal,enum,fractions,graphlib,heapq,itertools,keyword,math,numbers,operator,pprint,re,reprlib,statistics,string,struct,textwrap,token,types,typing,unicodedata".split(',')
 
 import ast
 import operator
@@ -1762,11 +1763,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmpNoEqualsAssign=True
                                     tmpFstrOn=True if lex[token+tmpi].type == 'FSTR' else False
                                     for t in range(token+tmpi,len(lex)-1):
-                                        #print(lex[token].value,tmpParenScope,lex[t].type,lex[t].value,[tt.value for tt in tmpf])
+                                        #print(lex[token].value,tmpNoEqualsAssign,tmpParenScope,lex[t].type,lex[t].value,[tt.value for tt in tmpf])
                                         if tmpNoEqualsAssign:
                                             # fixes  x y 12 ; x ; y
                                             # it captures y 12 for x, it shouldn't
-                                            if lex[t].type not in ('ID','ASSIGN') or lex[t+1].type in typeOperators+('PIPE',):
+                                            if lex[t].type not in ('ID','ASSIGN') or lex[t+1].type in typeOperators+('PIPE','RPAREN'):
                                                 tmpNoEqualsAssign=False
                                         if not tmpNoEqualsAssign:
                                             if lex[t].type in typeNewline and listScope==0 and tmpBracketScope==0 and tmpParenScope==0:
@@ -1780,15 +1781,24 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 if lex[t].type == 'LIST':
                                                     listScope+=1
                                                 elif lex[t].type == 'LISTEND': listScope-=1
-                                                elif (lex[t].type == 'FUNCTION' and lex[t].value.replace('(','') not in pyBuiltinFunctions) \
-                                                or (lex[t].type == 'PIPE' and lex[t+1].value not in pyBuiltinFunctions):
-                                                    tmpf=[] ; break
+                                                elif lex[t].type in {'FUNCTION','PIPE'}:
+                                                    # be scared of folding functions
+                                                    if lex[t].type == 'FUNCTION':
+                                                        tmpParenScope += 1
+                                                    tmpIsPipe = False if lex[t].type == 'FUNCTION' else True
+                                                    tmpFuncName = lex[t + tmpIsPipe].value.replace('(', '')
+                                                    if tmpFuncName in pyBuiltinFunctions:
+                                                        pass # safe
+                                                    else:
+                                                        tmpSafe=False
+                                                        for module in wasImported:
+                                                            if tmpFuncName in wasImported[module] and module[:-1] in pureStdPythonModules:
+                                                                tmpSafe = True
+                                                        if not tmpSafe: tmpf=[] ; break
                                                 elif lex[t].type == 'LPAREN':
                                                     tmpParenScope += 1
                                                 elif lex[t].type == 'RPAREN':
                                                     tmpParenScope -= 1
-                                                elif lex[t].type == 'FUNCTION':
-                                                    tmpParenScope+=1
                                                 if lex[t].type!='IGNORE': tmpf.append(copy(lex[t]))
                                             elif lex[t].type == 'FUNCTION':
                                                 tmpParenScope+=1
