@@ -123,7 +123,7 @@ class Lexer(Lexer):
     TYPEWRAP= fr'({"|".join(defaultTypes)})( ?\[\w*\])? *: *(#.*)?(?=\n)'
     TYPE    = '\\s%s\\s'%f'({"|".join(defaultTypes)})'
     LAMBDA  = r'lambda ?(\w* *,?)*:'
-    FSTRFRMT= r':,? *(?:\=?[><^|%.])?\d+(?:\.\d+)?[dfxsn]?'  # for formatting at end of fstrings brackets
+    FSTRFRMT= r':,? *(?:\=?[*=.]?[><^|%.+])?(?:(?:\d+(?:\.\d+)?[dfxsn%]?)| *[dbxXogGeEncs](?![^}])|(?: *%[YmdHMS][:-]? *)+)'  # for formatting at end of fstrings brackets
     LISTCOMP= r'''\-?\w*: ([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*(?!"|')'''
     STRING  = r"((f|u|b)?\"\"\"(?:[^\"\\]|\\.|\"(?!\"\"))*\"\"\")|((f|u|b)?'''(?:[^'\\]|\\.|'(?!''))*''')|((f|u|b)?\"(?:\\.|[^\"\\])*\")|((f|u|b)?'(?:\\.|[^'\\])*')"
     #SET    = r'{.+?}'
@@ -191,6 +191,7 @@ class Lexer(Lexer):
     # DEFEXP   = perform default expression wrap
     # DONTDEXP = do not perform default expression wrap
     # IGNORE   = ignore the token, preferably deleting it later.
+    # COLON    = the : character
 
 latestPythonVersionSupported='3.12'
 
@@ -1346,7 +1347,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             if bracketScope > 0:
                 # don't want dicts to be mistaken as fstr formatting
                 lex.append(makeToken(tok,':','COLON')) ; lexIndex+=1
-                for tt in miniLex(' '.join(tok.value.split(':')[-1]) + ' '):
+                for tt in miniLex(''.join(tok.value.split(':')[-1]) + ' '):
                     if debug: print('--', tt)
                     lex.append(tt) ; lexIndex+=1
                 lexIndex -= 1
@@ -2176,7 +2177,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                 if len(tmpf)>=2 and tmpf[1].type == 'FSTR' == lex[tmpi-1].type:
                                                                     # when folding an fstr onto an fstr, make sure quote types dont collide
                                                                     tmpFSTRcheck=False
-                                                                    if lex[tmpi-1].value[0] == 'f' and lex[tmpi-1].value[1] == tmpf[1].value[1]:
+                                                                    tmpOtherFSTRQuote = tmpf[1].value[0] if tmpf[1].value[0] in {'"',"'"} else tmpf[1].value[1]
+                                                                    if lex[tmpi-1].value[0] == 'f' and lex[tmpi-1].value[1] == tmpOtherFSTRQuote:
                                                                         tmpFSTRcheck=tmpi-1
                                                                         if lex[tmpi - 1].value[1] == "'": tmpFSTRq = '"'
                                                                         else: tmpFSTRq = "'"
@@ -3164,10 +3166,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if lex[token-1].type in typeNewline and lex[token+5].type in typeNewline: lex[token].type = 'DONTDEXP'
                                 elif lex[token-1].type in typeNewline and lex[token+5].type in typePrintable: lex[token].type = 'DEFEXP'
                                 elif lex[token-1].type in typePrintable:
-                                    tmp=token ; tmpsafe=False
-                                    for t in range(token,0,-1):
+                                    tmp=token
+                                    for t in range(0,token,-1):
                                         if lex[token].type in typeNewline: tmp=t ; break
-                                    lex.insert(t,makeToken(lex[token],'','DEFEXP'))
+                                    lex.insert(tmp,makeToken(lex[token],'','DEFEXP'))
 
                                 autoMakeTokens(f"({tmp1st} if {tmp1st} > {tmp2nd} else {tmp2nd})",token)
                                 if debug: print(f"! max2compare: max({tmp1st},{tmp2nd}) --> ({tmp1st} if {tmp1st} > {tmp2nd} else {tmp2nd})")
