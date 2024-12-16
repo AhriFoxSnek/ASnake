@@ -6354,6 +6354,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         else:
                             if compileTo == 'Cython' and (lastValue.startswith('cpdoes') or lastValue.startswith('cdoes')):
                                 tmp=code[-1].split()
+                                if tok.value == 'bool': tok.value='bint'
                                 tmp.insert(1,tok.value)
                                 code[-1] =' '.join(tmp)
                             else:
