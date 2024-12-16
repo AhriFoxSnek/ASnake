@@ -3128,7 +3128,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmpFloat = lex[token+1+tmpAdjust].value
                                     tmpTolerance = 10**int(lex[token+3+tmpAdjust].value)
                                     tmp=f"{tmpFloat} * ({tmpTolerance}) - (.5 if {tmpFloat} < 0 else -.5)) / ({tmpTolerance}"
-                                if debug: print(f'! fast-round: round({tmpFloat},{tmpTolerance})  -->  {tmp}')
+                                if debug: print(f'! fast-round: round({tmpFloat},{lex[token+3+tmpAdjust].value})  -->  {tmp}')
                                 lex[token + 1].type = lex[token + 2].type = lex[token + 3].type = 'IGNORE'
                                 autoMakeTokens(tmp, token)
                                 newOptimization=True
