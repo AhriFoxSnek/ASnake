@@ -4891,7 +4891,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         assign=False
                         newtmp=[]
                         kwargs=None
-                        noKwargs=True if len([i for i in tmpf if '*' not in i.value])==0 else False # cython no likely * kwargs
+                        noKwargs=True if len([i for i in tmpf if '*' in i.value])==0 else False # cython no likely * kwargs
                         tmpLastToken=makeToken(tmpf[0],'pass','TMP')
                         for i in tmpf:
                             if len(i.value) > 0 and i.type!='COMMA':
@@ -4910,7 +4910,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                 if not assign and i.type in {'ID','TYPE'} and (tmpLastToken.type not in {'COMMA','TMP','TYPE'} and tmpLastToken.value not in convertType):
                                     tmp=' '.join([ii.value for ii in tmpf])
-                                    return AS_SyntaxError(f'{tmp}\n\tfrom syntax must have commas to seperate arguments','from thingy, str name, int number = 12,', lineNumber, data)
+                                    return AS_SyntaxError(f'{tmp}\n\tfrom syntax must have commas to separate arguments','from thingy, str name, int number = 12,', lineNumber, data)
 
                                 elif i.value in convertType:
                                     tmptype=i
