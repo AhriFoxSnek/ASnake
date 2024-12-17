@@ -3166,10 +3166,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if lex[token-1].type in typeNewline and lex[token+5].type in typeNewline: lex[token].type = 'DONTDEXP'
                                 elif lex[token-1].type in typeNewline and lex[token+5].type in typePrintable: lex[token].type = 'DEFEXP'
                                 elif lex[token-1].type in typePrintable:
-                                    tmp=token
-                                    for t in range(0,token,-1):
-                                        if lex[token].type in typeNewline: tmp=t ; break
-                                    lex.insert(tmp,makeToken(lex[token],'','DEFEXP'))
+                                    tmp=token ; tmpSafe=True
+                                    for t in range(token,0,-1):
+                                        if lex[t].type in typeNewline:
+                                            if lex[t+1].type in {'FUNCTION','BUILTINF'}:
+                                                tmpSafe=False
+                                            tmp=t+1 ; break
+                                    if tmpSafe:
+                                        lex.insert(tmp,makeToken(lex[token],'','DEFEXP'))
 
                                 autoMakeTokens(f"({tmp1st} if {tmp1st} > {tmp2nd} else {tmp2nd})",token)
                                 if debug: print(f"! max2compare: max({tmp1st},{tmp2nd}) --> ({tmp1st} if {tmp1st} > {tmp2nd} else {tmp2nd})")
