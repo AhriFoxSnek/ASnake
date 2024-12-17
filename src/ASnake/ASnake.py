@@ -1530,7 +1530,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             # v compatible but slower v
             optNestedLoopItertoolsProduct=optFuncCache=False
             # v prevents Cython-ization v
-            optLoopToMap=optLoopAttr=False
+            optLoopToMap=optLoopAttr=optFuncTricksDict['max2compare']=False
+            
         elif compileTo == 'PyPy3':
             # v seems to be slower for some reason on PyPy but faster on Python v
             optNestedLoopItertoolsProduct=optFuncCache=optLoopToMap=optListPlusListToExtend=optFuncTricksDict['intToFloat']=False
