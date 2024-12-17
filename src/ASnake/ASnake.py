@@ -3169,7 +3169,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmp=token ; tmpSafe=True
                                     for t in range(token,0,-1):
                                         if lex[t].type in typeNewline:
-                                            if lex[t+1].type in {'FUNCTION','BUILTINF'}:
+                                            if lex[t+1].type in {'FUNCTION','BUILTINF','CONSTANT','TYPE'} \
+                                            or (lex[t+1].type == 'ID' and lex[t+2].type in ('ASSIGN','FUNCTION')+typeAssignables):
                                                 tmpSafe=False
                                             tmp=t+1 ; break
                                     if tmpSafe:
