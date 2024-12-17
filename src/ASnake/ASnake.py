@@ -1768,7 +1768,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if tmpNoEqualsAssign:
                                             # fixes  x y 12 ; x ; y
                                             # it captures y 12 for x, it shouldn't
-                                            if lex[t].type not in ('ID','ASSIGN') or lex[t+1].type in typeOperators+('PIPE','RPAREN'):
+                                            if lex[t].type not in ('ID','ASSIGN') or lex[t+1].type in typeOperators+('PIPE','RPAREN','IF'):
                                                 tmpNoEqualsAssign=False
                                         if not tmpNoEqualsAssign:
                                             if lex[t].type in typeNewline and listScope==0 and tmpBracketScope==0 and tmpParenScope==0:
