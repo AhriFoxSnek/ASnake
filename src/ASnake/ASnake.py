@@ -6388,10 +6388,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     for varname in tmp: code.append(f"{' ' * (indent)}cdef {cythonConvertType[tok.value] if tok.value in cythonConvertType else tok.value} {varname}")
                                 else:
                                     tok.value = cythonConvertType[tok.value] if tok.value in cythonConvertType else tok.value
-                                    if 'DEF ' != line[-1]:
+                                    if not line or 'DEF ' != line[-1]:
                                         line.append(decideIfIndentLine(indent,f"cdef {tok.value} "))
-                                    else:
-                                        line.append(tok.value+' ')
                             else:# compileTo == 'Python':
                                 if pythonVersion >= 3.06:
                                     if lex[lexIndex+2].type == 'COMMA':
@@ -6653,8 +6651,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 else:
                                     storedVarsHistory[tmpName] = {}
                     elif compileTo == 'Cython':
-                        if lex[lexIndex+1].type == 'TYPE' and lex[lexIndex+1].type in {'str','int','float'}: lex[lexIndex+1].type='IGNORE'
-                        line.append(decideIfIndentLine(indent,"DEF "))
+                        if lex[lexIndex+1].type == 'TYPE' and lex[lexIndex+1].value in {'str','int','float'}: 
+                            lex[lexIndex+1].type='IGNORE'
+                            line.append(decideIfIndentLine(indent,"DEF "))
                 else:
                     return AS_SyntaxError('constant needs a variable and value','constant PI is 3.14159',lineNumber,data)
             elif tok.type == 'PIPEGO':
