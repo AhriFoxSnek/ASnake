@@ -6650,7 +6650,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 else:
                                     storedVarsHistory[tmpName] = {}
                     elif compileTo == 'Cython':
-                        if lex[lexIndex+1].type == 'TYPE': lex[lexIndex+1].type='IGNORE'
+                        if lex[lexIndex+1].type == 'TYPE' and lex[lexIndex+1].type in {'str','int','float'}: lex[lexIndex+1].type='IGNORE'
                         line.append(decideIfIndentLine(indent,"DEF "))
                 else:
                     return AS_SyntaxError('constant needs a variable and value','constant PI is 3.14159',lineNumber,data)
