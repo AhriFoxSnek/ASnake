@@ -6388,7 +6388,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     for varname in tmp: code.append(f"{' ' * (indent)}cdef {cythonConvertType[tok.value] if tok.value in cythonConvertType else tok.value} {varname}")
                                 else:
                                     tok.value = cythonConvertType[tok.value] if tok.value in cythonConvertType else tok.value
-                                    line.append(decideIfIndentLine(indent,f"cdef {tok.value} "))
+                                    if 'DEF ' != line[-1]:
+                                        line.append(decideIfIndentLine(indent,f"cdef {tok.value} "))
+                                    else:
+                                        line.append(tok.value+' ')
                             else:# compileTo == 'Python':
                                 if pythonVersion >= 3.06:
                                     if lex[lexIndex+2].type == 'COMMA':
