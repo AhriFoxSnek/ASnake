@@ -402,7 +402,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     elif tmptok.type == 'ID' and tmptok.value.isascii() == False:
                         tmptok.value = convertEmojiToAscii(tmptok.value)
                     elif tmptok.type == 'INDEX' and lex[-1].type != 'TYPE' and '[' in tmptok.value:
-                        adjust+=indexTokenSplitter(tmptok,True,token+adjust) ; tmpSkip = True
+                        if token == -1:
+                            indexTokenSplitter(tmptok, True)
+                        else:
+                            adjust+=indexTokenSplitter(tmptok,True,token+adjust)
+                        tmpSkip = True
                     elif tmptok.type == 'SCINOTAT':
                         tmptok.type='NUMBER'
                     if tmpSkip: tmpSkip = False
@@ -440,7 +444,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         tmpIter=list(miniLex(''.join(tmpf[1:]) + ' '))
         tmpIter.insert(0,makeToken(tok, '[', 'LINDEX'))
         if token: tmpIter=reversed(tmpIter)
-        #print([i.value for i in tmpIter])
+        #print(''.join([i.value for i in tmpIter]))
         for i in tmpIter:
             i.lineno = lineNumber
             if i.type not in typeNewline:
@@ -1023,7 +1027,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif tok.type in {'STRAW','STRLIT','STRING'}:
             if tok.type in {'STRRAW','STRLIT'}: tok.type='STRING'
             if tok.value[0]=='f':
-                if len([i for i in ('{','}') if i not in tok.value])>0:
+                if optimize and len([i for i in ('{','}') if i not in tok.value])>0:
                     tok.value=tok.value[1:] # optimization if f-string doesnt use {} then convert to regular string, better performance
                 else:
                     tok=copy(createFString(tok))
