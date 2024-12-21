@@ -1496,6 +1496,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'inTo__contains__': False, # main phase, only good for Pyston
                             'intToFloat': True, # main phase, not good in PyPy
                             'max2compare': True,
+                            'optCythonConvertTo_libc': True,
                             }
         optConstantPropagation=True
         optMathEqual=True
@@ -2118,7 +2119,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             elif '\\\\' in tmpf: tmpsafe=False
                                                         if tmpsafe and pythonVersion < 3.12 and (lex[tmpi-1].type == 'FSTR' or lex[tmpi+1].type == 'FSTR'):
                                                             for _ in tmpf:
-                                                                if _.type == 'STRING' and '\\' in _.value:
+                                                                if not isinstance(tmpf[0],str) and _.type == 'STRING' and '\\' in _.value:
                                                                     tmpsafe=False ; break
                                                         if tmpsafe and lex[tmpi-2].type == 'BUILTINF' and '.join' in lex[tmpi-2].value and isinstance(tmpf[0],str) == False and any(True for _ in tmpf if _.type in {'FSTR','STRING'} and ('"""' in _.value or "'''" in _.value)):
                                                             tmpsafe = False # dumb pattern fix
@@ -3184,15 +3185,21 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 autoMakeTokens(f"({tmp1st} if {tmp1st} > {tmp2nd} else {tmp2nd})",token)
                                 if debug: print(f"! max2compare: max({tmp1st},{tmp2nd}) --> ({tmp1st} if {tmp1st} > {tmp2nd} else {tmp2nd})")
 
-                            if optCompilerEval and optCompilerEvalDict['evalChrFunc'] and lex[token].value == 'chr(' and lex[token+1].type == 'NUMBER' and lex[token+2].type == 'RPAREN':
-                                try:
-                                    lex[token].value = f"'{chr(int(lex[token + 1].value))}'"
-                                    lex[token+1].type=lex[token+2].type='IGNORE'
-                                    lex[token].type = 'STRING'
-                                    if debug: print(f"! evalChrFunc: chr({lex[token + 1].value}) --> {lex[token].value}")
-                                except (TypeError, ValueError): pass
+                            if compileTo == 'Cython' and optFuncTricks and optFuncTricksDict['optCythonConvertTo_libc'] \
+                            and lex[token].type == 'FUNCTION' and lex[token].value in {'log(', 'abs(','floor(','remainder(','cos(','tan(','acos('}:
+                                # these Cythonization functions may break behaviour, so remove when necessary
+                                insertAtTopOfCodeIfItIsNotThere(f"from libc.math cimport {lex[token].value[:-1]} as C{lex[token].value[:-1]}")
+                                lex[token].value = 'C' + lex[token].value
 
 
+
+                        if optCompilerEval and optCompilerEvalDict['evalChrFunc'] and lex[token].value == 'chr(' and lex[token+1].type == 'NUMBER' and lex[token+2].type == 'RPAREN':
+                            try:
+                                lex[token].value = f"'{chr(int(lex[token + 1].value))}'"
+                                lex[token+1].type=lex[token+2].type='IGNORE'
+                                lex[token].type = 'STRING'
+                                if debug: print(f"! evalChrFunc: chr({lex[token + 1].value}) --> {lex[token].value}")
+                            except (TypeError, ValueError): pass
 
                         if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
                         and lex[token-1].type not in {'ID','ASSIGN'}:
