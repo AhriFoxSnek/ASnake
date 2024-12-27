@@ -193,7 +193,7 @@ class Lexer(Lexer):
     # IGNORE   = ignore the token, preferably deleting it later.
     # COLON    = the : character
 
-latestPythonVersionSupported='3.12'
+latestPythonVersionSupported='3.13'
 
 def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonVersion=latestPythonVersionSupported,enforceTyping=False,variableInformation={},outputInternals=False,metaInformation=False):
     # data is the string version of code for parsing
