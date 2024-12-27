@@ -1944,7 +1944,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                         elif inFrom and lex[tmpi].type == 'ID' and lex[token].value == lex[tmpi].value:
                                             search = False
-                                        elif lex[tmpi].type == 'ID' and lex[token].value == lex[tmpi].value and lex[tmpi+1].type == 'COMMA' and lex[tmpi-1].type in typeNewline:
+                                        elif lex[tmpi].type == 'ID' and lex[token].value == lex[tmpi].value and lex[tmpi+1].type == 'COMMA' and lex[tmpi-1].type in typeNewline+('COMMA',):
                                             tmptmpParenScope = 0
                                             for tt in range(tmpi,len(lex)-1):
                                                 if lex[tt].type == 'ASSIGN' and tmptmpParenScope <= 0:
