@@ -392,6 +392,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     pruneDict=True
                 tmp=thing.value[1:-1] if pruneDict else thing.value
                 for tmptok in miniLex(tmp + ' '):
+                    if tmptok.type in {'STRRAW', 'STRLIT'}: tmptok.type = 'STRING'
                     if tmptok.type == 'STRING':
                         if tmptok.value[0] == '"' and quote == '"':
                             tmptok.value = tmptok.value.replace('"', "'", 1)
