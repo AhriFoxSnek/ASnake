@@ -3204,11 +3204,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmpf=tmpf[1:]
                                 while tmpf[0] == tmpQuote:
                                     tmpf=tmpf[1:]
-                                tmpf = tmpf[:-1]
+                                while tmpf[-1] == tmpQuote:
+                                    tmpf=tmpf[:-1]
                                 if len(tmpf) == 1:
                                     lex[token].type=lex[token+1].type=lex[token+2].type=lex[token+3].type='IGNORE'
                                     tmpVar = '.'.join(lex[token].value.split('.')[:-1])
-                                    tmp=f"({tmpVar}[0] == {lex[token+2].value}) if {tmpVar} else {tmpVar}"
+                                    tmp=f"({tmpVar}[0] == '{tmpf}') if {tmpVar} else {tmpVar}"
                                     if debug: print(f"! startswith to index {lex[token].value}({lex[token + 2].value})  -->  {tmp}")
                                     autoMakeTokens(tmp,token-1)
                                     newOptimization = True
