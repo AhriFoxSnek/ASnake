@@ -1497,6 +1497,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'intToFloat': True, # main phase, not good in PyPy
                             'max2compare': True,
                             'optCythonConvertTo_libc': True,
+                            'startsWithToIndex': True,
                             }
         optConstantPropagation=True
         optMathEqual=True
@@ -1539,7 +1540,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             
         elif compileTo == 'PyPy3':
             # v seems to be slower for some reason on PyPy but faster on Python v
-            optNestedLoopItertoolsProduct=optFuncCache=optLoopToMap=optListPlusListToExtend=optFuncTricksDict['intToFloat']=False
+            optNestedLoopItertoolsProduct=optFuncCache=optLoopToMap=optListPlusListToExtend \
+           =optFuncTricksDict['intToFloat']=optFuncTricksDict['startsWithToIndex']=False
             # v faster in pypy v
             optWalrus=True
         elif compileTo == 'Pyston':
@@ -3190,6 +3192,26 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 # these Cythonization functions may break behaviour, so remove when necessary
                                 insertAtTopOfCodeIfItIsNotThere(f"from libc.math cimport {lex[token].value[:-1]} as C{lex[token].value[:-1]}")
                                 lex[token].value = 'C' + lex[token].value
+
+                            if optFuncTricks and optFuncTricksDict['startsWithToIndex'] and lex[token].type == 'BUILTINF' and lex[token].value.endswith('.startswith') \
+                            and lex[token+1].type == 'LPAREN' and lex[token+2].type == 'STRING' and lex[token+3].type == 'RPAREN':
+                                tmpf = lex[token+2].value
+                                tmpQuote = ''
+                                for i in tmpf:
+                                    if i == '"':   tmpQuote = i; break
+                                    elif i == "'": tmpQuote = i; break
+                                while tmpf[0] != tmpQuote:
+                                    tmpf=tmpf[1:]
+                                while tmpf[0] == tmpQuote:
+                                    tmpf=tmpf[1:]
+                                tmpf = tmpf[:-1]
+                                if len(tmpf) == 1:
+                                    lex[token].type=lex[token+1].type=lex[token+2].type=lex[token+3].type='IGNORE'
+                                    tmpVar = '.'.join(lex[token].value.split('.')[:-1])
+                                    tmp=f"({tmpVar}[0] == {lex[token+2].value}) if {tmpVar} else {tmpVar}"
+                                    if debug: print(f"! startswith to index {lex[token].value}({lex[token + 2].value})  -->  {tmp}")
+                                    autoMakeTokens(tmp,token-1)
+                                    newOptimization = True
 
 
 
