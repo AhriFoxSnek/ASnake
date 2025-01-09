@@ -1727,6 +1727,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if debug: print(f'! combined print: {lex[tmpFound].value}')
 
                     elif lex[token].type == 'ID':
+
                         if optConstantPropagation: # the one, the only, THE GOAT
                             tmpi=None
                             if lex[token-1].type not in typeConditionals+('OR','AND','LOOP'):
@@ -1746,14 +1747,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     elif lex[t].type in typeNewline: break
 
 
-                            if tmpi != None and lex[token + tmpi + 1].type == 'LINDEX': tmpi=tmpf=None
+                            if tmpi != None and lex[token + tmpi + 1].type == 'LINDEX':  tmpi=tmpf=None
+                            if tmpi != None and lex[token+tmpi].type in {'LIST','LPAREN','LINDEX'} \
+                            and lex[token+tmpi+1].type in {'LISTEND','RPAREN','RINDEX'}: tmpi=tmpf=None
                             if tmpi != None and token+tmpi < len(lex):
                                 tmpf=[] # get expression
                                 vartype=lex[token+tmpi].type
                                 listScope=0 ; tmpBracketScope=0 ; tmpParenScope = 0
                                 valueStop=None
                                 if vartype in {'LIST','LPAREN','LINDEX'}:
-                                    if lex[token+tmpi+1].type in {'LISTEND','RPAREN','RINDEX'}: token+=1 ; continue
                                     for t in range(token+tmpi,len(lex)-1):
                                         if lex[t].type in typeNewline and listScope==0: valueStop=t ; break
                                         elif lex[t].type in typeNewline: pass
