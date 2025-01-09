@@ -3359,7 +3359,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 tmpf.append([lex[tmpi].value.rsplit('(')[0],tmpi])
                                     elif lex[tmpi].type == 'ID':
                                         if lex[tmpi].value in assignCheck and lex[tmpi+1].type in ('ASSIGN',)+typeAssignables:
-                                            # if the thing in thing.attr is assigned in the loop, don't make this optimzation
+                                            # if the thing in thing.attr is assigned in the loop, don't make this optimization
                                             tmpf=[i for i in tmpf if lex[tmpi].value != i[0].split('.')[0]]
                                         elif lex[tmpi+1].type in ('ASSIGN',)+typeAssignables:
                                             ignoreVars.append(lex[tmpi].value)
@@ -3386,7 +3386,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         else: check=True
                                         if check == False : break
 
-                                        if '.' in t[0]: tmpname=t[0].split('.')[0]+'_'+t[0].split('.')[1]
+                                        if '.' in t[0]: tmpname='_'.join(t[0].split('.'))
                                         else: tmpname=t[0]
                                         subBy=1
                                         tmpASname = f'AS{tmpname}'
