@@ -2176,7 +2176,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                     elif lex[tmpi-1].type in typeNewline and lex[tmpi+1].type in typeNewline and lex[tmpi].type == 'ID' and lex[tmpi].value not in definedFuncs:
                                                                         # when it folds onto a bare ID, it should still print
                                                                         tmpCheck = True
-                                                                    elif (lex[tmpi-1].type in typeNewline or (lex[tmpi-1].type == 'ID' and lex[tmpi-1].value == 'print')) and all(True if l.type in ('COMMA','NUMBER','STRING','LIST','LISTEND','LINDEX','RINDEX','LPAREN','RPAREN') else False for l in tmpf ) and not checkIfInsideFSTR(tmpi):
+                                                                    elif lex[tmpi+1].type == 'COMMA' and (lex[tmpi-1].type in typeNewline or (lex[tmpi-1].type == 'ID' and lex[tmpi-1].value == 'print')) and all(True if l.type in ('COMMA','NUMBER','STRING','LIST','LISTEND','LINDEX','RINDEX','LPAREN','RPAREN') else False for l in tmpf ) and not checkIfInsideFSTR(tmpi):
                                                                         # if comma group of simple literals
                                                                         if lex[tmpi-1].type in typeNewline:
                                                                             tmpCheck = True
@@ -4416,6 +4416,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if debug: print('eliminated variable:', lex[token].value)
                             newOptimization=True
             optRounds+=1
+            
             #print(' '.join([t.value for t in lex]))
         # clean up vv
         l = 0
