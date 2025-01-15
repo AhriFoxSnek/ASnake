@@ -3221,7 +3221,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                         if optCompilerEval and optCompilerEvalDict['evalChrFunc'] and lex[token].value == 'chr(' and lex[token+1].type == 'NUMBER' and lex[token+2].type == 'RPAREN':
                             try:
-                                lex[token].value = f"'{chr(int(lex[token + 1].value))}'"
+                                if   lex[token+1].value == '92':
+                                    lex[token].value = "'\\\\'"
+                                elif lex[token+1].value == '39':
+                                    lex[token].value = "'\\\''"
+                                else:
+                                    lex[token].value = f"'{chr(int(lex[token + 1].value))}'"
                                 lex[token+1].type=lex[token+2].type='IGNORE'
                                 lex[token].type = 'STRING'
                                 if debug: print(f"! evalChrFunc: chr({lex[token + 1].value}) --> {lex[token].value}")
