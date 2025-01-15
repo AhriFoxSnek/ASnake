@@ -29,8 +29,6 @@ def execPy(code, fancy=True, pep=True, run=True, execTime=False, headless=False,
         if execTime:
             print('# autopep8 time: ', end='', flush=True)
             s = monotonic()
-        ignoreCodes=['E114', 'E115', 'E116', 'E261', 'E262', 'E265', 'E266', 'E301', 'E302', 'E305', 'E4', 'E701',
-                       'E702', 'E704', 'E722', 'E731', 'W3', 'W5', 'W6']
         cpv = python_version_tuple() ; cpv = cpv[0] + '.' + cpv[1]
         if float(version) < 3.12 <= float(cpv):
             # ^ breaks behaviour on fstrings when targeting a lower version and compiler's version is higher
