@@ -5130,7 +5130,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if lastType in typeAssignables+('BUILTINF',) and inFuncArg == False and tok.type!='LISTEND' and lastType!='LIST' \
                     and tok.type not in ('RBRACKET','LINDEX') and lex[lexIndex-1].type not in ('LBRACKET','RBRACKET') \
                     and not (lastType == 'ID' and lastValue == 'lambda' and 'lambda' not in reservedIsNowVar):
-                            if (inIf or lex[lexIndex-2].type=='LPAREN' or fstrQuote!='') and not (tok.type=='LIST' and lastType=='STRING'):
+                            if (inIf or lex[lexIndex-2].type=='LPAREN' or fstrQuote!='') and not (tok.type=='LIST' and lastType in {'STRING','ID'}):
                                 # if im 'lazy' | if im == 'lazy'
                                 line.append('== ')
                             elif (lastType in {'ID','OF'} or (lastType == 'BUILTINF' and tok.type!= 'LPAREN' and '(' not in lastValue)) and lex[lexIndex-1].value.strip() not in ('print','print(') and lex[lexIndex-2].value.strip() not in ('print','print('):
