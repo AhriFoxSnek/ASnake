@@ -3227,17 +3227,23 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
 
                         if optCompilerEval and optCompilerEvalDict['evalChrFunc'] and lex[token].value == 'chr(' and lex[token+1].type == 'NUMBER' and lex[token+2].type == 'RPAREN':
-                            try:
-                                if   lex[token+1].value == '92':
-                                    lex[token].value = "'\\\\'"
-                                elif lex[token+1].value == '39':
-                                    lex[token].value = "'\\\''"
-                                else:
-                                    lex[token].value = f"'{chr(int(lex[token + 1].value))}'"
-                                lex[token+1].type=lex[token+2].type='IGNORE'
-                                lex[token].type = 'STRING'
-                                if debug: print(f"! evalChrFunc: chr({lex[token + 1].value}) --> {lex[token].value}")
-                            except (TypeError, ValueError): pass
+                            safe=True
+                            if pythonVersion < 3.12 and lex[token+1].value in {'92','39'}:
+                                for t in range(token, 0, -1):  # check to make sure we are not in fstring first
+                                    if lex[t].type == 'FSTR' and lex[t].value.endswith('{'): safe = False ; break
+                                    elif lex[t].type in {'TAB', 'NEWLINE'}: break
+                            if safe:
+                                try:
+                                    if   lex[token+1].value == '92':
+                                        lex[token].value = "'\\\\'"
+                                    elif lex[token+1].value == '39':
+                                        lex[token].value = "'\\\''"
+                                    else:
+                                        lex[token].value = f"'{chr(int(lex[token + 1].value))}'"
+                                    lex[token+1].type=lex[token+2].type='IGNORE'
+                                    lex[token].type = 'STRING'
+                                    if debug: print(f"! evalChrFunc: chr({lex[token + 1].value}) --> {lex[token].value}")
+                                except (TypeError, ValueError): pass
 
                         if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
                         and lex[token-1].type not in {'ID','ASSIGN'}:
