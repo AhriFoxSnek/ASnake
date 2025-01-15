@@ -1732,7 +1732,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             tmpi=None
                             if lex[token-1].type not in typeConditionals+('OR','AND','LOOP'):
                                 if lex[token+1].type in typeAssignables+('FSTR',) and lex[token+1].type != 'LISTEND' and lex[token+2].type not in {'PIPE','LISTCOMP'}:
-                                    tmpi=1
+                                    if lex[token+1].type == 'BUILTINF' and lex[token+1].value[0] == '.':
+                                        tmpi=None
+                                    else:
+                                        tmpi=1
                                 elif lex[token+1].type == 'ASSIGN' and lex[token+1].value.strip() in {'is','='} and lex[token+2].type in typeAssignables+('LPAREN','LBRACKET','FUNCTION','MINUS','INS','LINDEX','FSTR') and lex[token+2].type != 'LISTEND' and lex[token+3].type != 'LISTCOMP':
                                     tmpi=2
                             if tmpi and (lex[token].value == 'print' or lex[token-1].type == 'COMMA'): tmpi=None
@@ -1779,7 +1782,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if tmpNoEqualsAssign:
                                             # fixes  x y 12 ; x ; y
                                             # it captures y 12 for x, it shouldn't
-                                            if lex[t].type not in ('ID','ASSIGN') or lex[t+1].type in typeOperators+('PIPE','RPAREN','IF'):
+                                            if lex[t].type not in ('ID','ASSIGN') or lex[t+1].type in typeOperators+('PIPE','RPAREN','IF') \
+                                            or (t == token+tmpi and lex[t-1].type == 'ASSIGN' and lex[t+1].type not in typeAssignables+('ASSIGN',)):
                                                 tmpNoEqualsAssign=False
                                         if not tmpNoEqualsAssign:
                                             if lex[t].type in typeNewline and listScope==0 and tmpBracketScope==0 and tmpParenScope==0:
@@ -2099,7 +2103,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     #print('~',lex[token].value,lex[tmpi].type,lex[tmpi].value,search,linkType,ignores,tmpi, tmpLastIndent,tmpindent)
                                                     if lex[tmpi].type == 'ID' and lex[tmpi].value==lex[token].value and (lex[tmpi+1].type not in typeAssignables+('ASSIGN',) or (lex[tmpi-1].type in typeConditionals+('OR','AND','INS') and lex[tmpi-1].type!='ELSE') or (lex[tmpi+1].type == 'ASSIGN' and 'is' in lex[tmpi+1].value and determineIfAssignOrEqual(tmpi+1)) or (lex[tmpi+1].type == 'LIST' and lex[tmpi-1].type not in typeNewline+('TYPE','CONSTANT','ELSE')+typeAssignables)) and lex[tmpi-1].type not in {'FOR','LOOP'}:
                                                         if lex[tmpi-1].type in typeConditionals and lex[tmpi+1].type == 'ASSIGN' and ':' in lex[tmpi+1].value: continue
-                                                        tmpsafe=True
+                                                        tmpsafe=True ; tmpAppendDEFEXP=False
                                                         if lex[tmpi-1].type in {'RBRACKET','RPAREN','LISTEND'} or lex[tmpi-2].type == 'COMMA':
                                                             for tmpii in range(tmpi,0,-1):
                                                                 if lex[tmpii].type == 'LOOP': tmpsafe=False ; break
@@ -2151,6 +2155,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                 elif lex[tt].type == 'ID' and lex[tt+1].type in typeAssignables: tmpDefExp=False
                                                                 elif lex[tt].type not in typePrintable: tmpDefExp=False
                                                             if tmpDefExp and tmpsafe:
+                                                                # tmpAppendDEFEXP = True
+                                                                # ^ this is 'safer' BUT im worried that the tmpStartOfline is needed somehow, idk how to test for it
                                                                 lex.insert(tmpStartOfline+1,makeToken(lex[0],'defExp','DEFEXP'))
                                                                 tmpi+=1
 
@@ -2184,7 +2190,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                             tmpf.append(makeToken(tmpf[0], '(', 'LPAREN'))
                                                                             tmpf.insert(0,makeToken(tmpf[0], ')', 'RPAREN'))
                                                                     if tmpCheck:
-                                                                        tmpf.append(makeToken(tmpf[0], 'defExp', 'DEFEXP'))
+                                                                        tmpAppendDEFEXP=True
                                                                 if len(tmpf)>=2 and tmpf[1].type == 'FSTR' == lex[tmpi-1].type:
                                                                     # when folding an fstr onto an fstr, make sure quote types dont collide
                                                                     tmpFSTRcheck=False
@@ -2221,7 +2227,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                     tmpf.append(makeToken(tmpf[0], '(', 'LPAREN'))
                                                                     tmpf.insert(0, makeToken(tmpf[0], ')', 'RPAREN'))
                                                                 lex[tmpi].type='IGNORE'
-                                                                for t in tmpf:
+                                                                tmp=[makeToken(tmpf[0], 'defExp', 'DEFEXP')] if tmpAppendDEFEXP else []
+                                                                for t in tmpf+tmp:
                                                                     lex.insert(tmpi,copy(t))
                                                                 #ignores.append(tmpi+len(tmpf))
                                                             else:
