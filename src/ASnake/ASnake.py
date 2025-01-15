@@ -3755,8 +3755,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
 
                     elif optCompilerEval and optCompilerEvalDict['evalTokens'] and ((lex[token].type in typeCheckers and lex[token].type != 'PYIS') or (lex[token].type == 'ASSIGN' and 'is' in lex[token].value and determineIfAssignOrEqual(token))) \
-                    and ( (lex[token-1].type in {'STRING','NUMBER','BOOL'} and (lex[token+1].type in {'STRING','NUMBER','BOOL'} or isANegativeNumberTokens(token+1)) and lex[token-2].type in typeConditionals+typeNewline+('AND','OR','LPAREN')) or (isANegativeNumberTokens(token-2) and (lex[token+1].type in {'STRING','NUMBER'} or isANegativeNumberTokens(token+1)) and lex[token-3].type in typeConditionals+typeNewline+('AND','OR','LPAREN') ) ):
+                    and ( (lex[token-1].type in {'STRING','NUMBER','BOOL'} and (lex[token+1].type in {'STRING','NUMBER','BOOL'} or isANegativeNumberTokens(token+1)) and (lex[token-2].type in typeConditionals+typeNewline+('AND','OR','LPAREN','ID') )) \
+                    or (isANegativeNumberTokens(token-2) and (lex[token+1].type in {'STRING','NUMBER'} or isANegativeNumberTokens(token+1)) and lex[token-3].type in typeConditionals+typeNewline+('AND','OR','LPAREN') ) ):
                         # eval bool conditionals when STRING and/or NUMBER
+
                         if lex[token].type == 'ASSIGN' and not pyCompatibility: lex[token].type = 'EQUAL'
                         tmpEndResult = None
                         if lex[token+1].type == 'MINUS':
@@ -3801,6 +3803,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             safe = True
                         elif tmpType1 in {'BOOL','NUMBER'} and tmpType2 in {'BOOL','NUMBER'}:
                             safe = True
+
 
                         if lex[token].type == 'LESS':
                             if safe:
