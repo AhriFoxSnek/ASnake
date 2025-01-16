@@ -1649,7 +1649,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if lex[token+tmpStart].type == 'STRING' and lex[token+tmpStart].value[0] not in {'"',"'"}: safe=False
                         if safe:
                             # check backwards for print
-                            safe = False ; tmpPrintIndent=tmpCurrentIndent=None ; tmpFound=-1
+                            safe = False ; tmpPrintIndent=tmpCurrentIndent=None ; tmpFound=-1 ; tmpOutOfFirstLine=False
                             for tmpi in range(token-1, 0, -1):
                                 if lex[tmpi].type in typeNewline:
                                     if lex[tmpi].type == 'NEWLINE':
@@ -1659,6 +1659,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         tmpCurrentIndent = lex[tmpi].value.count(' ')
                                         if tmpPrintIndent == None: tmpPrintIndent=tmpCurrentIndent
                                     if tmpCurrentIndent != tmpPrintIndent: break
+                                    tmpOutOfFirstLine=True
                                 elif lex[tmpi].type in {'ID','FUNCTION'} and lex[tmpi].value.startswith('print') and lex[tmpi-1].type in typeNewline:
                                     for tmpii in range(tmpi + 1, len(lex)):
                                         if lex[tmpii].type in typeNewline: break
@@ -1673,6 +1674,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             else:
                                                 tmpEndWith = tmpEndWith[1:-1]
                                     break
+                                elif lex[tmpi].type in typeConditionals and not tmpOutOfFirstLine: break
                         if tmpFound and tmpf and (lex[tmpFound].value.endswith("'''") or lex[tmpFound].value.endswith('"""'))\
                         and (tmpf.value.endswith("'''") or tmpf.value.endswith('"""')):
                             safe=False # TODO: COULD be safe, I just don't feel like handling it rn
@@ -5801,6 +5803,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                             if inIf and not tenary and not startOfLine:
                                 return AS_SyntaxError('You need to end your conditional expression.',f"if {''.join(line).replace('  ',' ')}do 'something'\n# or\n\tif {''.join(line).replace('  ',' ')}then 'something'\n# or\n\tif {''.join(line).replace('  ',' ')}\n\t\t'something'",lineNumber,data)
+
+                            if bigWrap: endOfLineChores(tok)
 
                             line.append('\n')
                             if switchCase['case']==False \
