@@ -5787,7 +5787,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if inIf:
                                 return AS_SyntaxError(
                                     "Did not begin block after 'if' conditional.",
-                                    "if True do 'something' else 'something else'",
+                                    "if True do 'thing' else 'stuff'",
                                     lineNumber, data)
                             tmpFoundIF=False ; tmpFoundReturn=False ; tmpListScope=0
                             for t in range(lexIndex,0,-1): # i guess another tenary detection of sorts
