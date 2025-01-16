@@ -5784,6 +5784,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if tok.type in {'ELSE','ELIF','OF'}:
                         if debug and tok.type == 'OF': print(switchCase) # needs to be if, not elif
                         if tok.type == 'ELSE' and not tenary and listScope <= 0: # idELSE
+                            if inIf:
+                                return AS_SyntaxError(
+                                    "Did not begin block after 'if' conditional.",
+                                    "if True do 'something' else 'something else'",
+                                    lineNumber, data)
                             tmpFoundIF=False ; tmpFoundReturn=False ; tmpListScope=0
                             for t in range(lexIndex,0,-1): # i guess another tenary detection of sorts
                                 if lex[t].type == 'RETURN': tmpFoundReturn=True
