@@ -108,6 +108,11 @@ if result is '0' then $worked
 else 'Tenary inside fstring' $failed
 
 
+$start
+if False do 1 else 2
+if result is 2 then $worked
+else 'One-line non-tenary conditional' $failed
+
 
 $start
 if True
