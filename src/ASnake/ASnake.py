@@ -410,6 +410,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmpSkip = True
                     elif tmptok.type == 'SCINOTAT':
                         tmptok.type='NUMBER'
+                    elif tmptok.value.strip() in reservedIsNowVar:
+                        tmptok.type = 'ID'
                     if tmpSkip: tmpSkip = False
                     elif token == -1:
                         lex.append(tmptok)
