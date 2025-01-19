@@ -46,3 +46,7 @@ version = {attr = "ASnake.ASnake.__version__"}
 
 [tool.setuptools.package-data]
 "ASnake.data" = ["*.bat", "*.asnake"]
+
+# just so i don't forget. steps to build and upload ASnake for PyPi:
+# 1: python -m build
+# 2: python -m twine upload dist/*
