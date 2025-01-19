@@ -281,7 +281,8 @@ if __name__ == '__main__':
     if pep or headless:
         print('# newline cleanup time: ', end='', flush=True)
         s=monotonic()
-        code=REsub(r"""\n\n+?(?=[^'"]+?|#.*?\n+?|(?:(?:[^"'\\]*?(?:\\.|'(?:[^'\\]*\\.)*?[^'\\]*?'|"(?:[^"\\]*\\.)*?[^"\\]*?"))*?[^"'\\]*?$))""",'\n',code)
+        for _ in range(3):
+            code=REsub(r"""\n\n+?(?=[^'"]+?|#.*?\n+?|(?:(?:[^"'\\]*?(?:\\.|'(?:[^'\\]*\\.)*?[^'\\]*?'|"(?:[^"\\]*\\.)*?[^"\\]*?"))*?[^"'\\]*?$))""",'\n',code)
         print(round(monotonic()-s,4))
     if compileAStoPy:
         if args.path:
