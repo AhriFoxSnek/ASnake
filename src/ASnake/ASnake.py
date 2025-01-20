@@ -3761,7 +3761,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if p[0] > 0:
                                     preAllocated.remove(p)
                         else:
-                            if min(_[0] for _ in preAllocated) > lex[token].value.count(' '): preAllocated=set()
+                            preAllocated={_ for _ in preAllocated if _[0] <= lex[token].value.count(' ')}
+                                
 
                     elif optIfTrue and lex[token].type in {'EQUAL','NOTEQ'} and lex[token + 1].type == 'BOOL' and lex[token + 1].value != 'None':
                         if (lex[token+1].value == 'False' and lex[token].type == 'EQUAL') or (lex[token+1].value == 'True' and lex[token].type == 'NOTEQ'):
