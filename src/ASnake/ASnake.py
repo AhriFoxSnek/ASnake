@@ -3385,7 +3385,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             tmpf=[i for i in tmpf if lex[tmpi].value != i[0].split('.')[0]]
                                         elif lex[tmpi+1].type in ('ASSIGN',)+typeAssignables:
                                             ignoreVars.append(lex[tmpi].value)
-                                    elif lex[tmpi].type == 'FUNCTION' and lex[tmpi].value[:-1] in pyBuiltinFunctions and lex[tmpi].value!='range(':
+                                    elif firstIndent and lex[tmpi].type == 'FUNCTION' and lex[tmpi].value[:-1] in pyBuiltinFunctions and lex[tmpi].value!='range(':
                                         # built-in functions are faster when pre-assigned
                                         tmpf.append([lex[tmpi].value[:-1],tmpi])
                                         if lex[tmpi].value[-1]=='(': lex[tmpi].value=lex[tmpi].value[:-1] # bleh fix
