@@ -105,7 +105,7 @@ class Lexer(Lexer):
     METARBKT = r'(?: |\t)*\$}(?: |\t)*\n?'
     META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n()]*=)(?=[\n \]\)\$\[+:]))|(([^+\-/*^~<>&\n()[\],=]*|(\={2}))((=.*)|(?=\n)|$|(?=[,.]))))'
     FUNCMOD = r'@.*'
-    PYDEF   = r'(c|cp)?def +([\w.\[\d:,\] ]* )?\w+ *\(((?!: *return).)*\)*( *((-> *)?\w* *):?)'
+    PYDEF   = r'(c|cp)?def +([\w.\[\d:,\] ]* )?\w+ *\(([^()]|\([^()]*\))*\)*( *((-> *)?\w* *):?)'
     PYCLASS = r'class ([a-z]|[A-Z])\w*(\(.*\))?:?'
     STRLIT  = r'(r|f)?\"\"\"[\w\W]+?\"\"\"|(r|f)?\'\'\'[\w\W]+?\'\'\''
     INDEX   = r'''(?:([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*?\.)?([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*?(?:\[[^\[\]]*(?:\[[^\[\]]*\])?[^\[\]]*\])+'''
@@ -1985,7 +1985,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 if lex[tt].type in typeNewline: break
                                                 elif (lex[tt].type == 'ID' and lex[tt].value == lex[token].value):
                                                     ignores.append(tt) ; break
-                                        elif lex[tmpi].type == 'BUILTINF' and lex[tmpi].value.split('.')[0] == lex[token].value and '.'+lex[tmpi].value.split('.')[1] in listMods+setUpdateMethods:
+                                        elif lex[tmpi].type == 'BUILTINF' and lex[tmpi].value.split('.')[0] == lex[token].value and len(lex[tmpi].value.split('.')) > 1 and '.'+lex[tmpi].value.split('.')[1] in listMods+setUpdateMethods:
                                             search=False ; linkType=False ; break # discards list mods like .append()
                                         elif lex[tmpi].type == 'SCOPE' and lex[token].value in lex[tmpi].value:
                                             search=False ; break # no global var pls
@@ -4178,11 +4178,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     tmpImportNameSplit = lex[token].value.split()
                     if len(tmpImportNameSplit) > 2 and tmpImportNameSplit[2] == 'as':
                         tmpImportedName = tmpImportNameSplit[3]+'.'
-                        for impv in wasImported[tmpImportedName]:
-                            if 'AS!' in impv: importedName = impv[3:] ; break
-                        del wasImported[tmpImportedName][wasImported[tmpImportedName].index('AS!'+importedName)]
-                        wasImported[importedName] = wasImported[tmpImportedName]
-                        del wasImported[tmpImportedName] ; del tmpImportedName
+                        if tmpImportedName in wasImported:
+                            for impv in wasImported[tmpImportedName]:
+                                if 'AS!' in impv: importedName = impv[3:] ; break
+                            del wasImported[tmpImportedName][wasImported[tmpImportedName].index('AS!'+importedName)]
+                            wasImported[importedName] = wasImported[tmpImportedName]
+                            del wasImported[tmpImportedName] ; del tmpImportedName
                     else:
                         importedName = tmpImportNameSplit[1]+'.'
                     if debug: print('import: ',lex[token].value.split()[1], wasImported[importedName] if importedName in wasImported else '[]')
@@ -5435,7 +5436,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if not tmpHideMatch:
                         switchCase['type']='case'
                         switchCase['indent']=indent
-                else:
+                elif lex[lexIndex-1].type != 'FOR':
                     return AS_SyntaxError('match is not provided a statement.','match variable',lineNumber,data)
             elif tok.type == 'IGNORENL':
                 ignoreNewline=True
@@ -5931,8 +5932,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if debug: print(indent,lastIndent[2])
                 if startOfLine==False and lastType=='INDEX': line[-1]=f" {line[-1]}"
             elif tok.type == 'FOR': #idFOR
-                if lex[lexIndex+1].value in storedVarsHistory: # reassigns
+                if   lex[lexIndex+1].value in storedVarsHistory: # reassigns
                     del storedVarsHistory[lex[lexIndex+1].value]
+                elif lex[lexIndex+1].value in ASnakeKeywords: reservedIsNowVar.append(lex[lexIndex + 1].value.strip())
                 tmpFound = False
                 if optimize and optLoopToMap and lastType in typeNewline:
                     tmpFound=optLoopToMap_Function(lexIndex)
@@ -6932,7 +6934,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 code[0]=f'{tok.value}\n{code[0]}'
             # printing value without space
             elif tok.type in {'STRRAW','FSTR','SCOPE','BUILTINF','MINUS','IMPORT','INDEX','LPAREN','RPAREN','FUNCTION','BITWISE','FUNCMOD','WITHAS','ENDIF','LBRACKET','RBRACKET', 'FSTRFRMT'}:
-                if tok.type in {'BUILTINF','INDEX','FUNCTION'}:
+                if tok.type in {'BUILTINF','INDEX','FUNCTION'}: # idFUNCTION kinda?
                     if lastType in {'ID','INDEX'}:
                         if tok.type == 'BUILTINF' and tok.value[0]=='.':
                             line[-1]+=tok.value ; continue
@@ -7059,7 +7061,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if tok.type == 'INDEX':
                         parenScope-=tok.value.count(')') ; parenScope+=tok.value.count('(')
                         listScope -= tok.value.count(']'); listScope += tok.value.count('[')
-                    if tok.value[-1] == '(': parenScope+=1
+                    elif tok.value.strip()[-1] == '(': parenScope+=1
 
                     if tok.type=='BUILTINF' and tok.value.split('.')[0] in storedVarsHistory \
                     and storedVarsHistory[tok.value.split('.')[0]]['type']=='LIST' and len(tok.value.split('.')) > 1 and '.'+tok.value.split('.')[1] in listMods and 'value' in storedVarsHistory[tok.value.split('.')[0]]:
