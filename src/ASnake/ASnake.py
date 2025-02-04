@@ -739,7 +739,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex[tmpi].value = tmpValue
                                 pipeWrap-=1
                                 break
-                    elif lex[lexIndex-1].type in {'NUMBER','STRING','ID','BUILTINF'} and lex[lexIndex-2].type != 'LOOP':
+                    elif lex[lexIndex-1].type in {'NUMBER','STRING','ID','BUILTINF','BOOL'} and lex[lexIndex-2].type != 'LOOP':
                         if lex[lexIndex-1].type == 'NUMBER' and lex[lexIndex-2].type == 'MINUS' and lex[lexIndex-3].type in typeNewline+typeConditionals+('COMMA',):
                             # include minus
                             insertAt = lexIndex-2
@@ -4990,6 +4990,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     storeVar(i,None,lex[0],tmptype)
                                     functionArgTypes[i.value]=tmptype.value
                                     if compileTo == 'Cython' and noKwargs:
+                                        if tmptype.value == 'bool': tmptype.value = 'bint'
                                         newtmp.append(f'{tmptype.value} {i.value}')
                                     else:
                                         newtmp.append(f'{i.value}: {tmptype.value}')
@@ -6749,7 +6750,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         line.append(decideIfIndentLine(indent,f"range({lex[lexIndex-1].value}, {lex[lexIndex+1].value})"))
                 elif 'into' in tok.value or (lexIndex-1>0 and lex[lexIndex-1].type == 'INTOED') or line==[]:
                     if debug: print(f'{lex[lexIndex+1].value}(',''.join(line),')')
-                    startOfLine=True # in fast mode this will create indents where they dont need to be, but when a indent is needed it does it correctly
+                    startOfLine=True # in fast mode this will create indents where they dont need to be, but when an indent is needed it does it correctly
                     if optimize and optFuncTricks and optFuncTricksDict['boolTonotnot'] and lex[lexIndex+1].value.strip() == 'bool' and line:
                         line.insert(0, decideIfIndentLine(indent, f"(not not "))
                         line.append(')')
@@ -6768,6 +6769,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if check:
                                 # inherit paren
                                 line=line[1:-1]
+                        if lex[lexIndex+1].value[-1] == '(': parenScope+=1
                         line.insert(0,decideIfIndentLine(indent,f"{lex[lexIndex+1].value}("))
                         line.append(')')
                         lex[lexIndex+1].type='INTOED'
@@ -7322,6 +7324,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 else: tmp2 = t
                                 if tmp2.endswith(','): tmp2 = tmp2[:-1]
                                 tok.value=tok.value.replace(tmp2,f"{tmp[1]}: {tmp[0]}")
+                            else:
+                                if tmp[0] == 'bool':
+                                    tmpFuncArgs[tmp[1]]='bint'
+                                    tok.value=tok.value.replace('bool '+tmp[1],'bint '+tmp[1])
                         else:
                             tmpFuncArgs[t.split('=')[0].strip()]=None
                     for arg in tmpFuncArgs:
