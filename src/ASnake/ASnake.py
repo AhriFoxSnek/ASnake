@@ -1608,7 +1608,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 print('\t- optimization round =',optimizeRound,'-')
             optimizeRound+=1
             newOptimization=False
-            preAllocated = set()  # set[tuple[indent: int , name: str]] list of allocated attributes
+            preAllocated: set[tuple[indent: int , name: str]] = set()  # list of allocated attributes
             token=0
             for blah in range(0,(len(lex)-1)*2):
                 if token <= len(lex)-1:
@@ -3252,7 +3252,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
                         and lex[token-1].type not in {'ID','ASSIGN'}:
                             # if in preAllocated, replace it
-                            if debug: print(f"! attrs: {lex[token].value} --> {'AS' + lex[token].value.replace('.', '_')}")
+                            if debug: print(f"! attrs: {lex[token].value} --> {'AS' + lex[token].value.replace('.', '_')} {lex[token+1].value}")
                             lex[token].value = 'AS' + lex[token].value.replace('.', '_')
                             if lex[token].type == 'BUILTINF':
                                 lex[token].type  = 'ID'
@@ -3422,9 +3422,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 if lex[ii].type == 'TAB':
                                                     if tmptmpIndent == None: tmptmpIndent=lex[ii].value.count(' ')
                                                     tmpCurrentIndent = lex[ii].value.count(' ')
-                                                    if tmpCurrentIndent < tmptmpIndent: break
                                                     if tmpCurrentIndent > tmptmpIndent and tmpFound: tmpFound=False ; break
-                                                    if tmpFound and lex[ii+1].type not in {'ELIF','OF','ELSE'}: tmpInsertHere = ii + 1; break
+                                                    if tmpFound and lex[ii+1].type not in {'ELIF','OF','ELSE'}:
+                                                        tmpindent=tmpCurrentIndent
+                                                        tmpInsertHere = ii + 1; break
+                                                    elif tmpCurrentIndent < tmptmpIndent: break
                                                 elif lex[ii].type == 'NEWLINE':
                                                     if tmptmpIndent == None: tmptmpIndent = 0
                                                     tmpCurrentIndent = 0
