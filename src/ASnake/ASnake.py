@@ -4353,6 +4353,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     ttenary = True
                                 elif lex[tmpi].type == 'ELSE' and ttenary:
                                     ttenary = False
+                                elif lex[tmpi].type == 'ELSE' and not ttenary and lex[tmpi-1].type in typeNewline:
+                                    tmpOutOfStartingBlock=True
                                 elif breakOnNextNL and not ttenary and lex[tmpi].type in typeNewline:
                                     break
                                 elif lex[tmpi].type == 'INDEX' and f" {lex[token].value} " in lex[tmpi].value:
@@ -5277,7 +5279,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 else:
                                     line.append(decideIfIndentLine(indent,tok.value))
                             elif lexIndex+1 <= len(lex) and tok.type != 'LISTEND':
-                                if lex[lexIndex+1].type in typeNewline+typeConditionals+('TRY','ELSE') and tok.type != 'FUNCTION':
+                                if lex[lexIndex-1].type == 'CONSTANT' and lex[lexIndex + 1].type in typeNewline:
+                                    return AS_SyntaxError('constant requires assignment',f'{lex[lexIndex - 1].value} {tok.value} = 12', lineNumber, data)
+                                elif lex[lexIndex+1].type in typeNewline+typeConditionals+('TRY','ELSE') and tok.type != 'FUNCTION':
                                     doPrint=True
                                 elif lexIndex-1 >= 0 and (lex[lexIndex-1].type in typeNewline+('TRY',) or (lexIndex-3>0 and lex[lexIndex-3].type=='LOOP') or (lex[lexIndex-1].type == 'DEFFUNCT' or (lex[lexIndex-1].type == 'TYPE' and lex[lexIndex-2].type == 'DEFFUNCT')) or (lex[lexIndex-1].type == 'ELSE' and lex[lexIndex-2].type in typeNewline) ):
                                     tmp=rParen
