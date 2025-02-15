@@ -10,6 +10,7 @@ from re import compile as REcompile
 from re import search as REsearch
 from re import findall as REfindall
 from re import MULTILINE as REMULTILINE
+from re import sub as REsub
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
@@ -7343,6 +7344,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                 if optimize and compileTo != 'MicroPython' and optFuncCache and checkIfImpureFunction(lex.index(tok),True, tmpFuncArgs ) == False:
                     optAddCache()
+                
+                if pythonVersion <= 3.08 and '->' in tok.value:
+                    tmpRE=REcompile(r' *-> *(?:tuple|list|dict|set|type)')
+                    tmp = REsearch(tmpRE, tok.value)
+                    if tmp:
+                        if pythonVersion >= 3.05:
+                            tmp=tmp[0].split(' ')[-1]
+                            insertAtTopOfCodeIfItIsNotThere(f'from typing import {tmp.capitalize()}')
+                            tok.value=REsub(tmpRE,' -> '+tmp.capitalize(),tok.value)
+                        else:
+                            tok.value = REsub(r' *-> *(?:tuple|list|dict|set|type)+ *(\[.+ *, *.+\])?', '', tok.value)
+
                 if tok.value.replace(' ','')[-1] != ':': tok.value+=':'
                 line.append(decideIfIndentLine(indent,f'{tok.value}\n'))
                 startOfLine=True ; indent+=prettyIndent
