@@ -5282,9 +5282,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lexIndex+1 <= len(lex) and tok.type != 'LISTEND':
                                 if lex[lexIndex-1].type == 'CONSTANT' and lex[lexIndex + 1].type in typeNewline:
                                     return AS_SyntaxError('constant requires assignment',f'{lex[lexIndex - 1].value} {tok.value} = 12', lineNumber, data)
-                                elif lex[lexIndex+1].type in typeNewline+typeConditionals+('TRY','ELSE') and tok.type != 'FUNCTION':
+                                elif lex[lexIndex+1].type in typeNewline+typeConditionals+('TRY','ELSE') and tok.type != 'FUNCTION' and not fstrQuote:
                                     doPrint=True
-                                elif lexIndex-1 >= 0 and (lex[lexIndex-1].type in typeNewline+('TRY',) or (lexIndex-3>0 and lex[lexIndex-3].type=='LOOP') or (lex[lexIndex-1].type == 'DEFFUNCT' or (lex[lexIndex-1].type == 'TYPE' and lex[lexIndex-2].type == 'DEFFUNCT')) or (lex[lexIndex-1].type == 'ELSE' and lex[lexIndex-2].type in typeNewline) ):
+                                elif lexIndex-1 >= 0 and ((lex[lexIndex-1].type in typeNewline+('TRY',) and not fstrQuote) or (lexIndex-3>0 and lex[lexIndex-3].type=='LOOP') or (lex[lexIndex-1].type == 'DEFFUNCT' or (lex[lexIndex-1].type == 'TYPE' and lex[lexIndex-2].type == 'DEFFUNCT')) or (lex[lexIndex-1].type == 'ELSE' and lex[lexIndex-2].type in typeNewline) ):
                                     tmp=rParen
                                     rParen+=1
                                     tmpHaveSeenOperator=False
@@ -7161,9 +7161,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 tok.value = tok.value[:splitIndex+1] # fstring
 
                     if tok.value[-1] == fstrQuote:
+                        # end of fstr
                         fstrQuote=''
                         if tenary == False and lex[lexIndex+1].type == 'ELSE':
                             lex.insert(lexIndex+1,makeToken(tok,'then','THEN'))
+                        else: tenary=False
+                        # TODO: fix this case (compiles incorrectly) v
+                        # 1 if f"{func(0,1) if True else False}x" else 2
                     elif fstrQuote=='':
                         for i in tok.value:
                             if i == '"': fstrQuote=i ; break
