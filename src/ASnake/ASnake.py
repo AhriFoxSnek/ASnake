@@ -4317,7 +4317,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             breakOnNextNL = ttenary = inCase = tmpCallsFunction = tmpOutOfAssign = tmpInConditional = tmpOutOfStartingBlock = tmpInOtherFunction = False
                             tmpCurrentIndent = tmpIndent  # tmpIndent is indent of OG var, tmpCurrentIndent is current
                             for tmpi in range(token + 1, len(lex) - 1):
-                                #print(lex[token].value,'+!',lex[tmpi].value,lex[tmpi].type,ttenary,tmpCallsFunction,tmpInOtherFunction,tmpCurrentIndent,tmpIndent)
+                                #print(lex[token].value,'+!',lex[tmpi].value,lex[tmpi].type,ttenary,inCase,tmpCallsFunction,tmpInOtherFunction,tmpCurrentIndent,tmpIndent)
                                 if not inCase and lex[tmpi].type in {'ID', 'INC', 'BUILTINF', 'FUNCTION'} and (lex[tmpi].value.replace('(', '').replace('+', '').replace('-', '') == lex[token].value or lex[token].value + '.' in lex[tmpi].value) and (not tmpInOtherFunction or not tmpInsideFunction):
                                     if lex[tmpi + 1].type != 'ASSIGN' or (lex[tmpi + 1].value.strip() not in {'=', 'is'} or determineIfAssignOrEqual(tmpi + 1)):
                                         check = False
@@ -4363,7 +4363,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 elif lex[tmpi].type == 'OF' and 'case' in lex[tmpi].value:
                                     inCase = True
                                 elif lex[tmpi].type == 'IF':
-                                    inCase = False;
+                                    inCase = False
                                     tmpInConditional = True
                                 elif lex[tmpi].type in {'ELIF', 'OF'}:
                                     tmpInConditional = True
@@ -4388,6 +4388,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmpInConditional = False
                                 elif not tmpSkipCheck and not tmpOutOfAssign and lex[tmpi].type == 'FUNCTION':
                                     tmpCallsFunction = True
+                                elif lex[tmpi].type == 'SCOPE' and lex[token].value in ''.join(lex[tmpi].value.split(' ')[1:]).split(','):
+                                    check = False
                                 if not check: break
 
                                 #tmpDEBUG = 'pretemp'
