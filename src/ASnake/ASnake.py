@@ -162,7 +162,7 @@ class Lexer(Lexer):
     FOR     = r'for(?= |\t)'
     LOOP    = r'loop(?= |\n)'
     ASYNC   = r'(async|await)(?= |\t)'
-    CONSTANT= r'const(ant)?'
+    CONSTANT= r'const(ant)?[ \t]+'
     ANYOF   = r'(any|all|each) +(of )?'
     INS     = r'(not|in)( |(?=\n))'
     ARE     = r"(arent|aren\'t|are)(?= |\n|\t)"
