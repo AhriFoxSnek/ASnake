@@ -5361,7 +5361,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.type == 'LISTCOMP': # idLISTCOMP
                 if lex[lexIndex+1].type == 'ASSIGN' or (lex[lexIndex+1].type == 'BUILTINF' and lex[lexIndex+2].type == 'ASSIGN'):
                     # not a list comp, but a type assign
-                    line.append(tok.value)
+                    line.append(decideIfIndentLine(indent,tok.value))
                     tok.type='ID' ; tok.type = lex[lexIndex-1].type
                 elif bracketScope > 0:
                     # not a list comp, but inside of a dict
@@ -5371,7 +5371,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     listcomp={}
                     for i in miniLex(tmp+' '):
                         lex.insert(lexIndex+1,i)
-                elif lex[lexIndex+1].type == 'LIST' and lastType in typeNewline: line.append(tok.value) # Python nested typing
+                elif lex[lexIndex+1].type == 'LIST' and lastType in typeNewline: line.append(decideIfIndentLine(indent,tok.value)) # Python nested typing
                 else:
                     if compileTo == 'Cython' and lexIndex-2 > 0 and lex[lexIndex-2].type in typeNewline+('DEFFUNCT',):
                         line.append(decideIfIndentLine(indent,'AStempVar = '))
