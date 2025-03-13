@@ -214,7 +214,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     'LESSEQ':'<=','EQUAL':'==','ASSIGN':'=','NOTHING':'pass','NOTEQ':'!=','BUILTINF':'.','OF':'elif',
     'AND':'and','OR':'or','RETURN':'return','FOR':'for','MODULO':'%','EXPONENT':'**','COMMA':',',
     'LISTEND':']','ELLIPSIS':'...','constLPAREN':'(','COLON':':','LINDEX':'[','RINDEX':']',
-    "DQUOTE":'"',"SQUOTE":"'", 'LBRACKET':'{','RBRACKET':'}'}
+    "DQUOTE":'"',"SQUOTE":"'", 'LBRACKET':'{','RBRACKET':'}','PYIS':' is '}
 
     convertType={'int':'NUMBER','float':'NUMBER','Py_ssize_t':'NUMBER','bool':'BOOL','bint':'BOOL','str':'STRING','list':'LIST','dict':'DICT','type':'TYPE','tuple':'TUPLE','set':'SET','bytes':'STRING','object':'ID','range':'FUNCTION','complex':'NUMBER','frozenset':'FUNCTION','bytearray':'STRING','memoryview':'FUNCTION'}
     cythonConvertType = {'int': 'long long int', 'bool': 'bint', 'float': 'double'}
@@ -1502,6 +1502,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'max2compare': True,
                             'optCythonConvertTo_libc': True,
                             'startsWithToIndex': True,
+                            'idToIs': True,
                             }
         optConstantPropagation=True
         optMathEqual=True
@@ -2678,7 +2679,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex[token + 1].type = 'EXPONENT' ; lex[token + 2].value = '**'
                             lex[token + 2].type = 'NUMBER' ; lex[token + 2].value = '2'
 
-
                     elif lex[token].type == 'META':
                         metaCall=lex[token].value.replace('$','').replace(' ','').lower()
                         metaCallSplit = metaCall.split('=')[0]
@@ -3202,13 +3202,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 autoMakeTokens(f"({tmp1st} if {tmp1st} > {tmp2nd} else {tmp2nd})",token)
                                 if debug: print(f"! max2compare: max({tmp1st},{tmp2nd}) --> ({tmp1st} if {tmp1st} > {tmp2nd} else {tmp2nd})")
 
-                            if compileTo == 'Cython' and optFuncTricks and optFuncTricksDict['optCythonConvertTo_libc'] \
+                            if compileTo == 'Cython' and optFuncTricksDict['optCythonConvertTo_libc'] \
                             and lex[token].type == 'FUNCTION' and lex[token].value in {'log(', 'abs(','floor(','remainder(','cos(','tan(','acos('}:
                                 # these Cythonization functions may break behaviour, so remove when necessary
                                 insertAtTopOfCodeIfItIsNotThere(f"from libc.math cimport {lex[token].value[:-1]} as C{lex[token].value[:-1]}")
                                 lex[token].value = 'C' + lex[token].value
 
-                            if optFuncTricks and optFuncTricksDict['startsWithToIndex'] and lex[token].type == 'BUILTINF' and lex[token].value.endswith('.startswith') \
+                            if optFuncTricksDict['startsWithToIndex'] and lex[token].type == 'BUILTINF' and lex[token].value.endswith('.startswith') \
                             and lex[token+1].type == 'LPAREN' and lex[token+2].type == 'STRING' and lex[token+3].type == 'RPAREN':
                                 tmpf = lex[token+2].value
                                 tmpQuote = ''
@@ -3228,6 +3228,19 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     if debug: print(f"! startswith to index {lex[token].value}({lex[token + 2].value})  -->  {tmp}")
                                     autoMakeTokens(tmp,token-1)
                                     newOptimization = True
+
+                            elif optFuncTricksDict['idToIs'] and lex[token].type == 'FUNCTION' and lex[token].value.startswith('id') and lex[token+1].type == 'ID' and lex[token+2].type == 'RPAREN' and lex[token+3].type == 'EQUAL' \
+                            and lex[token+4].type == 'FUNCTION' and lex[token+4].value.startswith('id') and lex[token+5].type == 'ID' and lex[token+6].type == 'RPAREN':
+                                tmp=(lex[token+1].value,lex[token+5].value)
+                                lex[token].type=lex[token+1].type=lex[token+2].type=lex[token+3].type=lex[token+4].type=lex[token+5].type=lex[token+6].type="IGNORE"
+                                if pyIs:
+                                    autoMakeTokens(f"{tmp[0]} is {tmp[1]}", token-1)
+                                else:
+                                    lex.insert(token, makeToken(lex[token], tmp[1], 'ID'))
+                                    lex.insert(token, makeToken(lex[token], 'is', 'PYIS'))
+                                    lex.insert(token, makeToken(lex[token], tmp[0], 'ID'))
+                                if debug:
+                                    print(f"!idToIs: id({tmp[0]}) == id({tmp[1]})  -->  {tmp[0]} is {tmp[1]}")
 
 
 
