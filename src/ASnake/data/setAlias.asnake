@@ -80,26 +80,29 @@ elif platform.system() is 'Linux'
     except do nothing
 
     pyCall = 'python'
-    if len(check_output(['which', 'python3']).decode()) > 0
-          pyCall = 'python3'
-    
-    def fixVersionNumber(version):
-      tmp = str(version).split('.')
-      if len(tmp[-1]) == 1:
-          # convert sub .10 versions to have a 0
-          # like 3.7 -> 3.07
-          version=float(tmp[0]+'.0'+tmp[1])
-      return version
-    try
-      finds = check_output("find /usr/bin /usr/local/bin -maxdepth 1 -name 'python*' | sort -V", shell=True).decode()
-      finds = finds.split('\n')
-      finds = [fullmatch(r"(?:.*\/)+python3(?:\.\d+)?(?!-.+)",f) for f in finds]
-      finds = [f.group() for f in finds if f isnt None and '.' in f.group()]
-      finds2=[float(fixVersionNumber(f.split('/')[-1].replace('python',''))) for f in finds]
-      pyCall=[f for f in finds if str(max(finds2)) in f][0]
-    except
-      pass
-    
+    if len(check_output(['which', 'pacman']).decode()) == 0 
+      # Arch based system will have python always default to latest
+      # otherwise, we should try and find the latest installed version
+      if len(check_output(['which', 'python3']).decode()) > 0
+            pyCall = 'python3'
+      
+      def fixVersionNumber(version):
+        tmp = str(version).split('.')
+        if len(tmp[-1]) == 1:
+            # convert sub .10 versions to have a 0
+            # like 3.7 -> 3.07
+            version=float(tmp[0]+'.0'+tmp[1])
+        return version
+      try
+        finds = check_output("find /usr/bin /usr/local/bin -maxdepth 1 -name 'python*' | sort -V", shell=True).decode()
+        finds = finds.split('\n')
+        finds = [fullmatch(r"(?:.*\/)+python3(?:\.\d+)?(?!-.+)",f) for f in finds]
+        finds = [f.group() for f in finds if f isnt None and '.' in f.group()]
+        finds2=[float(fixVersionNumber(f.split('/')[-1].replace('python',''))) for f in finds]
+        pyCall=[f for f in finds if str(max(finds2)) in f][0]
+      except
+        pass
+      
     print "The following shells were found:"
     print f"\tbash={bash} zsh={zsh} fish={fish}"
     user = "Would you like to add ASnake as an alias to all of the detected shells? (N/y): " to input
