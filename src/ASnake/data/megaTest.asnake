@@ -387,7 +387,7 @@ if result is 'E' do $worked
 else 'pipe number in fstring' $failed
 
 $start
-loop 12 i to str * 2
+loop 12 itervar to str * 2
 if result is '1111' do $worked
 else 'pipe loop iterator var' $failed
 
