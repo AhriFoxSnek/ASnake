@@ -1977,7 +1977,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                         elif inFrom and lex[tmpi].type == 'ID' and lex[token].value == lex[tmpi].value:
                                             search = False
-                                        elif lex[tmpi].type == 'ID' and lex[token].value == lex[tmpi].value and lex[tmpi+1].type == 'COMMA' and lex[tmpi-1].type in typeNewline+('COMMA',):
+                                        elif lex[tmpi].type == 'ID' and lex[token].value == lex[tmpi].value and lex[tmpi+1].type == 'COMMA' and lex[tmpi-1].type in typeNewline+('COMMA','ENDIF'):
                                             tmptmpParenScope = 0
                                             for tt in range(tmpi,len(lex)-1):
                                                 if lex[tt].type == 'ASSIGN' and tmptmpParenScope <= 0:
@@ -2107,7 +2107,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 print('tokens',lex[token].value,'=',''.join([f.value for f in tmpf[::-1]]))
                                             else: print('str',lex[token].value,'=',''.join([f for f in tmpf]))
 
-                                        tmpLastIndent = 0
+                                        tmpLastIndent = 0 ; tmpFirstIndent=True
                                         for tmpi in range(valueStop,len(lex)):
                                             if inFrom or inCase:
                                                 if lex[tmpi].type in typeNewline: inFrom=inCase=False
@@ -2125,7 +2125,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                                 if search and ignore == False:
                                                     #print('~',lex[token].value,lex[tmpi].type,lex[tmpi].value,search,linkType,ignores,tmpi, tmpLastIndent,tmpindent)
-                                                    if lex[tmpi].type == 'ID' and lex[tmpi].value==lex[token].value and (lex[tmpi+1].type not in typeAssignables+('ASSIGN',) or (lex[tmpi-1].type in typeConditionals+('OR','AND','INS') and lex[tmpi-1].type!='ELSE') or (lex[tmpi+1].type == 'ASSIGN' and 'is' in lex[tmpi+1].value and determineIfAssignOrEqual(tmpi+1)) or (lex[tmpi+1].type == 'LIST' and lex[tmpi-1].type not in typeNewline+('TYPE','CONSTANT','ELSE')+typeAssignables)) and lex[tmpi-1].type not in {'FOR','LOOP'}:
+                                                    if lex[tmpi].type == 'ID' and lex[tmpi].value==lex[token].value and (lex[tmpi+1].type not in typeAssignables+('ASSIGN',) or (lex[tmpi-1].type in typeConditionals+('OR','AND','INS') and lex[tmpi-1].type!='ELSE') or (lex[tmpi+1].type == 'ASSIGN' and 'is' in lex[tmpi+1].value and determineIfAssignOrEqual(tmpi+1)) or (lex[tmpi+1].type == 'LIST' and lex[tmpi-1].type not in typeNewline+('TYPE','CONSTANT','ELSE')+typeAssignables)) and lex[tmpi-1].type not in {'FOR','LOOP','ENDIF'}:
                                                         if lex[tmpi-1].type in typeConditionals and lex[tmpi+1].type == 'ASSIGN' and ':' in lex[tmpi+1].value: continue
                                                         tmpsafe=True ; tmpAppendDEFEXP=False
                                                         if lex[tmpi-1].type in {'RBRACKET','RPAREN','LISTEND'} or lex[tmpi-2].type == 'COMMA':
@@ -2337,14 +2337,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             lex[tmpi].value = f"{tmp[0]}{tmpt}{tmp[1]}"
                                                     elif lex[tmpi].type in typeNewline:
                                                         if lex[tmpi].type == 'NEWLINE':
-                                                            tmpLastIndent = 0
+                                                            tmpLastIndent = 0 ; tmpFirstIndent = True
                                                         elif lex[tmpi].type == 'TAB':
-                                                            tmpLastIndent = lex[tmpi].value.count(' ')
+                                                            tmpLastIndent = lex[tmpi].value.count(' ') ; tmpFirstIndent = True
                                                         elif lex[tmpi].type == 'END':
                                                             # END decreases the indent, which can confuse propagation. Thus we must keep track of it.
                                                             tmpLastIndent -= prettyIndent
                                                             if tmpLastIndent < 0: tmpLastIndent = 0
-                                                        if tmpindent > tmpLastIndent: search = False
+                                                        if tmpindent > tmpLastIndent and not tmpFirstIndent: search = False
                                                     elif lex[tmpi].type in typeConditionals and lex[tmpi-1].type in typeNewline:
                                                         inLoop[1]+=prettyIndent
                                                     if (lex[tmpi].type=='TAB' and lex[tmpi].value.replace('\t',' ').count(' ') < tmpindent) \
