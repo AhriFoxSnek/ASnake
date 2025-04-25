@@ -104,7 +104,7 @@ class Lexer(Lexer):
     PYPASS  = r"p!(.|\n)+?!p"
     METALBKT = r'(?: |\t)*\${(?: |\t)*\n?'
     METARBKT = r'(?: |\t)*\$}(?: |\t)*\n?'
-    META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n()]*=)(?=[\n \]\)\$\[+:]))|(([^+\-/*^~<>&\n()[\],=]*|(\={2}))((=.*)|(?=\n)|$|(?=[,.]))))'
+    META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n()]*=)(?=[\n \]\)\$\[+:}]))|(([^+\-/*^~<>&\n()[\],=]*|(\={2}))((=.*)|(?=\n)|$|(?=[,.]))))'
     FUNCMOD = r'@.*'
     PYDEF   = r'''(c|cp)?def +([\w.\[\d:,\] ]* )?\w+ *\(([^()]|\((?:[^()]|'.*[()]+.*'|".*[()]+.*")*\))*\)*( *((-> *[\w\[\], {}]+)? *):?)(?!return)'''
     PYCLASS = r'class ([a-z]|[A-Z])\w*(\(.*\))?:?'
@@ -1685,7 +1685,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                     for tmpii in range(tmpi + 1, len(lex)):
                                         if lex[tmpii].type in typeNewline: break
-                                        elif lex[tmpii].type in {'FSTR','STRING','NUMBER'} and lex[tmpii-1].type not in {'ASSIGN','TIMES'} \
+                                        elif lex[tmpii].type in {'FSTR','STRING','NUMBER'} and lex[tmpii-1].type not in {'ASSIGN','TIMES','FUNCTION'} \
                                         and ((lex[tmpii+1].type in typeNewline or (lex[tmpii+1].type == 'RPAREN' and lex[tmpii+2].type in typeNewline)) \
                                         or (lex[tmpii+1].type == 'COMMA' and lex[tmpii+2].type == 'ID' and lex[tmpii+2].value == 'end' and lex[tmpii+3].type == 'ASSIGN')):
                                             safe=True ; tmpFound=tmpii
@@ -4247,6 +4247,27 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex[token].type = 'BOOL'
                             lex[token+1].type = 'IGNORE'
                             newOptimization = True
+                        elif not lex[token].value.startswith('"""') and not lex[token].value.startswith("'''") and not lex[token+1].value.startswith('"""') and not lex[token+1].value.startswith("'''"):
+                            # regular combine string. not handling triple quotes because im lazy. maybe some day.
+                            tmpQuote=False
+                            for char in lex[token].value:
+                                if char in {'"',"'"}: tmpQuote = char ; break
+                            if lex[token+1].value[-1] == tmpQuote: safe = True
+                            elif tmpQuote in lex[token+1].value:
+                                if '\\'+tmpQuote in lex[token+1].value:
+                                    safe = True
+                                    for cc in range(1,len(lex[token+1].value)-1):
+                                        if lex[token+1].value[cc] == tmpQuote and lex[token+1].value[cc-1] != '\\': safe=False ; break
+                            if safe:
+                                if debug: tmpOG = lex[token+0].value,lex[token+1].value
+                                while lex[token+1].value[0] not in {'"',"'"}:
+                                    lex[token+1].value = lex[token+1].value[1:]
+                                lex[token+1].value = lex[token + 1].value[1:-1]
+                                lex[token].value=lex[token].value[:-1]+lex[token+1].value+tmpQuote
+                                lex[token+1].type = 'IGNORE'
+                                newOptimization=True
+                                if debug: print(f"! compileTimeEval  {tmpOG[0]} {tmpOG[1]} --> {lex[token].value}")
+
                     if optCompilerEval \
                     and ((lex[token-1].type == 'LPAREN' and lex[token+1].type == 'RPAREN' and (lex[token-2].type in ('LPAREN','ASSIGN','DEFEXP')+typeNewline+typeOperators or (lex[token-2].type == 'FUNCTION' and lex[token-2].value[-1] == '(')) and lex[token].type != 'FUNCTION') \
                     or (lex[token-1].type == 'MINUS' and lex[token-2].type == 'LPAREN' and lex[token+1].type == 'RPAREN' and (lex[token-3].type in ('LPAREN','ASSIGN','DEFEXP')+typeNewline+typeOperators or (lex[token-3].type == 'FUNCTION' and lex[token-3].value[-1] == '(')) and lex[token].type != 'FUNCTION')):
