@@ -3196,7 +3196,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex[token].type = lex[token+2].type = 'IGNORE'
                                 if  lex[token+1].type == 'NUMBER':
                                     lex[token+1].type = 'STRING' ; lex[token+1].value = f'"{lex[token+1].value}"'
-                                elif lex[token+1].type == 'STRING':
+                                if lex[token-1].type in typeNewline and lex[token+3].type in typeNewline:
                                     lex[token].type = 'DONTDEXP'
                                 if debug and lex[token+1].type == 'NUMBER': print(f'! evalStr: str({lex[token + 1].value}) --> "{lex[token + 1].value}"')
                                 elif debug: print(f'! evalStr: str({lex[token + 1].value}) --> {lex[token + 1].value}')
@@ -3310,7 +3310,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if safe:
                                     lex[token].type = 'NUMBER'
                                     lex[token + 1].type = lex[token + 2].type = 'IGNORE'
-                                    if lex[token-1].type in typeNewline: lex.insert(token,makeToken(lex[token],'','DONTDEXP'))
+                                    if lex[token-1].type in typeNewline and lex[token+3].type in typeNewline: lex.insert(token,makeToken(lex[token],'','DONTDEXP'))
 
                         if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
                         and lex[token-1].type not in {'ID','ASSIGN'}:
