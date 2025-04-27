@@ -1321,7 +1321,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 # already defined function is being redefined, thus not a line wrap, thus deconvert it to ID
                 lex[lexIndex].value = lex[lexIndex].value[:-1] ; lex[lexIndex].type = 'ID' ;  wrapParenEndOfLine -= 1
             if lex[lexIndex].type != 'ID':
-                return AS_SyntaxError(rf'{lex[lexIndex].value} is not a valid function name.\n\tFunction names should start with a letter or underscore.\n\tAvoid character literals like ()\!=<>/\\\'"*^%#@:&$.'+'{}','myFunction does',lineNumber,data)
+                return AS_SyntaxError(rf'{lex[lexIndex].value} is not a valid function name.\n\tFunction names should start with a letter or underscore.\n\tAvoid character literals like ()\!=<>/\\\'"*^%#@:&$.' + '{}','myFunction does', lineNumber, data)
             if lex[lexIndex].value not in definedFunctions: definedFunctions[lex[lexIndex].value] = currentTab
             # ^ store function name and current indent
             lex.append(tok)
@@ -1529,6 +1529,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             'evalIntToFloat': True,
             'evalNotBoolInversion': True,  # Only provides performance to pypy, but its easy enough to leave it default
             'evalChrFunc': True,
+            'evalIntFunc': True,
         }
         optPow=True
         optDeadVariableElimination=True
@@ -3264,24 +3265,52 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
 
 
-                        if optCompilerEval and optCompilerEvalDict['evalChrFunc'] and lex[token].value == 'chr(' and lex[token+1].type == 'NUMBER' and lex[token+2].type == 'RPAREN':
-                            safe=True
-                            if pythonVersion < 3.12 and lex[token+1].value in {'92','39'}:
-                                for t in range(token, 0, -1):  # check to make sure we are not in fstring first
-                                    if lex[t].type == 'FSTR' and lex[t].value.endswith('{'): safe = False ; break
-                                    elif lex[t].type in {'TAB', 'NEWLINE'}: break
-                            if safe:
-                                try:
-                                    if   lex[token+1].value == '92':
-                                        lex[token].value = "'\\\\'"
-                                    elif lex[token+1].value == '39':
-                                        lex[token].value = "'\\\''"
-                                    else:
-                                        lex[token].value = f"'{chr(int(lex[token + 1].value))}'"
-                                    lex[token+1].type=lex[token+2].type='IGNORE'
-                                    lex[token].type = 'STRING'
-                                    if debug: print(f"! evalChrFunc: chr({lex[token + 1].value}) --> {lex[token].value}")
-                                except (TypeError, ValueError): pass
+                        if optCompilerEval:
+                            if optCompilerEvalDict['evalChrFunc'] and lex[token].value == 'chr(' and lex[token+1].type == 'NUMBER' and lex[token+2].type == 'RPAREN':
+                                safe=True
+                                if pythonVersion < 3.12 and lex[token+1].value in {'92','39'}:
+                                    for t in range(token, 0, -1):  # check to make sure we are not in fstring first
+                                        if lex[t].type == 'FSTR' and lex[t].value.endswith('{'): safe = False ; break
+                                        elif lex[t].type in {'TAB', 'NEWLINE'}: break
+                                if safe:
+                                    try:
+                                        if   lex[token+1].value == '92':
+                                            lex[token].value = "'\\\\'"
+                                        elif lex[token+1].value == '39':
+                                            lex[token].value = "'\\\''"
+                                        else:
+                                            lex[token].value = f"'{chr(int(lex[token + 1].value))}'"
+                                        lex[token+1].type=lex[token+2].type='IGNORE'
+                                        lex[token].type = 'STRING'
+                                        if debug: print(f"! evalChrFunc: chr({lex[token + 1].value}) --> {lex[token].value}")
+                                    except (TypeError, ValueError): pass
+                            elif optCompilerEvalDict['evalIntFunc'] and lex[token].value == 'int(' and lex[token+1].type in {'STRRAW','STRING','NUMBER'} and lex[token+2].type == 'RPAREN':
+                                # int('12') --> 12
+                                safe=True
+                                if lex[token + 1].type == 'STRING' and stripStringQuotes(lex[token + 1].value).startswith('0x'):
+                                    # int("0x99") --> 153   string would normally cause ValueError.
+                                    # this is an error correction, meaning it does break behaviour, but in a way that fixes a bug
+                                    try:
+                                        lex[token].value = f"{int(stripStringQuotes(lex[token + 1].value), 0)}"
+                                    except ValueError: safe=False
+                                else: # all other cases
+                                    tmpOG = lex[token + 1].value ; tmpIsHex = False
+                                    if lex[token+1].type in {'STRRAW','STRING'}: lex[token+1].value = f"{stripStringQuotes(lex[token+1].value)}"
+                                    elif lex[token+1].type == 'NUMBER' and lex[token+1].value.startswith('0x'): tmpIsHex=True
+                                    try:
+                                        if tmpIsHex:
+                                            lex[token].value = f"{int(lex[token+1].value, 0)}"
+                                        else:
+                                            lex[token].value = f"{int(lex[token+1].value)}"
+                                    except ValueError:
+                                        if lex[token + 1].type in {'STRRAW', 'STRING'}:
+                                            return AS_SyntaxError(f'Inside of int({tmpOG}) a ValueError occurs.\n\tString needs to be an integer or float.','int("12")', lex[token].lineno, data)
+                                        safe = False ; lex[token+1].value = tmpOG
+                                    del tmpOG
+                                if safe:
+                                    lex[token].type = 'NUMBER'
+                                    lex[token + 1].type = lex[token + 2].type = 'IGNORE'
+                                    if lex[token-1].type in typeNewline: lex.insert(token,makeToken(lex[token],'','DONTDEXP'))
 
                         if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
                         and lex[token-1].type not in {'ID','ASSIGN'}:
@@ -4361,7 +4390,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             del wasImported[importedName]
                     
                 elif optDeadVariableElimination and lex[token].type == 'ID' and lex[token].value != 'print':
-                    if ((lex[token + 1].type in typeAssignables and lex[token+1].type!='LIST') or (lex[token + 1].type=='ASSIGN' and lex[token + 1].value in ('=','is','is '))) and lex[token - 1].type in typeNewline + ('CONSTANT', 'TYPE'):
+                    if ((lex[token].value not in definedFuncs and lex[token + 1].type in typeAssignables and lex[token+1].type!='LIST') or (lex[token + 1].type=='ASSIGN' and lex[token + 1].value in ('=','is','is '))) and lex[token - 1].type in typeNewline + ('CONSTANT', 'TYPE'):
                         delPoint = tmpIndent = None ; check = True ; tmpReplaceWithPass = inCase = isConstant = outOfBlock = False
                         tmpCurrentIndent = 0 ; tmpParenScope=0
                         # tmpIndent is var's indent, tmpCurrentIndent is iterations indent
