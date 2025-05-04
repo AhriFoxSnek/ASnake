@@ -104,9 +104,9 @@ class Lexer(Lexer):
     PYPASS  = r"p!(.|\n)+?!p"
     METALBKT = r'(?: |\t)*\${(?: |\t)*\n?'
     METARBKT = r'(?: |\t)*\$}(?: |\t)*\n?'
-    META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n()]*=)(?=[\n \]\)\$\[+:}]))|(([^+\-/*^~<>&\n()[\],=]*|(\={2}))((=.*)|(?=\n)|$|(?=[,.]))))'
+    META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n()]*=)(?=[\n \]\)\$\[+:};(]))|(([^+\-/*^~<>&\n()[\],=]*|(\={2}))((=.*)|(?=\n)|$|(?=[,.]))))'
     FUNCMOD = r'@.*'
-    PYDEF   = r'''(c|cp)?def +([\w.\[\d:,\] ]* )?\w+ *\(([^()]|\((?:[^()]|'.*[()]+.*'|".*[()]+.*")*\))*\)*( *((-> *[\w\[\], {}]+)? *):?)(?!return)'''
+    PYDEF   = r'''(c|cp)?def +([\w.\[\d:,\] ]* )?\w+ *\(([^()]|\((?:[^)]|'.*[()]+.*'|".*[()]+.*")*\))*\)*( *((-> *[\w\[\], {}]+)? *):?)(?!return)'''
     PYCLASS = r'class ([a-z]|[A-Z])\w*(\(.*\))?:?'
     STRLIT  = r'(r|f)?\"\"\"[\w\W]+?\"\"\"|(r|f)?\'\'\'[\w\W]+?\'\'\''
     INDEX   = r'''(?:([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*?\.)?([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*?(?:\[[^\[\]]*(?:\[[^\[\]]*\])?[^\[\]]*\])+'''
@@ -1040,8 +1040,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif tok.type in {'STRAW','STRLIT','STRING'}:
             if tok.type in {'STRRAW','STRLIT'}: tok.type='STRING'
             if tok.value[0] in 'fF':
-                if optimize and len([i for i in ('{','}') if i not in tok.value])>0:
+                if len([i for i in ('{','}') if i not in tok.value])>0:
                     tok.value=tok.value[1:] # optimization if f-string doesnt use {} then convert to regular string, better performance
+                    # produces better behaviour for the compiler, so do it even if optimization isn't on
                 else:
                     tok=copy(createFString(tok))
             lex.append(tok)
@@ -1520,7 +1521,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         optWalrus=False # seems to be only faster in pypy
         optLoopAttr=True
         optStrFormatToFString=True
-        optCompilerEval=True # pyfuzz indicates there is likely breaking behaviour
+        optCompilerEval=False # pyfuzz indicates there is likely breaking behaviour
         optCompilerEvalDict = {
             'evalTokens': True, # generic math and string type evals
             'evalLen': True,
@@ -1876,21 +1877,23 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                     linkType = True if (enforceTyping or compileTo == 'Cython') else False
 
-                                    tmpindent = 0  # keeping track if constant is in indented block
-                                    tmpFoundIndent = tmpFoundThen = tmpInTypeWrap = tmpCheckForDef = False
+                                    tmpindent = 0  # keeping track if constant is in indented block. this is THE CONSTANTS indent
+                                    tmpFoundIndent = tmpFoundThen = tmpInTypeWrap = tmpCheckForDef = tmpOutOfBlock = False
                                     # tmpCheckForDef when not False, checks to see if inside function before canceling optimization
                                     tmptmpIndent = 0  # keeping track of backwards current indent
                                     for tmpi in range(token - 1, 0, -1):
                                         # checks backwards to make sure its valid, also gets indent
                                         if lex[tmpi].type == 'TAB':
                                             if not tmpFoundIndent:
-                                                tmptmpIndent = tmpindent = lex[tmpi].value.replace('\t', ' ').count(' ')
+                                                tmptmpIndent = tmpindent = lex[tmpi].value.replace('\t', ' ').count(' ') // prettyIndent
                                                 if lex[tmpi + 1].type in typeConditionals:
                                                     tmpindent += 1
+                                                elif lex[tmpi + 1].type == 'TYPEWRAP':
+                                                    tmpIndent -= 1
                                                 tmpFoundIndent = True
-                                            elif lex[tmpi].value.replace('\t', ' ').count(' ') < tmpindent:
-                                                if lex[tmpi + 1].type == 'TYPEWRAP':
-                                                    tmptmpIndent -= 1
+                                            tmptmpIndent = lex[tmpi].value.replace('\t', ' ').count(' ') // prettyIndent
+                                            if tmpFoundIndent and tmptmpIndent == tmpindent and lex[tmpi + 1].type == 'TYPEWRAP':
+                                                tmpInTypeWrap = False
                                         elif lex[tmpi].type == 'NEWLINE':
                                             if not tmpFoundIndent:
                                                 if lex[tmpi + 1].type == 'TYPEWRAP':
@@ -1904,15 +1907,19 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         # don't check THENs for indent
                                         elif lex[tmpi].type == 'THEN' and lex[tmpi - 1].type not in {'TAB', 'NEWLINE'}:
                                             tmpFoundThen = True
-                                        elif lex[tmpi].type == 'TYPEWRAP':
-                                            tmpInTypeWrap = True
+                                        elif lex[tmpi].type == 'TYPEWRAP' and not tmpOutOfBlock:
+                                            tmpInTypeWrap = True ; tmpOutOfBlock = True
                                         elif tmpindent > tmptmpIndent and lex[tmpi].type == 'ID' and lex[tmpi].value == lex[token].value:
                                             tmpCheckForDef = True  # previous version of self found on previous indent, bail!
                                         elif tmpCheckForDef and lex[tmpi].type in {'PYDEF', 'DEFFUNCT'}:
-                                            tmpCheckForDef = False
+                                            tmpCheckForDef = False ; tmpOutOfBlock = True
                                         elif lex[tmpi].type == 'PYCLASS':
-                                            linkType=False
+                                            linkType=False ; tmpOutOfBlock = True
+                                        elif lex[tmpi].type in {'ELIF','OF','WHILE','LOOP'}: tmpOutOfBlock = True
+                                        elif lex[tmpi].type in {'ELSE','IF'} and lex[tmpi-1].type in typeNewline: tmpOutOfBlock = True
                                         #print(lex[token].value, lex[tmpi].type, tmptmpIndent, tmpindent)
+                                    if tmpInTypeWrap: tmpindent-=1
+                                    tmpindent *= prettyIndent
 
                                     def handleIgnoreOnNL():
                                         nonlocal tmpAddToIgnoresWhenNL, ignores, tmpi
@@ -1929,8 +1936,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     # inDef i think is for determining if its the name of a function??
                                     tmpIDshow=0 ; tmpAddToIgnoresWhenNL = 0
                                     #print('-----')
-                                    for tmpi in range(valueStop+1,len(lex)): # check if we can determine its a constant
-                                        #print(lex[token].value,search,lex[tmpi].type,lex[tmpi].value,ignores,tmpAddToIgnoresWhenNL,tmpi,tmpIDshow)
+                                    for tmpi in range(valueStop,len(lex)): # check if we can determine its a constant
+                                        #print(lex[token].value,search,lex[tmpi].type,lex[tmpi].value,ignores,tmpAddToIgnoresWhenNL,tmpi,tmpIDshow,tttIndent)
                                         if not search and (enforceTyping and not linkType): break
                                         if lex[tmpi].type=='INC' or (tmpi+1 < len(lex) and lex[tmpi+1].type=='LINDEX' and lex[tmpi].value in (lex[token].value,)+tmpListOfVarsInside) \
                                         or ((lex[tmpi].type in {'ID','INC'} and lex[tmpi].value.replace('++','').replace('--','') in (lex[token].value,)+tmpListOfVarsInside and (lex[tmpi-1].type not in {'ELIF','OF','IF','OR','AND','FSTR'})  ) and lex[tmpi+1].type in typeAssignables+('ASSIGN',) ):
@@ -7341,6 +7348,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         for i in tok.value:
                             if i == '"': fstrQuote=i ; break
                             elif i == "'": fstrQuote=i ; break
+                        if fstrQuote == tok.value[-1] and tok.value.count(fstrQuote) == 2 and tok.value[-2] != '\\':
+                            # convert to regular string
+                            tok.value=tok.value[1:]
+                            tok.type='STRING'
+                            fstrQuote=''
                     for tmpi in range(lexIndex+1,len(lex)-1):
                         # convert all strings inside fstring to be opposite quote
                         if lex[tmpi].type == 'STRING' and lex[tmpi].value[0] == fstrQuote:
