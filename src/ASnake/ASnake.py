@@ -4543,7 +4543,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         # if var is in function default argument like:
                                         # def thing(arg=var)
                                         check = False
-                                    elif tmpOutOfStartingBlock: tmpInOtherFunction = True
+                                    elif tmpOutOfStartingBlock and tmpCurrentIndent<tmpIndent: tmpInOtherFunction = True
                                 elif lex[tmpi].type in typeNewline:
                                     if not ttenary: tmpOutOfAssign = True
                                     if lex[tmpi].type == 'NEWLINE':
