@@ -277,12 +277,6 @@ if __name__ == '__main__':
         s=round(monotonic()-s,4)
         if debug: print('# build time:', s)
         else: print(s)
-    if pep or headless:
-        print('# newline cleanup time: ', end='', flush=True)
-        s=monotonic()
-        for _ in range(3):
-            code=REsub(r"""\n\n+?(?=[^'"]+?|#.*?\n+?|(?:(?:[^"'\\]*?(?:\\.|'(?:[^'\\]*\\.)*?[^'\\]*?'|"(?:[^"\\]*\\.)*?[^"\\]*?"))*?[^"'\\]*?$))""",'\n',code)
-        print(round(monotonic()-s,4))
     if compileAStoPy:
         if args.path:
             if WINDOWS:
@@ -300,14 +294,19 @@ if __name__ == '__main__':
         ASFile='.'.join(ASFile.rsplit('.')[:-1])
         ASFile = "".join(x for x in ASFile.split('/')[-1] if x.isalnum())
         fileName=f'{ASFile}.py{"x" if compileTo=="Cython" else ""}'
-        if pep:
+        if pep or headless:
             print('# format time: ', end='', flush=True)
             s = monotonic()
-            if float(pythonVersion) < 3.12 <= float(cpv) or compileTo == 'Cython':
-                # ^ breaks behaviour on fstrings when targeting a lower version and compiler's version is higher
-                code = fix_code(code, options={'ignore': ignoreCodes + ('E501',)})
-            else:
-                code = format_string('tmpFormat', code)
+            for _ in range(3):
+                code = REsub(
+                    r"""\n\n+?(?=[^'"]+?|#.*?\n+?|(?:(?:[^"'\\]*?(?:\\.|'(?:[^'\\]*\\.)*?[^'\\]*?'|"(?:[^"\\]*\\.)*?[^"\\]*?"))*?[^"'\\]*?$))""",
+                    '\n', code)
+            if pep:
+                if float(pythonVersion) < 3.12 <= float(cpv) or compileTo == 'Cython':
+                    # ^ breaks behaviour on fstrings when targeting a lower version and compiler's version is higher
+                    code = fix_code(code, options={'ignore': ignoreCodes + ('E501',)})
+                else:
+                    code = format_string('tmpFormat', code)
             print(round(monotonic() - s, 4))
         if filePath=='/': filePath=''
         if ASFileExt == 'py' and path.isfile(filePath+fileName):
