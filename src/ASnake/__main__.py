@@ -5,6 +5,7 @@ except ImportError:
 
 # dependencies
 from autopep8 import fix_code
+from ruff_api import format_string
 
 # standard library
 from subprocess import check_output, CalledProcessError, STDOUT
@@ -27,17 +28,15 @@ def fetchErrorLine(error_message, theCode):
 def execPy(code, fancy=True, pep=True, run=True, execTime=False, headless=False, runtime='Python', windows=False, runCommand=None, version=latestPythonVersionSupported, sourceCode=''):
     if pep:
         if execTime:
-            print('# autopep8 time: ', end='', flush=True)
+            print('# format time: ', end='', flush=True)
             s = monotonic()
         cpv = python_version_tuple() ; cpv = cpv[0] + '.' + cpv[1]
         if float(version) < 3.12 <= float(cpv):
             # ^ breaks behaviour on fstrings when targeting a lower version and compiler's version is higher
-            fix_code(code, options={'ignore': ignoreCodes+('E501',)})
+            code = fix_code(code, options={'ignore': ignoreCodes+('E501',)})
         else:
-            fix_code(code, options={'ignore': ignoreCodes})
+            code = format_string('tmpFormat', code)
 
-
-        code = fix_code(code, options={'ignore': ignoreCodes})
         if execTime:
             print(round(monotonic() - s, 4))
     if fancy:
@@ -302,13 +301,13 @@ if __name__ == '__main__':
         ASFile = "".join(x for x in ASFile.split('/')[-1] if x.isalnum())
         fileName=f'{ASFile}.py{"x" if compileTo=="Cython" else ""}'
         if pep:
-            print('# autopep8 time: ', end='', flush=True)
+            print('# format time: ', end='', flush=True)
             s = monotonic()
             if float(pythonVersion) < 3.12 <= float(cpv) or compileTo == 'Cython':
                 # ^ breaks behaviour on fstrings when targeting a lower version and compiler's version is higher
-                fix_code(code, options={'ignore': ignoreCodes + ('E501',)})
+                code = fix_code(code, options={'ignore': ignoreCodes + ('E501',)})
             else:
-                fix_code(code, options={'ignore': ignoreCodes})
+                code = format_string('tmpFormat', code)
             print(round(monotonic() - s, 4))
         if filePath=='/': filePath=''
         if ASFileExt == 'py' and path.isfile(filePath+fileName):
