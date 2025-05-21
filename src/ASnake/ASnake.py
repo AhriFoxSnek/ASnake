@@ -68,10 +68,12 @@ class Calc(ast.NodeVisitor):
     def evaluate(cls, expression):
         return str(cls().visit(ast.parse(expression).body[0]))
 
+showWarning = True
 class Lexer(Lexer):
 
     def error(self, t):
-        print(f"# ASnake {ASnakeVersion} Warning: Illegal character in:\n'''\n{t.value}'''")
+        if showWarning:
+            print(f"# ASnake {ASnakeVersion} Warning: Illegal character in:\n'''\n{t.value}'''")
         self.index += 1
 
     # Set of token names.   This is always required
@@ -194,6 +196,7 @@ class Lexer(Lexer):
 latestPythonVersionSupported='3.13'
 
 def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonVersion=latestPythonVersionSupported,enforceTyping=False,variableInformation={},outputInternals=False,metaInformation=False):
+    global showWarning # for disabling syntax warnings for miniLex, can produce warnings that are not the users fault
     # data is the string version of code for parsing
     # optimize when True will enable optimization phase and optimizations, False will disable any optimizations.
     # comment when True will output comments in the final file, False will attempt to have minimal comments.
@@ -707,7 +710,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     preLex=[t for t in preLex if t.type != 'IGNORE']
     ignoreIndentation = metaInformation[2]
 
-
+    showWarning=False
     # start of prephase
     # warning to self, when checking previous token, do not do lexIndex-1, lexIndex is the previous, as current token hasn't been added yet
     for tok in preLex:
@@ -7964,6 +7967,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         for t in reversed(tmp):
             code.insert(0,t.value)
     if debug: print('len of lex',len(lex)-1)
+    showWarning=True
     if outputInternals:
         metaInformation=[inlineReplace,expPrint,ignoreIndentation,functionPassing,pyIs,autoEnumerate,intVsStrDoLen,metaDefaultExpressionWithFunction,functionLineWrap]
         return ('\n'.join(code), lex, storedVarsHistory,metaInformation)
