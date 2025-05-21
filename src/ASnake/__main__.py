@@ -25,17 +25,25 @@ def fetchErrorLine(error_message, theCode):
     except IndexError:
         return False
 
+def formatCode(code, version, cpv):
+    for _ in range(3):
+        code = REsub(
+            r"""\n\n+?(?=[^'"]+?|#.*?\n+?|(?:(?:[^"'\\]*?(?:\\.|'(?:[^'\\]*\\.)*?[^'\\]*?'|"(?:[^"\\]*\\.)*?[^"\\]*?"))*?[^"'\\]*?$))""",
+            '\n', code)
+    if float(version) < 3.12 <= float(cpv):
+        # ^ breaks behaviour on fstrings when targeting a lower version and compiler's version is higher
+        code = fix_code(code, options={'ignore': ignoreCodes + ('E501',)})
+    else:
+        code = format_string('tmpFormat', code)
+    return code
+
 def execPy(code, fancy=True, pep=True, run=True, execTime=False, headless=False, runtime='Python', windows=False, runCommand=None, version=latestPythonVersionSupported, sourceCode=''):
     if pep:
         if execTime:
             print('# format time: ', end='', flush=True)
             s = monotonic()
         cpv = python_version_tuple() ; cpv = cpv[0] + '.' + cpv[1]
-        if float(version) < 3.12 <= float(cpv):
-            # ^ breaks behaviour on fstrings when targeting a lower version and compiler's version is higher
-            code = fix_code(code, options={'ignore': ignoreCodes+('E501',)})
-        else:
-            code = format_string('tmpFormat', code)
+        code = formatCode(code, version, cpv)
 
         if execTime:
             print(round(monotonic() - s, 4))
@@ -297,16 +305,7 @@ if __name__ == '__main__':
         if pep or headless:
             print('# format time: ', end='', flush=True)
             s = monotonic()
-            for _ in range(3):
-                code = REsub(
-                    r"""\n\n+?(?=[^'"]+?|#.*?\n+?|(?:(?:[^"'\\]*?(?:\\.|'(?:[^'\\]*\\.)*?[^'\\]*?'|"(?:[^"\\]*\\.)*?[^"\\]*?"))*?[^"'\\]*?$))""",
-                    '\n', code)
-            if pep:
-                if float(pythonVersion) < 3.12 <= float(cpv) or compileTo == 'Cython':
-                    # ^ breaks behaviour on fstrings when targeting a lower version and compiler's version is higher
-                    code = fix_code(code, options={'ignore': ignoreCodes + ('E501',)})
-                else:
-                    code = format_string('tmpFormat', code)
+            code = formatCode(code, pythonVersion, cpv)
             print(round(monotonic() - s, 4))
         if filePath=='/': filePath=''
         if ASFileExt == 'py' and path.isfile(filePath+fileName):
