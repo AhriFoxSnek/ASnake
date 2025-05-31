@@ -4536,7 +4536,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             break
                                         elif lex[tmpii].type == 'NEWLINE':
                                             tmp = 0 ; break
-                                    if tmp < tmpIndent:
+                                    if tmp < tmpIndent and tmpVarIsDefinedInFunction:
                                         breakOnNextNL = True
                                 elif lex[tmpi].type == 'ASSIGN' and ':' not in lex[tmpi].value and lex[tmpi + 1].type == 'IF':
                                     ttenary = True
@@ -4580,7 +4580,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     check = False
                                 if not check: break
 
-                                #tmpDEBUG = 'deckAsSet'
+                                #tmpDEBUG = 'testVar'
                                 #if debug and lex[token].value == tmpDEBUG and lex[tmpi].type == 'ID' and lex[tmpi].value == tmpDEBUG: print(inCase,tmpInOtherFunction,tmpInsideFunction);exit()
                             if tmpSkipCheck:
                                 varWasFolded.remove(lex[token])
