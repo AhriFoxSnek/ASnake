@@ -5,7 +5,7 @@ except ImportError:
 
 # dependencies
 from autopep8 import fix_code
-from ruff_api import format_string
+from ruff_api import format_string, errors
 
 # standard library
 from subprocess import check_output, CalledProcessError, STDOUT
@@ -36,7 +36,11 @@ def formatCode(code, version, compileTo='Python'):
         # ^ breaks behaviour on fstrings when targeting a lower version and compiler's version is higher
         code = fix_code(code, options={'ignore': ignoreCodes + ('E501',)})
     else:
-        code = format_string('tmpFormat', code)
+        try:
+            code = format_string('tmpFormat', code)
+        except errors.ParseError:
+            # fall back to autopep8
+            code = fix_code(code, options={'ignore': ignoreCodes})
     return code
 
 def execPy(code, fancy=True, pep=True, run=True, execTime=False, headless=False, runtime='Python', windows=False, runCommand=None, version=latestPythonVersionSupported, sourceCode=''):
