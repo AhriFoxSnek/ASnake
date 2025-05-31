@@ -5986,7 +5986,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if tok.type in {'ELSE','ELIF','OF'}:
                         if debug and tok.type == 'OF': print(switchCase) # needs to be if, not elif
                         if tok.type == 'ELSE' and not tenary and listScope <= 0: # idELSE
-                            if inIf:
+                            if inIf and parenScope == 0:
                                 return AS_SyntaxError(
                                     "Did not begin block after 'if' conditional.",
                                     "if True do 'thing' else 'stuff'",
