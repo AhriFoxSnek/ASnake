@@ -100,17 +100,17 @@ class Lexer(Lexer):
     # simplifying expressions tends to be good though
     # order is important, top takes most precedence, bottom least
     SHEBANG = r'#(!| *cython:) *.*'
-    COMMENT = r'''(?=(\t| ))*?#.*?(!#|(?=\n|$))'''
-    TAB     = r'\n(>>>|\.\.\.)?((\t| )+)'
+    COMMENT = r'[\t ]*?#.*?(!#|(?=\n|$))'
+    TAB     = r'\n(>>>|\.\.\.)?[\t ]+'
     NEWLINE = r'\n'
     PYPASS  = r"p!(.|\n)+?!p"
-    METALBKT = r'(?: |\t)*\${(?: |\t)*\n?'
-    METARBKT = r'(?: |\t)*\$}(?: |\t)*\n?'
+    METALBKT= r'[ \t]*\${[ \t]*\n?'
+    METARBKT= r'[ \t]*\$}[ \t]*\n?'
     META    = r'\$ *?((\w+(?![^+\-/*^~<>&\n()]*=)(?=[\n \]\)\$\[+:};(]))|(([^+\-/*^~<>&\n()[\],=]*|(\={2}))((=.*)|(?=\n)|$|(?=[,.]))))'
     FUNCMOD = r'@.*'
     PYDEF   = r'''(c|cp)?def +([\w.\[\d:,\] ]* )?\w+ *\(([^()]|\((?:[^)]|'.*[()]+.*'|".*[()]+.*")*\))*\)*( *((-> *[\w\[\], {}]+)? *):?)(?!return)'''
     PYCLASS = r'class ([a-z]|[A-Z])\w*(\(.*\))?:?'
-    STRLIT  = r'(r|f)?\"\"\"[\w\W]+?\"\"\"|(r|f)?\'\'\'[\w\W]+?\'\'\''
+    STRLIT  = r'[rf]?\"\"\"[\w\W]+?\"\"\"|[rf]?\'\'\'[\w\W]+?\'\'\''
     INDEX   = r'''(?:([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*?\.)?([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*?(?:\[[^\[\]]*(?:\[[^\[\]]*\])?[^\[\]]*\])+'''
     LIST    = r'\['
     LISTEND = r'\]'
@@ -124,7 +124,7 @@ class Lexer(Lexer):
     TYPEWRAP= fr'({"|".join(defaultTypes)})( ?\[\w*\])? *: *(#.*)?(?=\n)'
     TYPE    = '\\s%s\\s'%f'({"|".join(defaultTypes)})'
     LAMBDA  = r'lambda ?(\w* *,?)*:'
-    FSTRFRMT= r':,? *(?:\=?[*=.]?[><^|%.+])?(?:(?:\d+(?:\.\d+)?[dfxsn%]?)| *[dbxXogGeEncs](?![^}])|(?: *%[YmdHMS][:-]? *)+)'  # for formatting at end of fstrings brackets
+    FSTRFRMT= r':,? *+(?:\=?[*=.]?[><^|%.+])?(?:(?:\d+(?:\.\d+)?[dfxsn%]?)| *+[dbxXogGeEncs](?![^}])|(?: *+%[YmdHMS][:-]? *+)+)'  # for formatting at end of fstrings brackets
     LISTCOMP= r'''\-?\w*: ([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*(?!"|')'''
     STRING  = r"([fubFUB]?\"\"\"(?:[^\"\\]|\\.|\"(?!\"\"))*\"\"\")|([fubFUB]?'''(?:[^'\\]|\\.|'(?!''))*''')|([fubFUB]?\"(?:\\.|[^\"\\])*\")|([fubFUB]?'(?:\\.|[^'\\])*')"
     LBRACKET= r'{'
@@ -134,51 +134,51 @@ class Lexer(Lexer):
     EQUAL   = r'==|equals?(?= |\t)'
     NOTIN   = r"isn'?t +in( |(?=\n))"
     NOTEQ   = r'!=|isnt|isn\'t|not +equal|unequal'
-    LESSEQ  = r'(<=)|(=<)|≤'
-    GREATEQ = r'(>=)|(=>)|≥'
-    OR      = r'(\|\||or)(?= |\t)'
-    BITWISE = r'(\^|~|\||&|(<<)|(>>))(?!=)'
+    LESSEQ  = r'<=|=<|≤'
+    GREATEQ = r'>=|=>|≥'
+    OR      = r'(\|\||or)(?=[ \t])'
+    BITWISE = r'[\^~|&]|<<|>>(?!=)'
     ASSIGN  = r'''=|is( |(?=("|'|{|\[|\()))|(\+|-|\*\*?|\/\/?|:|%|>>|<<|\^|~|\||&)='''
     LESS    = r'<|((is )?less (than )?)|(lesser (than )?)'
     GREATER = r'>|((is )?greater (than )?)'
     ENDIF   = r': *'
-    DEFFUNCT= r'(c|cp)?does(?= |\n|\t)'
+    DEFFUNCT= r'(c|cp)?does(?=[ \n\t])'
     SCOPE   = r'(global|local|nonlocal) (\w* *,?)*'
     THEN    = r'((then|do|then +do|, +then|, +do|, +then +do)(?=\s))|;|(:(?=\n)+)'
     WITHAS  = r'(with|(?![^\w\d])as) '
     WHILE   = r'while '
     NOTHING = r'(pass|nothing,?)(?= |$|\n)'
     MATCH   = r'match +'
-    EXPONENT= r'\*\*|power(?:\sof(?= |\t))?(?= |\t)|exponent(?= |\t)'
-    OF      = r'((case)|(of))( |(?=[\W]))'
+    EXPONENT= r'\*\*|power(?:\sof(?= |\t))?(?= |\t)|exponent(?=[ \t])'
+    OF      = r'(case|of)([ \t]|(?=[\W]))'
     END     = r'end(?=\s|;)'
     PIPE    = r'(into|to)(?!\S)'
-    PIPEGO  = r'pipe(?= |\t)'
-    AND     = r'and(?= |\t)'
-    FROM    = r'from(?= |\t)'
+    PIPEGO  = r'pipe(?=[ \t])'
+    AND     = r'and(?=[ \t])'
+    FROM    = r'from(?=[ \t])'
     RETURN  = r'(return|yield +from|yield|del|raise|assert)(?=[\W\d\n]|$)'
-    BREAK   = r'(break|continue)(?= |\n|\t)'
+    BREAK   = r'(break|continue)(?=[ \n\t])'
     FOR     = r'for(?= |\t)'
     LOOP    = r'loop(?= |\n)'
-    ASYNC   = r'(async|await)(?= |\t)'
-    CONSTANT= r'const(ant)?[ \t]+'
+    ASYNC   = r'(async|await)(?=[ \t])'
+    CONSTANT= r'const(?:ant)?[ \t]+'
     ANYOF   = r'(any|all|each) +(of )?'
     INS     = r'(not|in)( |(?=\n))'
-    ARE     = r"(arent|aren\'t|are)(?= |\n|\t)"
+    ARE     = r"(arent|aren\'t|are)(?=[ \n\t])"
     BOOL    = r'True|False|None'
-    MODULO  = r'%|modulo(?= |\n|\t)|remainder(?= |\n|\t)'
+    MODULO  = r'%|modulo(?= |\n|\t)|remainder(?=[ \n\t])'
     INC     = r'((\+{2}|\-{2})[^\[\]\(\)\+\-\/\*\d\s,=][^\s\+\-\/\*,\(\)=><]*(\[.*\])?)|([^\[\]\(\)\+\-\/\*\d\s,=][^\s\+\-\/\*,=]*(\[.*\])?(\+{2}|\-{2}))'
-    HEXDEC  = r'((?<!\w)0[xXob][0-9a-fA-F]+(?!\w))'
-    SCINOTAT= r'(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE]\d+)'
+    HEXDEC  = r'(?<!\w)0[xXob][0-9a-fA-F]+(?!\w)'
+    SCINOTAT= r'(?:0|[1-9]\d*)(?:\.\d+)?[eE]\d+'
     NUMBER  = r'(((( \-\d|\d)\d*\.?\d*)|(\-?\.))(e(-|\+)\d+)?\.?_*\d*j?)'
-    BINARY  = r'0(o|O|x|X|b|B)\d+'
-    MINUS   = r'-|minus(?= |\t)'
-    PLUS    = r'\+|plus(?= |\t)'
-    TIMES   = r'\*|times(?= |\t)'
+    BINARY  = r'0[oOxXbB]\d+'
+    MINUS   = r'-|minus(?=[ \t])'
+    PLUS    = r'\+|plus(?=[ \t])'
+    TIMES   = r'\*|times(?=[ \t])'
     DIVMOD  = r'///'
-    RDIVIDE = r'//|r(ound ?)?divide( +by)?(?= |\t)'
-    DIVIDE  = r'/|divide( +by)?(?= |\t)'
-    ID      = r'([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*'
+    RDIVIDE = r'//|r(ound ?)?divide( +by)?(?=[ \t])'
+    DIVIDE  = r'/|divide( +by)?(?=[ \t])'
+    ID      = r'(?>[a-zA-Z_][\w]*|[^\u0000-\u007F\s](?:[^\u0000-\u007F\s]|[\w])*)'
     ELLIPSIS= r'\.\.\.'
     DQUOTE  = r'"'
     SQUOTE  = r"'"
@@ -654,9 +654,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     prettyIndent = 4
     # v converts leading tabs to space v
     leadingTabs = REcompile(r"""(?<=\n)\t+(?![\w\s]*('|"){3})""")
-    while REsearch(leadingTabs, data):
-        match = REsearch(leadingTabs, data)
-        data = data[:match.start()] + (' ' * (match.group().count('\t') * prettyIndent)) + data[match.end():]
+    data = leadingTabs.sub(lambda m: ' ' * (len(m.group()) * prettyIndent), data)
 
     #meta
     if metaInformation:
