@@ -178,7 +178,7 @@ class Lexer(Lexer):
     DIVMOD  = r'///'
     RDIVIDE = r'//|r(ound ?)?divide( +by)?(?=[ \t])'
     DIVIDE  = r'/|divide( +by)?(?=[ \t])'
-    ID      = r'(?>[a-zA-Z_][\w]*|[^\u0000-\u007F\s](?:[^\u0000-\u007F\s]|[\w])*)'
+    ID      = r'(?:[a-zA-Z_][\w]*|[^\u0000-\u007F\s](?:[^\u0000-\u007F\s]|[\w])*)'
     ELLIPSIS= r'\.\.\.'
     DQUOTE  = r'"'
     SQUOTE  = r"'"
