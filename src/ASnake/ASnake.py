@@ -247,6 +247,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     metaElseVersion = {'elseVersion','elseIfVersion','elsever'}
     metaFunctionLineWrap = {'funcWrap','functionLineWrap','functionWrap','fwrap'}
     metaPyFunc = {'funcPass','funcpass','passFunction','functionPass','pyfunc','pyFunc'}
+    metaDefExp = {'defexp','defaultExpression','defaultPrint','expPrint','defprint'}
+    metaIgnoreDefExpFunc = {'noDefExpOnFunc', 'defExpIgnoreFunction', 'defaultExpressionIgnoreFunction', 'ignoreDefExpFunction'}
 
     if compileTo == 'PyPy3' and (pythonVersion == latestPythonVersionSupported or (not isinstance(pythonVersion, str) and pythonVersion > 3.8)):
                                 pythonVersion='3.10'
@@ -1130,40 +1132,43 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lex.append(tok)
 
             elif tok.value.split('=')[0].replace(' ','').replace('$','') in inlineReplace or any(i for i in inlineReplace if f'${i}' in tok.value):
-                if debug: print('inlineReplace',inlineReplace)
-                while '$ ' in tok.value: tok.value = tok.value.replace('$ ', '$')
-                tmpAddThisInline=[]
-                def inlineReplaceFunc(tok):
-                    nonlocal lexIndex, tmpAddThisInline
-                    while tok.value!='' and len([i for i in inlineReplace if f'${i}' in tok.value]) > 0:
-                        tmp=tok.value.split()[0]
-                        if ',' in tmp: tmp=tmp.split(',')[0]
-                        tmp=tmp.strip()
-                        tmp=[i for i in inlineReplace if f'${i}' == tmp]
-                        if debug: print(tok.value)
-                        if tmp:
-                            tmp=tmp[0]
-                            for t in miniLex(inlineReplace[tmp]+' '):
-                                if t.type == 'ID' and t.value in defaultTypes and t.value not in reservedIsNowVar:
-                                    if preLex[preLexIndex].type == 'PIPE': t.type = 'FUNCTION'
-                                    else: t.type = 'TYPE'
-                                if t.type == 'META':
-                                    inlineReplaceFunc(t)
-                                else:
-                                    t.lineno = lineNumber
-                                    tmpAddThisInline.append(t)
-                                    if debug: print('--',t)
-                            #print(tok.value.lstrip('$'+tmp)) ; exit()
-                            while tok.value[0]==' ': tok.value=tok.value[1:]
-                            tok.value=tok.value.lstrip('$'+tmp)
-                        for t in miniLex(tok.value.rsplit('$')[0]+' '):
-                            tok.value=tok.value.replace(t.value,'')
-                            t.lineno = lineNumber
-                            tmpAddThisInline.append(t)
-                            if debug: print('---',t)
-                lexIndex-=1 # cuz the meta counts as a token i think
-                inlineReplaceFunc(tok)
-                for t in reversed(tmpAddThisInline): preLex.insert(preLexIndex,t)
+                if '=' in tok.value and tok.value.replace('$','').split('=')[0].strip() in metaDefExp:
+                    lex.append(tok)
+                else:
+                    if debug: print('inlineReplace',inlineReplace)
+                    while '$ ' in tok.value: tok.value = tok.value.replace('$ ', '$')
+                    tmpAddThisInline=[]
+                    def inlineReplaceFunc(tok):
+                        nonlocal lexIndex, tmpAddThisInline
+                        while tok.value!='' and len([i for i in inlineReplace if f'${i}' in tok.value]) > 0:
+                            tmp=tok.value.split()[0]
+                            if ',' in tmp: tmp=tmp.split(',')[0]
+                            tmp=tmp.strip()
+                            tmp=[i for i in inlineReplace if f'${i}' == tmp]
+                            if debug: print(tok.value)
+                            if tmp:
+                                tmp=tmp[0]
+                                for t in miniLex(inlineReplace[tmp]+' '):
+                                    if t.type == 'ID' and t.value in defaultTypes and t.value not in reservedIsNowVar:
+                                        if preLex[preLexIndex].type == 'PIPE': t.type = 'FUNCTION'
+                                        else: t.type = 'TYPE'
+                                    if t.type == 'META':
+                                        inlineReplaceFunc(t)
+                                    else:
+                                        t.lineno = lineNumber
+                                        tmpAddThisInline.append(t)
+                                        if debug: print('--',t)
+                                #print(tok.value.lstrip('$'+tmp)) ; exit()
+                                while tok.value[0]==' ': tok.value=tok.value[1:]
+                                tok.value=tok.value.lstrip('$'+tmp)
+                            for t in miniLex(tok.value.rsplit('$')[0]+' '):
+                                tok.value=tok.value.replace(t.value,'')
+                                t.lineno = lineNumber
+                                tmpAddThisInline.append(t)
+                                if debug: print('---',t)
+                    lexIndex-=1 # cuz the meta counts as a token i think
+                    inlineReplaceFunc(tok)
+                    for t in reversed(tmpAddThisInline): preLex.insert(preLexIndex,t)
             elif metaCall.startswith(tuple(metaFunctionLineWrap)):
                 functionLineWrap = metaHandling(tok.value, functionLineWrap)
                 lex.append(tok)
@@ -7632,13 +7637,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
             elif tok.type == 'META': # idMETA
                 tmpf=tok.value.split('=')[0].replace(' ','').replace('$','') # needs replace instead of strip()
-                if tmpf in {'defexp','defaultExpression','defaultPrint','expPrint','defprint'}:
+                if tmpf in metaDefExp:
                     tmp=tok.value[tok.value.index('=')+1:]
                     if tmp.strip() == '':
                         expPrint.append('')
                     else:
                         while tmp[0] == ' ': tmp=tmp[1:]
                         while tmp[-1] == ' ': tmp=tmp[:-1]
+                        if '$' in tmp:
+                            if tmp.count('$') > 1:
+                                for tmptmp in tmp.split('$'):
+                                    if tmptmp.strip() in inlineReplace:
+                                        tmp = tmp.replace('$' + tmptmp, inlineReplace[tmptmp.strip()])
+                            elif tmp[0] == '$' and tmp.replace('$','') in inlineReplace:
+                                tmp = inlineReplace[tmp.replace('$','')]
                         expPrint.append(tmp)
                     expPrint[0]=indent
                 elif tmpf in metaIgnoreIndent:
@@ -7670,7 +7682,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         code.append(f'# Compile target changed to {compileTo}{tmp}')
                     pythonVersion = tmp
                     # in pre-phase it already checked if it was float, no need for try except
-                elif tmpf in {'noDefExpOnFunc','defExpIgnoreFunction','defaultExpressionIgnoreFunction','ignoreDefExpFunction'}:
+                elif tmpf in metaIgnoreDefExpFunc:
                     metaDefaultExpressionWithFunction = metaHandling(tok.value, metaDefaultExpressionWithFunction)
 
 
