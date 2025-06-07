@@ -685,7 +685,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     wrapParenEndOfLine=0
     definedVars={}
 
-    
+
     preLex=list(lexer.tokenize('\n'+data+' \n')) ; preLexIndex=0
     # ^^ needs newline at the start
     # wow a prephase for the prephase, brilliant design. sarcasm.
@@ -1537,6 +1537,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             'evalNotBoolInversion': True,  # Only provides performance to pypy, but its easy enough to leave it default
             'evalChrFunc': True,
             'evalIntFunc': True,
+            'evalStrCenter':True,
         }
         optPow=True
         optDeadVariableElimination=True
@@ -1560,7 +1561,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             optNestedLoopItertoolsProduct=optFuncCache=False
             # v prevents Cython-ization v
             optLoopToMap=optLoopAttr=optFuncTricksDict['max2compare']=False
-            
+
         elif compileTo == 'PyPy3':
             # v seems to be slower for some reason on PyPy but faster on Python v
             optNestedLoopItertoolsProduct=optFuncCache=optLoopToMap=optListPlusListToExtend \
@@ -2255,7 +2256,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                             if t.type == 'FSTR':
                                                                                 if   t.value[-1] == lex[tmpFSTRcheck].value[1]: t.value = t.value[:-1]+tmpFSTRq
                                                                                 elif t.value[ 1] == lex[tmpFSTRcheck].value[1]: t.value = 'f'+tmpFSTRq+t.value[2:]
-                                                                
+
                                                                 if len(tmpf)>=2 and tmpf[1].type == 'FSTR' and lex[tmpi+1].type == 'FSTR':
                                                                     # a ID and FSTR with nothing inbetween implies comparison,
                                                                     # whereas FSTR + FSTR implies addition
@@ -3333,6 +3334,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex[token].type = 'NUMBER'
                                     lex[token + 1].type = lex[token + 2].type = 'IGNORE'
                                     if lex[token-1].type in typeNewline and lex[token+3].type in typeNewline: lex.insert(token,makeToken(lex[token],'','DONTDEXP'))
+                            elif optCompilerEvalDict['evalStrCenter'] and lex[token].type == 'BUILTINF' and lex[token].value[0] in {'"',"'"} and lex[token].value.endswith('.center') and lex[token+1].type == 'LPAREN' and lex[token+2].type == 'NUMBER' and '.' not in lex[token+2].value and ((lex[token+3].type == 'COMMA' and lex[token+4].type == 'STRING' and len(stripStringQuotes(lex[token+4].value)) == 1 and lex[token+5].type == 'RPAREN') or (lex[token+3].type == 'RPAREN')):
+                                tmpQuote = lex[token].value[0]
+                                if lex[token+3].type == 'COMMA':
+                                    lex[token+4].type=lex[token+5].type='IGNORE'
+                                    tmpFill = stripStringQuotes(lex[token+4].value)
+                                else:
+                                    tmpFill = ' '
+                                lex[token].value = tmpQuote + stripStringQuotes(lex[token].value.split('.')[0]).center(int(lex[token+2].value),tmpFill) + tmpQuote
+                                lex[token+1].type=lex[token+2].type=lex[token+3].type='IGNORE'
+                                lex[token].type = 'STRING'
+
+
 
                         if optLoopAttr and preAllocated and lex[token].value.startswith('AS') == False and 'AS'+lex[token].value.replace('.','_').replace('(','') in (p[1] for p in preAllocated) \
                         and lex[token-1].type not in {'ID','ASSIGN'}:
@@ -3914,7 +3927,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     preAllocated.remove(p)
                         else:
                             preAllocated={_ for _ in preAllocated if _[0] <= lex[token].value.count(' ')}
-                                
+
 
                     elif optIfTrue and lex[token].type in {'EQUAL','NOTEQ'} and lex[token + 1].type == 'BOOL' and lex[token + 1].value != 'None':
                         if (lex[token+1].value == 'False' and lex[token].type == 'EQUAL') or (lex[token+1].value == 'True' and lex[token].type == 'NOTEQ'):
@@ -4149,7 +4162,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         else:
                                             check = True
                                         #print('#1.2', lex[token].value)
-                                    
+
                                 else:
                                     check=True
                                     #print('#1.3',lex[token].value)
@@ -4278,7 +4291,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             break
                                     lex[token+1].type=lex[tmpN].type='IGNORE'
                                     newOptimization=True
-                        
+
 
                     if optCompilerEval and optCompilerEvalDict['evalTokens'] and not pyCompatibility and lex[token].type in {'STRING','STRRAW'} and lex[token+1].type in {'STRING','STRRAW'} and lex[token+2].type not in typeOperators and lex[token-1].type not in typeOperators:
                         # evaluate string comparisons when they have no compare, inside conditional
@@ -4411,7 +4424,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex[token].value='from %s import %s'%(importedName[:-1], ', '.join([tmpImportThese[i] for i in range(0,len(tmpImportThese))]))
                             else: lex[token].value=f'from {importedName} import *'
                             del wasImported[importedName]
-                    
+
                 elif optDeadVariableElimination and lex[token].type == 'ID' and lex[token].value != 'print':
                     if ((lex[token].value not in definedFuncs and lex[token + 1].type in typeAssignables and lex[token+1].type!='LIST') or (lex[token + 1].type=='ASSIGN' and lex[token + 1].value in ('=','is','is '))) and lex[token - 1].type in typeNewline + ('CONSTANT', 'TYPE'):
                         delPoint = tmpIndent = None ; check = True ; tmpReplaceWithPass = inCase = isConstant = outOfBlock = False
@@ -4641,7 +4654,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if debug: print('eliminated variable:', lex[token].value)
                             newOptimization=True
             optRounds+=1
-            
+
             #print(' '.join([t.value for t in lex]))
         # clean up vv
         l = 0
@@ -4892,7 +4905,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tmpIter.append(makeToken(lex[lexIndex], ')', 'RPAREN'))
             else:
                 tmpIter = [copy(lex[lexIndex + 1])]
-        
+
         if isAppending and tmpVal and tmpVal in storedVarsHistory and 'type' in storedVarsHistory[tmpVal] \
         and storedVarsHistory[tmpVal]['type'] in {'LIST', 'LISTCOMP'} and 'line' in storedVarsHistory[tmpVal]:
             for ii in range(tmpi,len(lex)-1):
@@ -6929,7 +6942,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 else:
                                     storedVarsHistory[tmpName] = {}
                     elif compileTo == 'Cython':
-                        if lex[lexIndex+1].type == 'TYPE' and lex[lexIndex+1].value in {'str','int','float'}: 
+                        if lex[lexIndex+1].type == 'TYPE' and lex[lexIndex+1].value in {'str','int','float'}:
                             lex[lexIndex+1].type='IGNORE'
                             line.append(decideIfIndentLine(indent,"DEF "))
                 else:
@@ -7397,7 +7410,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 doPrint = False
                         if doPrint: line.append(
                             decideIfIndentLine(indent, f'{expPrint[-1]}(')); bigWrap = True; rParen += 1
-                    
+
 
                 if tok.type == 'LBRACKET': bracketScope+=1
                 elif tok.type == 'RBRACKET':
@@ -7482,7 +7495,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     inIf=True ; inReturn=True
 
 
-                
+
                 if tok.type in {'LIST','BOOL','DICT','SET'} and startOfLine and lexIndex+1 < len(lex) and lex[lexIndex+1].type in typeNewline and lex[lexIndex-1].type not in typeConditionals and inIf==False:
                     line.append(decideIfIndentLine(indent,f'{expPrint[-1]}({tok.value})'))
                 elif (fstrQuote!='' or (lastType == 'ID' and line and line[-1][-1] != ' ')) and tok.type != 'IGNORE':
@@ -7549,7 +7562,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                 if optimize and compileTo != 'MicroPython' and optFuncCache and checkIfImpureFunction(lex.index(tok),True, tmpFuncArgs ) == False:
                     optAddCache()
-                
+
                 if pythonVersion <= 3.08 and '->' in tok.value:
                     tmpRE=REcompile(r' *-> *(?:tuple|list|dict|set|type)')
                     tmp = REsearch(tmpRE, tok.value)
@@ -7900,7 +7913,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 and lex[tmpi].value in storedVarsHistory and 'type' in storedVarsHistory[lex[tmpi].value] \
                                 and storedVarsHistory[lex[tmpi].value]['type'] in tmpAllowedLen:
                                     tmpFoundWalrus = tmpDoLen = True
-                                    
+
                             if not check: line.append(f'{codeDict[tok.type]} ')
 
                 if check: # standard pass
@@ -7956,7 +7969,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif indent>storedIndents[-1]:
                     storedIndents.append(storedIndents[-1]+prettyIndent)
                 elif indent<storedIndents[-1]: storedIndents.pop()
-                
+
 
                 # vvv uncomment for debugging indentation via including it as comment.
                 #if lastType!='DEFFUNCT':
@@ -7987,4 +8000,4 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         return ('\n'.join(code), lex, storedVarsHistory,metaInformation)
     else:
         return '\n'.join(code)
-        
+
