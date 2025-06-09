@@ -1949,7 +1949,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     search=True ; ignores=[] ; inDef=wasInDefs=inFrom=inCase=tmpInConditionalStatement=False
                                     # wasInDefs is for determining if a later define could break behaviour inside of functions
                                     # inDef i think is for determining if its the name of a function??
-                                    tmpIDshow=0 ; tmpAddToIgnoresWhenNL = 0
+                                    tmpIDshow=0 ; tmpAddToIgnoresWhenNL = tttIndent = 0
                                     #print('-----')
                                     for tmpi in range(valueStop,len(lex)): # check if we can determine its a constant
                                         #print(lex[token].value,search,lex[tmpi].type,lex[tmpi].value,ignores,tmpAddToIgnoresWhenNL,tmpi,tmpIDshow)
@@ -4812,7 +4812,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             check=True
         elif tmptype == 'NUMBER':
             if '.' in tmpval: line.append(f'{" "*(indent)}printf("%.14f",{tmpval})\n')
-            else: line.append(f'{" "*(indent)}printf("%llu\\n",{tmpval})\n')
+            elif int(tmpval) <= 2147483647: line.append(f'{" "*(indent)}printf("%d\\n",{tmpval})\n')
+            else: line.append(f'{" "*(indent)}printf("{tmpval}\\n")\n')
             check=True
         else:
             if tmpval in storedCustomFunctions:
@@ -6403,7 +6404,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if lex[lexIndex+2].value == forthingin and (lex[lexIndex+3].type in ('NEWLINE','TAB','FROM') and (lex[lexIndex+3].value in ('\n','from') or lexIndex+4==len(lex)-1)):
                     if compileTo=='Cython' and expPrint[-1]=='print' and f'cdef Py_ssize_t {forthingin}\n' in line:
                         insertAtTopOfCodeIfItIsNotThere('from libc.stdio cimport printf\n')
-                        line.append(decideIfIndentLine(indent,f'printf("%d\\n",{forthingin})\n'))
+                        line.append(decideIfIndentLine(indent,f'printf("%ld\\n",{forthingin})\n'))
                     else:
                         line.append(decideIfIndentLine(indent,f'{expPrint[-1]}({forthingin})'))
                     indent-=prettyIndent ; startOfLine=True
