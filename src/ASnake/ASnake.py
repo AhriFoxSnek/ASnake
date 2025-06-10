@@ -235,7 +235,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     listMods=('.pop','.append','.extend','.insert','.remove','.reverse','.sort','.copy','.clear')
     setUpdateMethods=('.add','.clear','.discard','.difference_update','.intersection_update','.pop','.remove','.symmetric_difference_update','.update')
     pyBuiltinFunctions=('abs', 'delattr', 'hash', 'memoryview', 'set', 'all', 'dict', 'help', 'min', 'setattr', 'any', 'dir', 'hex', 'next', 'slice', 'ascii', 'divmod', 'id', 'object', 'sorted', 'bin', 'enumerate', 'input', 'oct', 'staticmethod', 'bool', 'int', 'open', 'str', 'breakpoint', 'isinstance', 'ord', 'sum', 'bytearray', 'filter', 'issubclass', 'pow', 'super', 'bytes', 'float', 'iter', 'print', 'tuple', 'callable', 'format', 'len', 'property', 'type', 'chr', 'frozenset', 'list', 'range', 'vars', 'classmethod', 'getattr', 'locals', 'repr', 'zip', 'compile', 'globals', 'map', 'reversed', 'complex', 'hasattr', 'max', 'round', 'exec', 'eval', '__import__', 'exit')
-    pyReservedKeywords=('False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield')
+    pyReservedKeywords=('False', 'None', 'True', 'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield', 'case')
     ASnakeKeywords=('nothing', 'minus', 'plus', 'times', 'greater', 'end', 'of', 'until', 'then', 'do', 'does', 'less', 'than', 'equals', 'power', 'remainder', 'loop', 'case', 'match', 'pipe', 'all', 'any', 'each', 'divide', 'modulo')
     # ^ match, case, all, any
     # ^ are not ASnake keywords, however can be reassigned in Python, so better to leave it in ASnakeKeywords
@@ -1380,6 +1380,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif tok.type == 'ANYOF' and 'each' in tok.value: tok.value = 'all' ; lex.append(tok)
         else:
             if reservedIsNowVar and tok.value in reservedIsNowVar: tok.type='ID'
+            elif lex[lexIndex].type == 'FOR' and tok.value.strip() in pyReservedKeywords: tok.type='ID' ; reservedIsNowVar.append(tok.value.strip())
             elif tok.type in typeOperators+typeCheckers and tok.type in codeDict:
                 if ((lex[lexIndex].type in typeNewline) or (lex[lexIndex].type in {'CONSTANT','TYPE','COMMA'})): pass
                 else: tok.value = codeDict[tok.type]
