@@ -2139,6 +2139,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 if search and ignores!=[]:
                                                     if isinstance(ignores[0], int) and ignores[0] == tmpi:
                                                         search=False
+                                                    elif tmpi in ignores: ignore=search=False
+
                                                     elif (isinstance(ignores[0], list) or isinstance(ignores[0], tuple)) and tmpi == ignores[0][0]:
                                                         ignore=True
                                                     if ignore and tmpi == ignores[0][1]:
@@ -2287,8 +2289,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                                     elif lex[tmpi].type in {'LOOP','WHILE'} or lex[tmpi].type == 'FOR' and lex[tmpi-1].type in typeNewline:
                                                         if inLoop[0] == False and not isinstance(tmpf[0],str) and len(tmpf) > 1:
-                                                            # if variable isnt a literal and is folding into a loop, dont bother, inefficient
-                                                            ignores.append(tmpi) ; search = False ; continue
+                                                            # if variable isnt a literal (or list) and is folding into a loop, dont bother, inefficient
+                                                            if compileTo == 'PyPy3' and vartype == 'LIST': pass # faster in pypy for some reason
+                                                            elif vartype == 'LIST' and lex[tmpi].type == 'FOR' and lex[tmpi+2].type == 'INS':
+                                                                ignores.append(tmpi+4)
+                                                            else:
+                                                                ignores.append(tmpi) ; search = False ; continue
                                                         inLoop=[True,tmpindent]
                                                         # lookahead for loops in case it changes inside it
                                                         for tmpii in range(tmpi,len(lex)):
