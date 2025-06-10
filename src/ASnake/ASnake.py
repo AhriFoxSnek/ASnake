@@ -1541,7 +1541,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         }
         optPow=True
         optDeadVariableElimination=True
-        optNestedLoopItertoolsProduct=False
+        optNestedLoopItertoolsProduct=True
         optSplitMultiAssign=True
         optUnModAssignment=True
         optCompressPrint=True
