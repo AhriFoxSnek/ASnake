@@ -1547,6 +1547,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         optUnModAssignment=True
         optCompressPrint=True
         optDeadConditionalElimination=True
+        optConvertMultipleOrToIn=True
         # v these are done in main phase v
         optIfTrue=True # hybrid
         optSortedToSort=True
@@ -1566,7 +1567,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif compileTo == 'PyPy3':
             # v seems to be slower for some reason on PyPy but faster on Python v
             optNestedLoopItertoolsProduct=optFuncCache=optLoopToMap=optListPlusListToExtend \
-           =optFuncTricksDict['intToFloat']=optFuncTricksDict['startsWithToIndex']=False
+           =optFuncTricksDict['intToFloat']=optFuncTricksDict['startsWithToIndex']\
+           =optConvertMultipleOrToIn=False
             # v faster in pypy v
             optWalrus=True
         elif compileTo == 'Pyston':
@@ -3759,9 +3761,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if lex[t].type == 'TAB':
                                             tmpNoTabs=False
                                             if lex[t].value.replace('\t', ' ').count(' ') <= tmpBaseIndent:
-                                                if lex[t+1].type == 'OR' and lex[t+2].type == 'BOOL':
-                                                    if lex[t+2].value.strip() == 'True':
-                                                        safe = False ; break
+                                                if lex[t+1].type == 'OR' and lex[t+2].type == 'BOOL' and lex[t+2].value.strip() == 'True':
+                                                    safe = False ; break
+                                        elif lex[t].type == 'OR' and not (lex[t+1].type == 'BOOL' and lex[t+1].value.strip() == 'False'):
+                                            for tt in range(token+1, t+1):
+                                                lex[tt].type = 'IGNORE'
+                                            safe = False ; break
                                         elif lex[t].type == 'NEWLINE': break
                                     if safe:
                                         tmpLastT=0 ; tmpOutOfConditional=False
@@ -3946,8 +3951,37 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex[token].type = lex[token + 1].type = 'IGNORE'
 
 
-
-
+                    elif optConvertMultipleOrToIn and lex[token].type == 'OR' and lex[token-1].type in {'STRING','NUMBER'} and lex[token-2].type == 'EQUAL' and lex[token-3].type == 'ID' and lex[token+1].type == 'ID' and lex[token+2].type == 'EQUAL' and lex[token+3].type in {'STRING','NUMBER'} and lex[token+1].value == lex[token-3].value:
+                        # ID1 EQUAL [STRING|NUMBER] OR ID1 EQUAL [STRING|NUMBER]
+                        # TODO: add support for index
+                        tmpStart=token-3
+                        tmpTheVar = lex[tmpStart].value
+                        tmpHasOR=True
+                        tmpf=[] ; tmpi=token
+                        for i in range(tmpStart,len(lex)-1):
+                            #print(i,lex[i].type,tmpHasOR)
+                            if lex[i].type == 'OR': tmpHasOR=True ; tmpi=i
+                            elif tmpHasOR:
+                                if lex[i].type in {'STRING','NUMBER'}:
+                                    tmpf.append(copy(lex[i])) ; tmpHasOR=False
+                                elif lex[i].type == 'ID' and lex[i].value == tmpTheVar: pass
+                                elif lex[i].type == 'EQUAL' and lex[i-1].type == 'ID' : pass
+                                else: tmpi=i ; break
+                            elif lex[i].type == 'AND':
+                                if tmpf: del tmpf[-1]
+                                break
+                            else: tmpi=i ; break
+                        #print('---',bool(tmpf), tmpStart, tmpi)
+                        if tmpf:
+                            for i in range(tmpStart, tmpi): lex[i].type = 'IGNORE'
+                            lex.insert(tmpStart,makeToken(lex[token],'}','RBRACKET'))
+                            for t in tmpf:
+                                lex.insert(tmpStart, t)
+                                lex.insert(tmpStart, makeToken(lex[token], ',', 'COMMA'))
+                            del lex[tmpStart]
+                            lex.insert(tmpStart, makeToken(lex[token], '{', 'LBRACKET'))
+                            lex.insert(tmpStart, makeToken(lex[token], 'in', 'INS'))
+                            lex.insert(tmpStart, makeToken(lex[token], tmpTheVar, 'ID'))
 
                     elif optCompilerEval and optCompilerEvalDict['evalTokens'] and ((lex[token].type in typeCheckers and lex[token].type != 'PYIS') or (lex[token].type == 'ASSIGN' and 'is' in lex[token].value and determineIfAssignOrEqual(token))) \
                     and ( (lex[token-1].type in {'STRING','NUMBER','BOOL'} and (lex[token+1].type in {'STRING','NUMBER','BOOL'} or isANegativeNumberTokens(token+1)) and (lex[token-2].type in typeConditionals+typeNewline+('AND','OR','LPAREN','ID') )) \
