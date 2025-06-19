@@ -1431,10 +1431,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
         def determineIfAssignOrEqual(lexIndex):
             # determines if a ASSIGN `is` operates as a EQUAL `==` not a ASSIGN `=`
-            # token should be ASSIGN, and lexIndex should be ASSIGN's index
+            # token should be ASSIGN or EQUAL, and lexIndex should be ASSIGN's index
             # True means it is Equal , False means Assign
+            if lex[lexIndex].type == 'EQUAL': return True
             if lex[lexIndex].type != 'ASSIGN':
-                print('Compiler-error\ndetermineIfAssignOrEqual error: not a ASSIGN') ; exit()
+                print('Compiler-error\ndetermineIfAssignOrEqual error: not a ASSIGN','\nType is: '+lex[lexIndex].type) ; exit()
             elif ':' in lex[lexIndex].value:
                 return False
             for tt in range(lexIndex - 1, 0, -1):
@@ -2745,8 +2746,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex[token + 2].type = 'NUMBER' ; lex[token + 2].value = '2'
 
                     elif lex[token].type == 'META':
-                        metaCall=lex[token].value.replace('$','').replace(' ','').lower()
-                        metaCallSplit = metaCall.split('=')[0]
+                        metaCall=lex[token].value.replace('$','').replace(' ','')
+                        metaCallSplit = metaCall.split('=')[0].strip()
                         if metaCall == 'cython':
                             compileTo='Cython'
                         elif metaCall == 'python':
@@ -3968,9 +3969,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         else: # True
                             lex[token].type = lex[token + 1].type = 'IGNORE'
 
-                    elif optConvertMultipleOrToIn and lex[token].type == 'OR' and lex[token-1].type in {'STRING','NUMBER'} and lex[token-2].type == 'EQUAL' and (lex[token-3].type == 'ID' or (lex[token-3].type == 'RINDEX' and getIndexVar(token-3))) \
-                    and ((lex[token+1].type == 'ID' and lex[token+2].type == 'EQUAL' and lex[token+3].type in {'STRING','NUMBER'} and lex[token+1].value == lex[token-3].value)\
-                    or   (lex[token+1].type == 'ID' and lex[token+2].type == 'LINDEX' and getIndexVar(token+2,False) and lex[getIndexVar(token+2,False)[2]+1].type == 'EQUAL' and lex[getIndexVar(token+2,False)[2]+2].type in {'STRING','NUMBER'}) and (lex[token+1].value == lex[token-3].value or (getIndexVar(token-3) and getIndexVar(token-3)[0].value == lex[token+1].value))):
+                    elif optConvertMultipleOrToIn and lex[token].type == 'OR' and lex[token-1].type in {'STRING','NUMBER'} and lex[token-2].type in {'EQUAL','ASSIGN'} and determineIfAssignOrEqual(token-2) and (lex[token-3].type == 'ID' or (lex[token-3].type == 'RINDEX' and getIndexVar(token-3))) \
+                    and ((lex[token+1].type == 'ID' and lex[token+2].type in {'EQUAL','ASSIGN'} and determineIfAssignOrEqual(token+2) and lex[token+3].type in {'STRING','NUMBER'} and lex[token+1].value == lex[token-3].value)\
+                    or   (lex[token+1].type == 'ID' and lex[token+2].type == 'LINDEX' and getIndexVar(token+2,False) and lex[getIndexVar(token+2,False)[2]+1].type in {'EQUAL','ASSIGN'} and determineIfAssignOrEqual(getIndexVar(token+2,False)[2]+1) and lex[getIndexVar(token+2,False)[2]+2].type in {'STRING','NUMBER'}) and (lex[token+1].value == lex[token-3].value or (getIndexVar(token-3) and getIndexVar(token-3)[0].value == lex[token+1].value))):
                         # ID1 EQUAL [STRING|NUMBER] OR ID1 EQUAL [STRING|NUMBER]
                         # the index pattern matching is kinda cursed
                         if lex[token-3].type == 'RINDEX':
@@ -3980,6 +3981,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmpTheVar = lex[tmpStart].value
                         tmpHasOR=True ; tmpInIndex=False
                         tmpf=[] ; tmpi=token
+                        if (pyIs or pyCompatibility) and any(True for _ in (token - 2, token + 2) if lex[_].type == 'ASSIGN' and lex[_].value.strip() == 'is'):
+                            tmpStart=len(lex) # cancel optimization
+
                         for i in range(tmpStart,len(lex)-1):
                             #print(i,lex[i].type,tmpInIndex,tmpHasOR)
                             if lex[i].type == 'OR': tmpHasOR=True ; tmpi=i
@@ -3992,7 +3996,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 elif lex[i].type == 'ID' and lex[i].value == tmpTheVar:
                                     if tmpIndex and tmpTheVar == tmpIndex[0].value: tmpInIndex=True
                                     pass
-                                elif lex[i].type == 'EQUAL' and lex[i-1].type in {'ID','RINDEX'}: tmpInIndex=False
+                                elif lex[i].type in {'EQUAL','ASSIGN'} and determineIfAssignOrEqual(i) and lex[i-1].type in {'ID','RINDEX'}: tmpInIndex=False
                                 else: tmpi=i ; break
                             elif lex[i].type == 'AND':
                                 if tmpf: del tmpf[-1]
