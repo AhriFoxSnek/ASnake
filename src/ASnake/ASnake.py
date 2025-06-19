@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from pysss import password
 # dependencies
 from sly.lex import LexError
 from sly import Lexer
