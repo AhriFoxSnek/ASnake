@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+from pysss import password
 # dependencies
 from sly.lex import LexError
 from sly import Lexer
@@ -1497,6 +1497,24 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             # this function takes a string and turns everything into tokens for you.
             for tt in reversed([_ for _ in miniLex(tokenString + ' ')]):
                 lex.insert(tokenPosition + 1, tt)
+
+        def getIndexVar(lexIndex, backwards=True):
+            # given lexIndex should start with last RINDEX
+            indexScope = 0
+            insideIndex = []
+            if backwards: looper = range(lexIndex,0,-1)
+            else:         looper = range(lexIndex,len(lex)-1)
+            for li in looper:
+                if   lex[li].type == 'RINDEX':
+                    indexScope+=1
+                    if not backwards and indexScope == 0: return lex[lexIndex-1], insideIndex+[lex[li]], li
+                elif lex[li].type == 'LINDEX': indexScope-=1
+                elif lex[li].type == 'ID' and backwards and lex[li+1].type == 'LINDEX' and indexScope == 0:
+                    return lex[li], insideIndex[::-1] if backwards else insideIndex, li
+                elif lex[li].type in typeNewline:
+                    return False
+                insideIndex.append(copy(lex[li]))
+            return False
 
         # idOPTARGS
         # vv you can choose to disable specific optimizations
@@ -3736,7 +3754,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if debug: print(f'! nested loop with vars {tmpIterVars} replaced with itertools product')
                                         #[print(l.value,end=' ') for l in lex if l.type != 'IGNORE'] ; exit()
 
-                    elif lex[token].type in {'IF','ELIF'}:
+                    elif lex[token].type in {'IF','ELIF'} and lex[token-1]:
                         if optDeadConditionalElimination and lex[token+1].type == 'BOOL':
                             tmpBaseIndent = None
                             for t in range(token,-1,-1):
@@ -3762,12 +3780,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             tmpNoTabs=False
                                             if lex[t].value.replace('\t', ' ').count(' ') <= tmpBaseIndent:
                                                 if lex[t+1].type == 'OR' and lex[t+2].type == 'BOOL' and lex[t+2].value.strip() == 'True':
-                                                    safe = False ; break
+                                                    safe = False
+                                                break
                                         elif lex[t].type == 'OR' and not (lex[t+1].type == 'BOOL' and lex[t+1].value.strip() == 'False'):
                                             for tt in range(token+1, t+1):
                                                 lex[tt].type = 'IGNORE'
                                             safe = False ; break
-                                        elif lex[t].type == 'NEWLINE': break
+                                        elif lex[t].type in {'NEWLINE','THEN','ENDIF'}: break
                                     if safe:
                                         tmpLastT=0 ; tmpOutOfConditional=False
                                         lex[token-1].type='IGNORE'
@@ -3950,22 +3969,31 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         else: # True
                             lex[token].type = lex[token + 1].type = 'IGNORE'
 
-
-                    elif optConvertMultipleOrToIn and lex[token].type == 'OR' and lex[token-1].type in {'STRING','NUMBER'} and lex[token-2].type == 'EQUAL' and lex[token-3].type == 'ID' and lex[token+1].type == 'ID' and lex[token+2].type == 'EQUAL' and lex[token+3].type in {'STRING','NUMBER'} and lex[token+1].value == lex[token-3].value:
+                    elif optConvertMultipleOrToIn and lex[token].type == 'OR' and lex[token-1].type in {'STRING','NUMBER'} and lex[token-2].type == 'EQUAL' and (lex[token-3].type == 'ID' or (lex[token-3].type == 'RINDEX' and getIndexVar(token-3))) \
+                    and ((lex[token+1].type == 'ID' and lex[token+2].type == 'EQUAL' and lex[token+3].type in {'STRING','NUMBER'} and lex[token+1].value == lex[token-3].value)\
+                    or   (lex[token+1].type == 'ID' and lex[token+2].type == 'LINDEX' and getIndexVar(token+2,False) and lex[getIndexVar(token+2,False)[2]+1].type == 'EQUAL' and lex[getIndexVar(token+2,False)[2]+2].type in {'STRING','NUMBER'}) and (lex[token+1].value == lex[token-3].value or (getIndexVar(token-3) and getIndexVar(token-3)[0].value == lex[token+1].value))):
                         # ID1 EQUAL [STRING|NUMBER] OR ID1 EQUAL [STRING|NUMBER]
-                        # TODO: add support for index
-                        tmpStart=token-3
+                        # the index pattern matching is kinda cursed
+                        if lex[token-3].type == 'RINDEX':
+                            tmpIndex = getIndexVar(token-3)
+                            tmpStart = tmpIndex[2]
+                        else: tmpStart=token-3 ; tmpIndex=False
                         tmpTheVar = lex[tmpStart].value
-                        tmpHasOR=True
+                        tmpHasOR=True ; tmpInIndex=False
                         tmpf=[] ; tmpi=token
                         for i in range(tmpStart,len(lex)-1):
-                            #print(i,lex[i].type,tmpHasOR)
+                            #print(i,lex[i].type,tmpInIndex,tmpHasOR)
                             if lex[i].type == 'OR': tmpHasOR=True ; tmpi=i
                             elif tmpHasOR:
-                                if lex[i].type in {'STRING','NUMBER'}:
+                                if tmpInIndex and any(True for _ in tmpIndex[1] if _.value == lex[i].value and _.type == lex[i].type):
+                                    if lex[i] == tmpIndex[1][-1]: tmpInIndex=False
+                                    pass
+                                elif lex[i].type in {'STRING','NUMBER'}:
                                     tmpf.append(copy(lex[i])) ; tmpHasOR=False
-                                elif lex[i].type == 'ID' and lex[i].value == tmpTheVar: pass
-                                elif lex[i].type == 'EQUAL' and lex[i-1].type == 'ID' : pass
+                                elif lex[i].type == 'ID' and lex[i].value == tmpTheVar:
+                                    if tmpIndex and tmpTheVar == tmpIndex[0].value: tmpInIndex=True
+                                    pass
+                                elif lex[i].type == 'EQUAL' and lex[i-1].type in {'ID','RINDEX'}: tmpInIndex=False
                                 else: tmpi=i ; break
                             elif lex[i].type == 'AND':
                                 if tmpf: del tmpf[-1]
@@ -3981,7 +4009,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             del lex[tmpStart]
                             lex.insert(tmpStart, makeToken(lex[token], '{', 'LBRACKET'))
                             lex.insert(tmpStart, makeToken(lex[token], 'in', 'INS'))
+                            if tmpIndex:
+                                for t in reversed(tmpIndex[1]):
+                                    lex.insert(tmpStart, t)
                             lex.insert(tmpStart, makeToken(lex[token], tmpTheVar, 'ID'))
+                            if debug: print('! convert multi or to in: '+' or '.join([_.value for _ in tmpf]),'-->','in {'+','.join([_.value for _ in tmpf])+'}')
 
                     elif optCompilerEval and optCompilerEvalDict['evalTokens'] and ((lex[token].type in typeCheckers and lex[token].type != 'PYIS') or (lex[token].type == 'ASSIGN' and 'is' in lex[token].value and determineIfAssignOrEqual(token))) \
                     and ( (lex[token-1].type in {'STRING','NUMBER','BOOL'} and (lex[token+1].type in {'STRING','NUMBER','BOOL'} or isANegativeNumberTokens(token+1)) and (lex[token-2].type in typeConditionals+typeNewline+('AND','OR','LPAREN','ID') )) \
