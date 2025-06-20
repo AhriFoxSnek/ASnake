@@ -1557,6 +1557,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             'evalChrFunc': True,
             'evalIntFunc': True,
             'evalStrCenter':True,
+            'evalStrInStr':True,
         }
         optPow=True
         optDeadVariableElimination=True
@@ -2768,7 +2769,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         elif lex[token+1].value.strip() == 'False':
                             lex[token+1].value = 'True'  ; lex[token].type = 'IGNORE'
 
-
                     elif lex[token].type in {'LPAREN','LIST','LBRACKET'} and lex[token-1].type == 'INS' and lex[token-1].value.strip() == 'in':
                         if optInSet:
                             tmpscope=1 ; tmp=0 ; tmpf=[] ; tmpLeftScope = 1 ; inForLoop=hasComma=False
@@ -3947,6 +3947,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if safe:
                                 lex[token] = copy(createFString(lex[token],token))
 
+                        if optCompilerEval and optCompilerEvalDict['evalStrInStr'] and lex[token + 1].type == 'INS' and lex[token + 1].value.strip() == 'in' and lex[token + 2].type == 'STRING':
+                            lex[token].type = lex[token+1].type = lex[token+2].type = 'IGNORE'
+                            if stripStringQuotes(lex[token].value) in stripStringQuotes(lex[token+2].value):
+                                lex.insert(token, makeToken(lex[token], 'True', 'BOOL'))
+                            else:
+                                lex.insert(token, makeToken(lex[token], 'False', 'BOOL'))
+
                     elif lex[token].type == 'DEFFUNCT':
                         definedFuncs.add(lex[token-1].value)
                     elif lex[token].type == 'PYDEF':
@@ -3974,6 +3981,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     or   (lex[token+1].type == 'ID' and lex[token+2].type == 'LINDEX' and getIndexVar(token+2,False) and lex[getIndexVar(token+2,False)[2]+1].type in {'EQUAL','ASSIGN'} and determineIfAssignOrEqual(getIndexVar(token+2,False)[2]+1) and lex[getIndexVar(token+2,False)[2]+2].type in {'STRING','NUMBER'}) and (lex[token+1].value == lex[token-3].value or (getIndexVar(token-3) and getIndexVar(token-3)[0].value == lex[token+1].value))):
                         # ID1 EQUAL [STRING|NUMBER] OR ID1 EQUAL [STRING|NUMBER]
                         # the index pattern matching is kinda cursed
+
+                        # TODO: x == 'a' or x == 'b'  -->  x in 'ab'
+                        # this is faster in PyPy and Pyston, but not CPython
+                        # however, we need to know that x is str, otherwise typeError
+
                         if lex[token-3].type == 'RINDEX':
                             tmpIndex = getIndexVar(token-3)
                             tmpStart = tmpIndex[2]
