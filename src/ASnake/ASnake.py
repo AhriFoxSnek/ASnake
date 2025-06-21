@@ -3976,21 +3976,28 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         else: # True
                             lex[token].type = lex[token + 1].type = 'IGNORE'
 
-                    elif optConvertMultipleOrToIn and lex[token].type == 'OR' and lex[token-1].type in {'STRING','NUMBER'} and lex[token-2].type in {'EQUAL','ASSIGN'} and determineIfAssignOrEqual(token-2) and (lex[token-3].type == 'ID' or (lex[token-3].type == 'RINDEX' and getIndexVar(token-3))) \
-                    and ((lex[token+1].type == 'ID' and lex[token+2].type in {'EQUAL','ASSIGN'} and determineIfAssignOrEqual(token+2) and lex[token+3].type in {'STRING','NUMBER'} and lex[token+1].value == lex[token-3].value)\
-                    or   (lex[token+1].type == 'ID' and lex[token+2].type == 'LINDEX' and getIndexVar(token+2,False) and lex[getIndexVar(token+2,False)[2]+1].type in {'EQUAL','ASSIGN'} and determineIfAssignOrEqual(getIndexVar(token+2,False)[2]+1) and lex[getIndexVar(token+2,False)[2]+2].type in {'STRING','NUMBER'}) and (lex[token+1].value == lex[token-3].value or (getIndexVar(token-3) and getIndexVar(token-3)[0].value == lex[token+1].value))):
+                    elif optConvertMultipleOrToIn and lex[token].type == 'OR' and ((lex[token-1].type in {'STRING','NUMBER'} and lex[token-2].type in {'EQUAL','ASSIGN'} and determineIfAssignOrEqual(token-2) and (lex[token-3].type in {'ID','INC'} or (lex[token-3].type == 'RINDEX' and getIndexVar(token-3))) \
+                    and ((lex[token+1].type in {'ID','INC'} and lex[token+2].type in {'EQUAL','ASSIGN'} and determineIfAssignOrEqual(token+2) and lex[token+3].type in {'STRING','NUMBER'} and lex[token+1].value == lex[token-3].value)\
+                    or   (lex[token+1].type == 'ID' and lex[token+2].type == 'LINDEX' and getIndexVar(token+2,False) and lex[getIndexVar(token+2,False)[2]+1].type in {'EQUAL','ASSIGN'} and determineIfAssignOrEqual(getIndexVar(token+2,False)[2]+1) and lex[getIndexVar(token+2,False)[2]+2].type in {'STRING','NUMBER'}) and (lex[token+1].value.strip().replace('-','').replace('+','') == lex[token-3].value.strip().replace('-','').replace('+','') or (getIndexVar(token-3) and getIndexVar(token-3)[0].value == lex[token+1].value))))
+                        or (lex[token-1].type == 'ID' and lex[token-2].type in {'EQUAL','ASSIGN'} and lex[token-3].type in {'STRING','NUMBER'} and lex[token+1].type in {'STRING','NUMBER'} and lex[token+2].type in {'EQUAL','ASSIGN'} and lex[token+3].type in {'ID','INC'} and lex[token+3].value.replace('-','').replace('+','') == lex[token-1].value)):
                         # ID1 EQUAL [STRING|NUMBER] OR ID1 EQUAL [STRING|NUMBER]
                         # the index pattern matching is kinda cursed
+                        # oh god and we gotta match reverse i hate this so much
 
                         # TODO: x == 'a' or x == 'b'  -->  x in 'ab'
                         # this is faster in PyPy and Pyston, but not CPython
                         # however, we need to know that x is str, otherwise typeError
 
+                        tmpInsertINC = []
                         if lex[token-3].type == 'RINDEX':
                             tmpIndex = getIndexVar(token-3)
                             tmpStart = tmpIndex[2]
                         else: tmpStart=token-3 ; tmpIndex=False
-                        tmpTheVar = lex[tmpStart].value
+                        if lex[tmpStart].type in {'ID','INC'}:
+                            tmpTheVar = lex[tmpStart].value
+                        else:
+                            tmpTheVar = lex[token-1].value
+                        if lex[tmpStart].type == 'INC': tmpTheVar = tmpTheVar.strip().replace('-', '').replace('+', '')
                         tmpHasOR=True ; tmpInIndex=False
                         tmpf=[] ; tmpi=token
                         if (pyIs or pyCompatibility) and any(True for _ in (token - 2, token + 2) if lex[_].type == 'ASSIGN' and lex[_].value.strip() == 'is'):
@@ -4004,11 +4011,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     if lex[i] == tmpIndex[1][-1]: tmpInIndex=False
                                     pass
                                 elif lex[i].type in {'STRING','NUMBER'}:
-                                    tmpf.append(copy(lex[i])) ; tmpHasOR=False
+                                    tmpf.append(copy(lex[i]))
+                                    if lex[tmpStart].type in {'ID','INC'}: tmpHasOR=False
                                 elif lex[i].type == 'ID' and lex[i].value == tmpTheVar:
                                     if tmpIndex and tmpTheVar == tmpIndex[0].value: tmpInIndex=True
                                     pass
-                                elif lex[i].type in {'EQUAL','ASSIGN'} and determineIfAssignOrEqual(i) and lex[i-1].type in {'ID','RINDEX'}: tmpInIndex=False
+                                elif lex[i].type == 'INC' and lex[i].value.strip().replace('-', '').replace('+', '') == tmpTheVar:
+                                    tmpInsertINC.append(copy(lex[i]))
+                                elif lex[i].type in {'EQUAL','ASSIGN'} and determineIfAssignOrEqual(i) and lex[i-1].type in {'ID','RINDEX','INC'}: tmpInIndex=False
+                                elif lex[i].type in {'EQUAL','ASSIGN'} and lex[i-1].type in {'STRING','NUMBER'}: pass
                                 else: tmpi=i ; break
                             elif lex[i].type == 'AND':
                                 if tmpf: del tmpf[-1]
@@ -4016,7 +4027,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             else: tmpi=i ; break
                         #print('---',bool(tmpf), tmpStart, tmpi)
                         if tmpf:
-                            for i in range(tmpStart, tmpi): lex[i].type = 'IGNORE'
+                            for i in range(tmpStart, tmpi):
+                                lex[i].type = 'IGNORE'
                             lex.insert(tmpStart,makeToken(lex[token],'}','RBRACKET'))
                             for t in tmpf:
                                 lex.insert(tmpStart, t)
@@ -4028,7 +4040,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 for t in reversed(tmpIndex[1]):
                                     lex.insert(tmpStart, t)
                             lex.insert(tmpStart, makeToken(lex[token], tmpTheVar, 'ID'))
-                            if debug: print('! convert multi or to in: '+' or '.join([_.value for _ in tmpf]),'-->','in {'+','.join([_.value for _ in tmpf])+'}')
+                            if tmpInsertINC:
+                                tmpStartSpot=tmpStart ; tmpWaitForIF=False
+                                for i in range(tmpStart,0,-1):
+                                    if lex[i].type in {'IF','MATCH'} and lex[i-1].type in typeNewline: tmpStartSpot=i-1 ; break
+                                    elif lex[i].type in {'ELIF','OF'}: tmpWaitForIF=True
+                                    elif lex[i].type in typeNewline and not tmpWaitForIF: tmpStartSpot=i ; break
+                                for t in tmpInsertINC:
+                                    lex.insert(tmpStartSpot,makeToken(lex[token],';','THEN'))
+                                    lex.insert(tmpStartSpot,t)
+                                lex.insert(tmpStartSpot, makeToken(lex[token], ';', 'THEN'))
+                            if debug:
+                                print('! convert multi or to in: '+' or '.join([_.value for _ in tmpf]),'-->','in {'+','.join([_.value for _ in tmpf])+'}')
 
                     elif optCompilerEval and optCompilerEvalDict['evalTokens'] and ((lex[token].type in typeCheckers and lex[token].type != 'PYIS') or (lex[token].type == 'ASSIGN' and 'is' in lex[token].value and determineIfAssignOrEqual(token))) \
                     and ( (lex[token-1].type in {'STRING','NUMBER','BOOL'} and (lex[token+1].type in {'STRING','NUMBER','BOOL'} or isANegativeNumberTokens(token+1)) and (lex[token-2].type in typeConditionals+typeNewline+('AND','OR','LPAREN','ID') )) \
@@ -4275,7 +4298,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     if bitwiseOrderOps[lex[token+1].value] > bitwiseOrderOps[lex[tmp].value]:
                                         check = True
                                         #print('#2.1', lex[token].value)
-                                elif lex[tmp].type in typeNewline+('LPAREN',) or orderOfOps[lex[token+1].type] >= orderOfOps[lex[tmp].type]:
+                                elif lex[tmp].type in typeNewline+('LPAREN',) or orderOfOps[lex[token+1].type] > orderOfOps[lex[tmp].type]:
                                     check=True
                                     if lex[tmp+2].type in orderOfOps:
                                         # check ahead to make sure not breaking order of operations way down the line
@@ -5162,6 +5185,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     listcomp={}
     lexIndex=-1
     lastIndent=[0,0,[],[],0] # last counted string indent, last indent, last if indent , function indents, with indent
+    oldIndent=0
     lineNumber=0
     storedIndents=[0]
     storedVars={}
@@ -7807,17 +7831,19 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if lastType == 'ELIF':
                             return AS_SyntaxError(f"{tok.value} cannot be after an elif when compiling to version {pythonVersion}",f'if {tok.value}',lineNumber,data)
                         if doPrint: tmp=f'{expPrint[-1]}({tmp}' ; bigWrap=True ; rParen+=1
-                        if lex[lexIndex+1].type not in typeNewline or lex[lexIndex-1].type not in typeNewline:
-                            if lastType == 'INC': line.append('== ')
-                            line.append(decideIfIndentLine(indent,tmp))
-                        if inIf: oldIndent = indent ; indent = lastIndent[2][-1]
+                        if (lex[lexIndex+1].type not in typeNewline or lex[lexIndex-1].type not in typeNewline) and lastType == 'INC': line.append('== ')
+                        elif lastType in typeAssignables: line.append(' == ')
+                        if inIf and lastIndent[2]: oldIndent = indent ; indent = lastIndent[2][-1]
+
 
                         startOfLine=True
                         if code[-1].endswith('= '):
                             code.insert(-1,f'{tok.value[2:]}{tok.value[0]}=1\n')
+                            line.append(decideIfIndentLine(indent,tok.value[2:]))
                         else:
                             if lastType == 'IF':
                                 code.insert(-1,decideIfIndentLine(lastIndent[2][-1],f'{tok.value[2:]}{tok.value[0]}=1\n'))
+                                line.append(tmp)
                             elif lastType == 'WHILE':
                                 # increment at start
                                 bigWrap = True
@@ -7829,8 +7855,26 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         tmp = True
                                 if not tmp:
                                     incWrap += [[tmpf, 1]]
+                                line.append(tok.value[2:])
+                            elif inIf and (lastIndent[2] or pythonVersion >= 3.08):
+                                if pythonVersion >= 3.08:
+                                    line.append(f'({tmp} := {tmp} {tok.value[0]} 1)')
+                                else:
+                                    tmp=False
+                                    for i in range(lexIndex,0,-1):
+                                        if lex[i].type in {'IF','WHILE'} and lex[i-1].type in typeNewline: tmp=True ; break
+                                        elif lex[i].type in typeNewline: break
+                                    if not tmp:
+                                        return AS_SyntaxError(f"{tok.value} cannot be after an of when compiling to version {pythonVersion}",f'if {tok.value}', lineNumber, data)
+
+                                    code.insert(-1, decideIfIndentLine(lastIndent[2][-1],f'{tok.value[2:]}{tok.value[0]}=1\n'))
+                                    line.append(decideIfIndentLine(indent,tmp))
                             else:
                                 line.insert(0,decideIfIndentLine(indent,f'{tok.value[2:]}{tok.value[0]}=1\n'))
+                                if lex[lexIndex+1].type in typeNewline and lex[lexIndex-1].type in typeNewline:
+                                    pass
+                                else:
+                                    line.append(decideIfIndentLine(indent,tmp))
                         if inIf: indent = oldIndent
                 elif tok.value.endswith('++') or tok.value.endswith('--'):
                     bigWrap=True
