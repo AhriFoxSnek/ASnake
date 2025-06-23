@@ -4050,6 +4050,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex.insert(tmpStartSpot,makeToken(lex[token],';','THEN'))
                                     lex.insert(tmpStartSpot,t)
                                 lex.insert(tmpStartSpot, makeToken(lex[token], ';', 'THEN'))
+                            newOptimization=True
                             if debug:
                                 print('! convert multi or to in: '+' or '.join([_.value for _ in tmpf]),'-->','in {'+','.join([_.value for _ in tmpf])+'}')
 
@@ -4282,7 +4283,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 # simple string eval
                                 #print("1.4", lex[token].value)
                                 check=True
-                        elif (lex[token-1].type in tmpTypeSafe or (lex[token-1].type=='MINUS' and lex[token-2].type in tmpTypeSafe)) and lex[token+1].type in orderOfOps:
+                        elif (lex[token-1].type in tmpTypeSafe+typeCheckers or (lex[token-1].type=='MINUS' and lex[token-2].type in tmpTypeSafe)) and lex[token+1].type in orderOfOps:
                             # when last token isnt operator, checks ahead and also handles bitwise
                             #print('#2', lex[token].value)
                             if isANegativeNumberTokens(token+2) and lex[token+4].type in orderOfOps:
