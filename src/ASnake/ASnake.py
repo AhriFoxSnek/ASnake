@@ -99,7 +99,7 @@ class Lexer(Lexer):
     # simplifying expressions tends to be good though
     # order is important, top takes most precedence, bottom least
     SHEBANG = r'#(!| *cython:) *.*'
-    COMMENT = r'[\t ]*?#.*?(!#|(?=\n|$))'
+    COMMENT = r'[\t ]*?(?:#|💭|💬).*?(!#|(?=\n|$))'
     TAB     = r'\n(>>>|\.\.\.)?[\t ]+'
     NEWLINE = r'\n'
     PYPASS  = r"p!(.|\n)+?!p"
