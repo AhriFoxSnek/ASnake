@@ -1218,6 +1218,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     currentTab=tabBackup[0]
                     lastIndent=tabBackup[1][:]
             if tok.type == 'COMMENT':
+                if tok.value[0] in '💭💬': tok.value='#'+tok.value[1:]
                 if len([_ for _ in keepAtTop if _.type == 'SHEBANG']) < 2 and REsearch(r'coding[=:]\s*([-\w.]+)',tok.value):
                     tok.type='SHEBANG'
                     keepAtTop.append(tok) ; lexIndex-=1
