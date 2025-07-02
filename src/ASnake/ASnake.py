@@ -1648,7 +1648,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
         while newOptimization: # continue to optimize until there is nothing left
             if debug:
-                #print(' '.join([t.value for t in lex]))
                 print('\t- optimization round =',optimizeRound,'-')
             optimizeRound+=1
             newOptimization=False
@@ -1660,7 +1659,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if lex[token].type!='META': continue
                         elif lex[token].type=='META':
                             metaCall = lex[token].value.replace('$', '').replace(' ', '').lower()
-                            if metaCall.split('=')[0] in {'optimize', 'optimization', 'optimizing'}:
+                            if metaCall.split('=')[0].lower() in {'optimize', 'optimization', 'optimizing'}:
                                 if '=' in metaCall:
                                     if metaCall.split('=')[-1].lower() == 'true':
                                         optimize = True
@@ -3103,7 +3102,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                             # ^^ list -- vv tuple/set of string
                             if optFuncTricksDict['TupleSetUnpack']:
-                                if (lex[token].value.startswith('tuple') or lex[token].value.startswith('set')) \
+                                if (lex[token].value.strip() == 'tuple(' or lex[token].value.strip() == 'set(') \
                                 and lex[token].type == 'FUNCTION' and lex[token+1].type == 'STRING' and lex[token+2].type == 'RPAREN':
                                     if lex[token].value.startswith('tuple'):
                                         lex[token].value='(' ; lex[token].type = 'LPAREN'
@@ -3543,6 +3542,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             # sometimes can make use of the function before the loop
                                             tmptmpIndent=tmpCurrentIndent=None ; tmpFound=False
                                             tmpChangeTheseIfFound=[]
+                                            #print('~~~')
                                             for ii in range(token - 1, 0, -1):
                                                 #print(tmpASname,lex[ii].type,lex[ii].value,tmpFound,tmpCurrentIndent,tmptmpIndent)
                                                 if lex[ii].type == 'TAB':
@@ -3551,7 +3551,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     if tmpCurrentIndent > tmptmpIndent and tmpFound: tmpFound=False ; break
                                                     if tmpFound and lex[ii+1].type not in {'ELIF','OF','ELSE'}:
                                                         tmpindent=tmpCurrentIndent
-                                                        tmpInsertHere = ii + 1; break
+                                                        if ii+1 < tmpInsertHere:
+                                                            tmpInsertHere = ii + 1
                                                     elif tmpCurrentIndent < tmptmpIndent: break
                                                 elif lex[ii].type == 'NEWLINE':
                                                     if tmptmpIndent == None: tmptmpIndent = 0
@@ -3559,7 +3560,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     if tmpCurrentIndent < tmptmpIndent: break
                                                     if tmpCurrentIndent > tmptmpIndent and tmpFound: tmpFound = False; break
                                                     if tmpFound and lex[ii+1].type not in {'ELIF','OF','ELSE'}: tmpInsertHere = ii + 1; break
-                                                elif lex[ii].type == 'FUNCTION' and lex[ii].value == t[0]+'(' and tmpCurrentIndent == tmptmpIndent:
+                                                elif lex[ii].type == 'FUNCTION' and lex[ii].value.strip() == t[0]+'(' and tmpCurrentIndent == tmptmpIndent:
                                                     tmpFound=True ; tmpChangeTheseIfFound.append(ii)
                                             if tmpFound:
                                                 for f in tmpChangeTheseIfFound: lex[f].value = tmpASname+'('
@@ -4479,6 +4480,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex.insert(token  ,makeToken(tok, '(', 'LPAREN'))
                         lex.insert(token+4,makeToken(tok, ')', 'RPAREN'))
                     token+=1
+                else:
+                    break # above lex len
 
 
         # last optimizations, run at the end (until no more optimization)
