@@ -1968,7 +1968,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             ignores.append((-tmpAddToIgnoresWhenNL,tmpi))
                                             tmpAddToIgnoresWhenNL = 0
 
-                                    search=True ; ignores=[] ; inDef=wasInDefs=inFrom=inCase=tmpInConditionalStatement=False
+                                    search=True ; ignores=[] ; inDef=wasInDefs=inFrom=inCase=tmpInConditionalStatement=tmpInWith=False
                                     # wasInDefs is for determining if a later define could break behaviour inside of functions
                                     # inDef i think is for determining if its the name of a function??
                                     tmpIDshow=0 ; tmpAddToIgnoresWhenNL = tttIndent = 0
@@ -2018,8 +2018,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     tmpAddToIgnoresWhenNL = tmpi
                                             if lex[token].value == lex[tmpi].value and lex[tmpi+1].type not in typeAssignables+('ASSIGN',): tmpIDshow+=1
 
-                                        elif inFrom and lex[tmpi].type == 'ID' and lex[token].value == lex[tmpi].value:
-                                            search = False
+                                        elif (inFrom or tmpInWith) and lex[tmpi].type == 'ID' and lex[token].value == lex[tmpi].value:
+                                            if inFrom: search = False
+                                            elif tmpInWith and lex[tmpi-1].type == 'WITHAS' and lex[tmpi-1].value.strip() == 'as': tmpAddToIgnoresWhenNL = tmpi-1
                                         elif lex[tmpi].type == 'ID' and lex[token].value == lex[tmpi].value and lex[tmpi+1].type == 'COMMA' and lex[tmpi-1].type in typeNewline+('COMMA','ENDIF'):
                                             tmptmpParenScope = 0
                                             for tt in range(tmpi,len(lex)-1):
@@ -2101,7 +2102,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         elif lex[tmpi].type in typeNewline:
                                             handleIgnoreOnNL()
                                             if inFrom: inFrom=False
-                                            inCase=False
+                                            inCase=tmpInWith=False
                                             if lex[tmpi].type in {'NEWLINE','TAB'} or (lex[tmpi].type == 'THEN' and tmpInConditionalStatement):
                                                 if lex[tmpi].type == 'THEN' and tmpInConditionalStatement:
                                                     tttIndent = tmpindent+1
@@ -2118,6 +2119,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             search=False
                                         elif lex[tmpi].type == 'LAMBDA' and lex[tmpi].value[7:-1] == lex[token].value:
                                             tmpAddToIgnoresWhenNL=-tmpi
+                                        elif lex[tmpi].type == 'WITHAS': tmpInWith=True
                                     if search:
                                         tmptmpSafe = True
                                         if not isinstance(tmpf[0], str) and len(tmpf) > 1:
