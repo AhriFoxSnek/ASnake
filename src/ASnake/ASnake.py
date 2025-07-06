@@ -1977,7 +1977,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         #print(lex[token].value,search,lex[tmpi].type,lex[tmpi].value,ignores,tmpAddToIgnoresWhenNL,tmpi,tmpIDshow)
                                         if not search and (enforceTyping and not linkType): break
                                         if lex[tmpi].type=='INC' or (tmpi+1 < len(lex) and lex[tmpi+1].type=='LINDEX' and lex[tmpi].value in (lex[token].value,)+tmpListOfVarsInside) \
-                                        or ((lex[tmpi].type in {'ID','INC'} and lex[tmpi].value.replace('++','').replace('--','') in (lex[token].value,)+tmpListOfVarsInside and (lex[tmpi-1].type not in {'ELIF','OF','IF','OR','AND','FSTR'})  ) and lex[tmpi+1].type in typeAssignables+('ASSIGN',) ):
+                                        or ((lex[tmpi].type in {'ID','INC'} and lex[tmpi].value.replace('++','').replace('--','') in (lex[token].value,)+tmpListOfVarsInside and (lex[tmpi-1].type not in ('ELIF','OF','IF','OR','AND','FSTR','LIST')+typeCheckers+typeOperators)  ) and lex[tmpi+1].type in typeAssignables+('ASSIGN',) ):
                                             if (lex[tmpi+1].type == 'ASSIGN' and lex[tmpi+2].type == vartype) or lex[tmpi+1].type == vartype or (vartype=='NUMBER' and lex[tmpi].type=='INC'):
                                                 pass
                                             elif lex[tmpi+1].type == 'ASSIGN' and vartype == 'STRING' and lex[tmpi+1].value.strip() not in {'=','is',':='}: pass # if fold is string then only hard assigns arent safe
@@ -1997,7 +1997,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             else:
                                                 tmpAddToIgnoresWhenNL = tmpi
                                                 # if we reach a point where we can determine its no longer constant, then ignore that point onward so the previous code still gets folded
-                                                if lex[tmpi].type == 'ID':
+                                                if lex[tmpi].type == 'ID' and lex[tmpi].value in (lex[token].value,)+tmpListOfVarsInside:
                                                     if lex[tmpi+1].type == 'ASSIGN' and lex[tmpi+1].value.strip() == ':=':
                                                         search=False
                                                     elif tttIndent == tmpindent:
@@ -2207,9 +2207,21 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             # if the fold has a for loop (list comp),
                                                             # and the current expression is also a list comp
                                                             # then cancel optimization as it is slower.
-                                                            for tt in range(tmpi,0,-1):
-                                                                if lex[tt].type == 'FOR': tmpsafe=False ; break
-                                                                elif lex[tt].type in typeNewline: break
+                                                            if lex[tmpi+1].type == 'FOR' and lex[tmpi-1].type in {'LINDEX', 'LIST'}: tmpsafe=False
+                                                            else:
+                                                                tmpListScope=0
+                                                                for tt in range(tmpi,len(lex)-1):
+                                                                    if   lex[tt].type in {'LINDEX', 'LIST'}:    tmpListScope+=1
+                                                                    elif lex[tt].type in {'RINDEX', 'LISTEND'}: tmpListScope-=1
+                                                                    elif lex[tt].type in typeNewline: break
+                                                                if tmpListScope != 0:
+                                                                    tmpThereWasAFor=False
+                                                                    for tt in range(tmpi,0,-1):
+                                                                        if lex[tt].type == 'FOR': tmpThereWasAFor=True
+                                                                        elif lex[tt].type in {'LINDEX', 'LIST'}:    tmpListScope += 1
+                                                                        elif lex[tt].type in {'RINDEX', 'LISTEND'}: tmpListScope -= 1
+                                                                        elif lex[tt].type in typeNewline: break
+                                                                    if tmpListScope == 0 and tmpThereWasAFor: tmpsafe=False
 
                                                         if tmpsafe and lex[tmpi-1].type not in typeNewline:
                                                             # sometimes folding will invalidate the print-on-default-expression feature
