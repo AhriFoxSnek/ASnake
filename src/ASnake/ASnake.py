@@ -1700,6 +1700,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if lex[token+tmpStart-1].type in typeNewline and (lex[token+tmpStart].value.startswith('"""') or lex[token+tmpStart].value.startswith('"""')): safe=False
                         if safe:
                             # check backwards for print
+                            tmpSafeFunctions=set(pyBuiltinFunctions)-{'map', 'open', 'input', 'print'}
                             safe = False ; tmpPrintIndent=tmpCurrentIndent=None ; tmpFound=-1 ; tmpOutOfFirstLine=False
                             for tmpi in range(token-1, 0, -1):
                                 if lex[tmpi].type in typeNewline:
@@ -1733,6 +1734,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 tmpEndWith = tmpEndWith[1:-1]
                                     break
                                 elif lex[tmpi].type in typeConditionals and not tmpOutOfFirstLine: break
+                                elif lex[tmpi].type == 'FUNCTION' and lex[tmpi].value.replace('(','') not in tmpSafeFunctions:
+                                    safe=False ; break # unknown potentially unpure functions can break behaviour
                         if tmpFound and tmpf and (lex[tmpFound].value.endswith("'''") or lex[tmpFound].value.endswith('"""'))\
                         and (tmpf.value.endswith("'''") or tmpf.value.endswith('"""')):
                             safe=False # TODO: COULD be safe, I just don't feel like handling it rn
