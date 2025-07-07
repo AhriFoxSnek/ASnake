@@ -1697,6 +1697,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if lex[token+tmpStart].type == 'STRING' and lex[token+tmpStart].value[0] not in {'"',"'"}: safe=False
                         else:
                             safe=True ; tmpf = copy(lex[token])
+                        if lex[token+tmpStart-1].type in typeNewline and (lex[token+tmpStart].value.startswith('"""') or lex[token+tmpStart].value.startswith('"""')): safe=False
                         if safe:
                             # check backwards for print
                             safe = False ; tmpPrintIndent=tmpCurrentIndent=None ; tmpFound=-1 ; tmpOutOfFirstLine=False
