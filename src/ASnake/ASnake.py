@@ -191,6 +191,7 @@ class Lexer(Lexer):
     # DONTDEXP = do not perform default expression wrap
     # IGNORE   = ignore the token, preferably deleting it later.
     # COLON    = the : character
+    # FWRAP    = a function meant to wrap the line (to the right)
 
 latestPythonVersionSupported='3.13'
 
@@ -1391,7 +1392,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif tok.type == 'CONSTANT' and lex[lexIndex].type == 'TYPE':
             tok.type='TYPE' ; tok.value = lex[lexIndex].value
             lex[lexIndex].value = 'const' ; lex[lexIndex].type = 'CONSTANT'
-        elif lexIndex>1 and lex[lexIndex-1].type == 'FWRAP' and lex[lexIndex].type in typeMops and lex[lexIndex-1].value[:-1] in definedFunctions:
+        elif lexIndex>1 and lex[lexIndex-1].type == 'FWRAP' and lex[lexIndex].type in typeMops+('COMMA',) and lex[lexIndex-1].value[:-1] in definedFunctions:
             # prevents line wrap when doing something like:  function + 2
             lex.insert(lexIndex,makeToken(lex[lexIndex],')','RPAREN')) ; lexIndex += 1 ; wrapParenEndOfLine -= 1
         lexIndex+=1
@@ -1606,7 +1607,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             optStrFormatToFString = False
         if pythonVersion < 3.08:
             optWalrus = False
-        # vv slower on certian versions vv
+        # vv slower on certain versions vv
         if pythonVersion < 3.10:
             optListPlusListToExtend=False
 
@@ -3270,9 +3271,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 elif debug: print(f'! evalStr: str({lex[token + 1].value}) --> {lex[token + 1].value}')
                                 newOptimization = True
 
-                            if optFuncTricksDict['max2compare'] and optCompilerEval and 'max' not in reservedIsNowVar and lex[token].type == 'FUNCTION' and lex[token].value == 'max(' \
+                            if optFuncTricksDict['max2compare'] and optCompilerEval and (('max' not in reservedIsNowVar and lex[token].type == 'FUNCTION' and lex[token].value == 'max(') or ('min' not in reservedIsNowVar and lex[token].type == 'FUNCTION' and lex[token].value == 'min(')) \
                             and lex[token+1].type in {'ID','BUILTINF','NUMBER'} and lex[token+2].type == 'COMMA' and lex[token+3].type in {'ID','BUILTINF','NUMBER'} and lex[token+4].type == 'RPAREN':
                                 # max(x,y) --> (x if x > y else y)  can only be done if there are two elements
+                                # for pypy it's faster to do branchless bit stuff: x ^ ((x ^ y) & -(x < y))
+                                tmpIsMax = True if lex[token].value == 'max(' else False
                                 tmp1st=lex[token+1].value ; tmp2nd=lex[token+3].value
                                 lex[token].type=lex[token+1].type=lex[token+2].type=lex[token+3].type=lex[token+4].type='IGNORE'
                                 if lex[token-1].type in typeNewline and lex[token+5].type in typeNewline: lex[token].type = 'DONTDEXP'
@@ -3282,14 +3285,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     for t in range(token,0,-1):
                                         if lex[t].type in typeNewline:
                                             if lex[t+1].type in {'FUNCTION','BUILTINF','CONSTANT','TYPE'} \
-                                            or (lex[t+1].type == 'ID' and lex[t+2].type in ('ASSIGN','FUNCTION')+typeAssignables):
+                                            or (lex[t+1].type == 'ID' and lex[t+2].type in ('ASSIGN','FUNCTION')+typeAssignables)\
+                                            or (lex[t+1].type == 'ID' and lex[t+1].value.strip() in ('print',)+tuple(definedFunctions)):
                                                 tmpSafe=False
                                             tmp=t+1 ; break
                                     if tmpSafe:
                                         lex.insert(tmp,makeToken(lex[token],'','DEFEXP'))
 
-                                autoMakeTokens(f"({tmp1st} if {tmp1st} > {tmp2nd} else {tmp2nd})",token)
-                                if debug: print(f"! max2compare: max({tmp1st},{tmp2nd}) --> ({tmp1st} if {tmp1st} > {tmp2nd} else {tmp2nd})")
+                                if compileTo == 'PyPy3':
+                                    tmp = tmp1st if tmpIsMax else tmp2nd
+                                    autoMakeTokens(f"({tmp} ^ (({tmp1st} ^ {tmp2nd}) & -({tmp1st} < {tmp2nd})))", token)
+                                else:
+                                    tmp = '>' if tmpIsMax else '<'   
+                                    autoMakeTokens(f"({tmp1st} if {tmp1st} {tmp} {tmp2nd} else {tmp2nd})",token)
+                                if debug: print(f"! max2compare: {'max' if tmpIsMax else 'min'}({tmp1st},{tmp2nd}) --> ({tmp1st} if {tmp1st} {tmp} {tmp2nd} else {tmp2nd})")
 
                             if compileTo == 'Cython' and optFuncTricksDict['optCythonConvertTo_libc'] \
                             and lex[token].type == 'FUNCTION' and lex[token].value in {'log(', 'abs(','floor(','remainder(','cos(','tan(','acos('}:
@@ -3794,7 +3803,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             del lex[t]
                                         elif lex[t].type == 'NEWLINE':
                                             break
-                                    tmpNoTabs=True
+                                    tmpNoTabs=True ; tmpTenary=False
                                     for t in range(token, len(lex)): # check if safe
                                         if lex[t].type == 'TAB':
                                             tmpNoTabs=False
@@ -3807,35 +3816,54 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                 lex[tt].type = 'IGNORE'
                                             safe = False ; break
                                         elif lex[t].type in {'NEWLINE','THEN','ENDIF'}: break
+                                        elif lex[t].type == 'ELSE' and lex[t - 1].type not in typeNewline and lex[t + 1].type not in typeNewline:
+                                            tmpTenary = True
                                     if safe:
-                                        tmpLastT=0 ; tmpOutOfConditional=False
-                                        lex[token-1].type='IGNORE'
-                                        for t in range(token,len(lex)-1):
-                                            tmpLastT = t
-                                            if not tmpOutOfConditional:
-                                                if lex[t].type in typeNewline+('ENDIF',) and t+1 < len(lex) and lex[t+1].type not in {'AND','OR'}: tmpOutOfConditional=True
-                                                elif lex[t].type in {'IF','ELSE'} and lex[t-1].type in typeNewline: tmpOutOfConditional=True
-                                                elif lex[t].type == 'ELIF': tmpOutOfConditional=True
-                                            elif tmpOutOfConditional:
-                                                if lex[t].type == 'NEWLINE': break
-                                                elif tmpOutOfConditional and lex[t].type == 'TAB' and lex[t].value.replace('\t',' ').count(' ') <= tmpBaseIndent: break
-                                                elif lex[t].type == 'TAB' and lex[t+1].type == 'ELSE': break
-                                                elif tmpNoTabs and ((lex[t].type == 'THEN' and  lex[t+1].type == 'ELSE') or (lex[t].type == 'ELSE')):
-                                                    lex[t].type = 'THEN' ; lex[t].value = ';' ; break
-                                                elif lex[t].type == 'END' and lex[t+1].type == 'NEWLINE': break
-                                            lex[t].type = 'IGNORE'
-                                        if tmpOutOfConditional and tmpLastT+1 < len(lex) and lex[tmpLastT+1].type in {'ELIF','ELSE'}:
-                                            if lex[tmpLastT+1].type == 'ELSE':
-                                                lex.insert(tmpLastT+2, makeToken(lex[token], 'True', 'BOOL'))
-                                                if   lex[tmpLastT+3].type in {'COLON','ENDIF'}: lex[tmpLastT+3].type='IGNORE'
-                                                elif lex[tmpLastT+3].type not in typeNewline:
-                                                    lex.insert(tmpLastT+3, makeToken(lex[token], ';', 'THEN'))
-                                            lex[tmpLastT+1].type = 'IF'
-                                            lex[tmpLastT+1].value = 'if'
-                                        else:
-                                            lex.insert(tmpLastT,  makeToken(lex[token],';'   ,'THEN'))
-                                            lex.insert(tmpLastT+1,makeToken(lex[token],'pass','NOTHING'))
-                                        del tmpLastT, tmpOutOfConditional, tmpNoTabs
+
+                                        if tmpTenary: # tenary
+                                            # find starting point of tenary
+                                            tmpParenScope=0 ; tmpStartingPoint=0
+                                            for t in range(token,0,-1):
+                                                if lex[t].type in typeNewline: break
+                                                elif lex[t].type == 'LPAREN': tmpParenScope += 1
+                                                elif lex[t].type == 'RPAREN': tmpParenScope -= 1
+                                                if tmpParenScope > 0: tmpStartingPoint=t+1 ; break
+                                            # delete!
+                                            for t in range(tmpStartingPoint,len(lex)-1):
+                                                if lex[t].type == 'ELSE': lex[t].type = 'IGNORE' ; break
+                                                lex[t].type = 'IGNORE'
+                                            del tmpParenScope ; tmpStartingPoint
+
+                                        else: # if block
+                                            tmpLastT = 0 ; tmpOutOfConditional = False
+                                            lex[token-1].type = 'IGNORE'
+                                            for t in range(token,len(lex)-1):
+                                                tmpLastT = t
+                                                if not tmpOutOfConditional:
+                                                    if lex[t].type in typeNewline+('ENDIF',) and t+1 < len(lex) and lex[t+1].type not in {'AND','OR'}: tmpOutOfConditional=True
+                                                    elif lex[t].type in {'IF','ELSE'} and lex[t-1].type in typeNewline: tmpOutOfConditional=True
+                                                    elif lex[t].type == 'ELIF': tmpOutOfConditional=True
+                                                elif tmpOutOfConditional:
+                                                    if lex[t].type == 'NEWLINE': break
+                                                    elif tmpOutOfConditional and lex[t].type == 'TAB' and lex[t].value.replace('\t',' ').count(' ') <= tmpBaseIndent: break
+                                                    elif lex[t].type == 'TAB' and lex[t+1].type == 'ELSE': break
+                                                    elif tmpNoTabs and ((lex[t].type == 'THEN' and  lex[t+1].type == 'ELSE') or (lex[t].type == 'ELSE')):
+                                                        lex[t].type = 'THEN' ; lex[t].value = ';' ; break
+                                                    elif lex[t].type == 'END' and lex[t+1].type == 'NEWLINE': break
+                                                lex[t].type = 'IGNORE'
+                                            if tmpOutOfConditional and tmpLastT+1 < len(lex) and lex[tmpLastT+1].type in {'ELIF','ELSE'}:
+                                                if lex[tmpLastT+1].type == 'ELSE':
+                                                    lex.insert(tmpLastT+2, makeToken(lex[token], 'True', 'BOOL'))
+                                                    if   lex[tmpLastT+3].type in {'COLON','ENDIF'}: lex[tmpLastT+3].type='IGNORE'
+                                                    elif lex[tmpLastT+3].type not in typeNewline:
+                                                        lex.insert(tmpLastT+3, makeToken(lex[token], ';', 'THEN'))
+                                                lex[tmpLastT+1].type = 'IF'
+                                                lex[tmpLastT+1].value = 'if'
+                                            else:
+                                                lex.insert(tmpLastT,  makeToken(lex[token],';'   ,'THEN'))
+                                                lex.insert(tmpLastT+1,makeToken(lex[token],'pass','NOTHING'))
+                                            del tmpLastT, tmpOutOfConditional
+                                        del tmpNoTabs, tmpTenary
                                         newOptimization = True
                                         if debug: print("! removed: if False")
                                 else: # if True
