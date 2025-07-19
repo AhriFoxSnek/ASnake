@@ -1533,6 +1533,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'popToDel': True, # main phase
                             'roundFast': True,
                             'insertMathConstants': True,
+                            'insertStringConstants': True,
                             'ExponentToTimes': True,
                             'inTo__contains__': False, # main phase, only good for Pyston
                             'intToFloat': True, # main phase, not good in PyPy
@@ -1640,7 +1641,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         functionsWithGlobals[tmpf] = tmpVars[:]
 
         definedFuncs=set()
-        wasImported={}
+        wasImported={} ; trackingImported={}
+        # was imported is for optFromFunc , trackingImported is unrelated tracking
         doNotModThisToken=[]
         newOptimization=True
         optimizeRound=0
@@ -2760,10 +2762,47 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex.insert(token, makeToken(lex[token], '(', 'LPAREN'))
                                 lex.insert(token + (tmpSafe*2), makeToken(lex[token], ')', 'RPAREN'))
                             if debug: print(f'! ExpToTimes: {lex[token+1].value}**{tmpSafe}  -->  {(lex[token+1].value+"*")*(tmpSafe-1)}{lex[token+1].value}')
-                        elif compileTo == 'PyPy3' and optFuncTricks and optFuncTricksDict['ExponentToTimes'] and lex[token].type == 'ID' and lex[token + 1].type == 'TIMES' and lex[token+2].type == 'ID' and lex[token+2].value == lex[token].value and lex[token+3].type not in typeMops and lex[token-1].type not in typeMops:
-                            # x*x --> x**2
-                            lex[token + 1].type = 'EXPONENT' ; lex[token + 2].value = '**'
-                            lex[token + 2].type = 'NUMBER' ; lex[token + 2].value = '2'
+
+
+
+                        elif optFuncTricks and optFuncTricksDict['insertMathConstants'] and lex[token].type in {'BUILTINF','ID'} and \
+                            (  ((lex[token].value == 'pi' or lex[token].value == 'math.pi') and 'math.' in trackingImported and 'pi' in trackingImported['math.'])
+                            or ((lex[token].value == 'e'  or lex[token].value == 'math.e' ) and 'math.' in trackingImported and 'e'  in trackingImported['math.'])
+                                ):
+                                # math.pi --> 3.141592653589793
+                                tmp='3.141592653589793' if lex[token].value.endswith('pi') else '2.718281828459045' # pi or e
+                                if debug: print(f'! insertMathConstants: {lex[token].value} --> {tmp}')
+                                lex[token].type = 'NUMBER' ; lex[token].value = tmp
+                                #wasImported['math.'].remove('pi')
+                                # ^ in event of dead import elimination being implemented, uncomment
+                                newOptimization = True
+
+                        elif optFuncTricks and optFuncTricksDict['insertStringConstants'] and lex[token].type in {'BUILTINF','ID'} and 'string.' in trackingImported and \
+                            lex[token].value in {'ascii_letters','ascii_lowercase','ascii_uppercase','digits','hexdigits','octdigits','punctuation','printable','whitespace'} \
+                            and any(_ for _ in ('ascii_letters','ascii_lowercase','ascii_uppercase','digits','hexdigits','octdigits','punctuation','printable','whitespace') if _ in trackingImported['string.']):
+                                tmpPrintable = """0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~     
+
+"""
+                                tmp = lex[token].value
+                                if tmp == 'hexdigits': tmpf = '0123456789abcdefABCDEF'
+                                elif tmp == 'printable': tmpf = tmpPrintable
+                                else:
+                                    tmpPrintIndex = {'ascii_letters': (10, 62), 'ascii_lowercase': (10, 36),
+                                                     'ascii_uppercase': (36, 62), 'digits': (0, 10),
+                                                     'octdigits': (0, 8), 'punctuation': (62, 94),
+                                                     'whitespace': (94, 0)
+                                                     }
+                                    tmpf = tmpPrintable[tmpPrintIndex[tmp][0]:tmpPrintIndex[tmp][1]]
+                                    del tmpPrintIndex
+                                if debug: print(f'! insertMathConstants: {lex[token].value} --> {tmpf}')
+                                if tmp in {'printable','punctuation'}:
+                                    lex[token].value = f'"""{tmpf}"""'
+                                else:
+                                    lex[token].value = f'"{tmpf}"'
+                                lex[token].type = 'STRING'
+                                del tmpPrintable
+                                newOptimization = True
+
 
                     elif lex[token].type == 'META':
                         metaCall=lex[token].value.replace('$','').replace(' ','')
@@ -2947,6 +2986,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 wasImported[importName]=[]
                                 if len(tmp) > 2 and tmp[2] == 'as': # indicate the original import name so it may switch to it later
                                     wasImported[importName]=[f"AS!{tmp[1]+'.'}"]
+                        elif '(' not in lex[token].value and tmp[0].strip() == 'from': # allow tracking unrelated to optFromFunc
+                            trackingImported[tmp[1].strip()+'.']=[]
+                            tmptmp = ''.join(tmp[3:]).split(',')
+                            for t in tmptmp:
+                                trackingImported[tmp[1].strip()+'.']+=[t.strip()]
+
                     elif lex[token].type in {'BUILTINF','FUNCTION'} or (lex[token].type == 'TYPE' and lex[token+1].type=='LPAREN'):
                         if optFromFunc:
                             tmpf = [i for i in wasImported if i in lex[token].value]
@@ -2995,7 +3040,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             f='AS!'+f
                                                             if lex[token].type == 'FUNCTION': lex[token].value+='('
                                                             break
-                                                if f not in wasImported[tmpf[0]]: wasImported[tmpf[0]].append(f)
+                                                if f not in wasImported[tmpf[0]]:
+                                                    wasImported[tmpf[0]].append(f)
+                                                    if tmpf[0] not in trackingImported: trackingImported[tmpf[0]]=[]
+                                                    trackingImported[tmpf[0]].append(f)
                                     newOptimization=True
 
                         if optFuncTricks:
@@ -3247,18 +3295,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 newOptimization=True
                                 lex.insert(token,makeToken(lex[token],'DONTDEXP','DONTDEXP'))
 
-
-                            if optFuncTricksDict['insertMathConstants'] and lex[token].type == 'BUILTINF' and \
-                            (  ((lex[token].value == 'pi' or lex[token].value == 'math.pi') and 'math.' in wasImported and 'pi' in wasImported['math.'])
-                            or ((lex[token].value == 'e'  or lex[token].value == 'math.e' ) and 'math.' in wasImported and 'e'  in wasImported['math.'])
-                                ):
-                                # math.pi --> 3.141592653589793
-                                tmp='3.141592653589793' if lex[token].value.endswith('pi') else '2.718281828459045' # pi or e
-                                if debug: print(f'! insertMathConstants: {lex[token].value} --> {tmp}')
-                                lex[token].type = 'NUMBER' ; lex[token].value = tmp
-                                #wasImported['math.'].remove('pi')
-                                # ^ in event of dead import elimination being implemented, uncomment
-                                newOptimization = True
 
                             if optCompilerEval and optCompilerEvalDict['evalStrFunc'] and lex[token].type == 'FUNCTION' and lex[token].value.replace('(','') == 'str' and lex[token+1].type in {'NUMBER','STRING'} and lex[token+2].type == 'RPAREN':
                                 # str(12) --> "12"
