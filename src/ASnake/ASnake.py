@@ -1329,6 +1329,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 # already defined function is being redefined, thus not a line wrap, thus deconvert it to ID
                 lex[lexIndex].value = lex[lexIndex].value[:-1] ; lex[lexIndex].type = 'ID' ;  wrapParenEndOfLine -= 1
             if lex[lexIndex].type != 'ID':
+                if lex[lexIndex].value.strip() in pyReservedKeywords:
+                    return AS_SyntaxError(rf'{lex[lexIndex].value} is a reserved keyword. Use a different name.','myFunction does', lineNumber, data)
                 return AS_SyntaxError(rf'{lex[lexIndex].value} is not a valid function name.\n\tFunction names should start with a letter or underscore.\n\tAvoid character literals like ()\!=<>/\\\'"*^%#@:&$.' + '{}','myFunction does', lineNumber, data)
             if lex[lexIndex].value not in definedFunctions: definedFunctions[lex[lexIndex].value] = currentTab
             # ^ store function name and current indent
