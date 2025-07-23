@@ -1332,7 +1332,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if lex[lexIndex].value.strip() in pyReservedKeywords:
                     return AS_SyntaxError(f'{lex[lexIndex].value} is a reserved keyword. Use a different name.','myFunction does', lineNumber, data)
                 return AS_SyntaxError(rf'{lex[lexIndex].value} is not a valid function name.\n\tFunction names should start with a letter or underscore.\n\tAvoid character literals like ()\!=<>/\\\'"*^%#@:&$.' + '{}','myFunction does', lineNumber, data)
-            elif lexIndex-1 > 0 and lex[lexIndex-1].type not in typeNewline:
+            elif lexIndex-1 > 0 and lex[lexIndex-1].type not in typeNewline+('ASYNC',):
                 return AS_SyntaxError(f'{lex[lexIndex-1].value+lex[lexIndex].value} is not a valid function name.\n\tFunction names should start with a letter or underscore.\n\tThere should be some sort of newline or newline indicator before the function name.',lex[lexIndex-1].value+'\n\t'+lex[lexIndex].value+' does', lineNumber, data)
 
             if lex[lexIndex].value not in definedFunctions: definedFunctions[lex[lexIndex].value] = currentTab
