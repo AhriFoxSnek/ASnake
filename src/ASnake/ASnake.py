@@ -123,7 +123,7 @@ class Lexer(Lexer):
     TYPEWRAP= fr'({"|".join(defaultTypes)})( ?\[\w*\])? *: *(#.*)?(?=\n)'
     TYPE    = '\\s%s\\s'%f'({"|".join(defaultTypes)})'
     LAMBDA  = r'lambda ?(\w* *,?)*:'
-    FSTRFRMT= r':,? *(?:\=?[*=.]?[><^|%.+])?(?:(?:\d+(?:\.\d+)?[dfxsn%]?)| *[dbxXogGeEncs](?![^}])|(?: *%[YmdHMS][:-]? *)+)'  # for formatting at end of fstrings brackets
+    FSTRFRMT= r':,? *(?:\=?[*=._]?[><^|%.+])?(?:(?:\d+(?:\.\d+)?[dfxsn%]?)| *[dbxXogGeEncs](?![^}])|(?: *%[YmdHMS][:-]? *)+)'  # for formatting at end of fstrings brackets
     LISTCOMP= r'''\-?\w*: ([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*(?!"|')'''
     STRING  = r"([fubFUB]?\"\"\"(?:[^\"\\]|\\.|\"(?!\"\"))*\"\"\")|([fubFUB]?'''(?:[^'\\]|\\.|'(?!''))*''')|([fubFUB]?\"(?:\\.|[^\"\\])*\")|([fubFUB]?'(?:\\.|[^'\\])*')"
     LBRACKET= r'{'
@@ -361,16 +361,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     else:
                         parts.append((False, part))
                         found = False
+                        if bracketScope == 0 and checkForEscape: checkForEscape=False
+
                 elif tok.value[part] == '{':
                     bracketScope += 1
 
             elif not found and tok.value[part] == '{':
-                tmp = 0
-                while part + tmp < len(tok.value) - 1 and tok.value[part + tmp] == '{':
-                    tmp += 1
-                    checkForEscape = True
-                found = True
-                parts.append((True, part + tmp))
+                if tok.value[part+1] == '{':
+                    for partt in range(part,len(tok.value)-1):
+                        if tok.value[partt] == '}': break
+                        elif tok.value[partt] == ':':
+                            isDict=True ; checkForEscape = True ; break
+                if isDict or (tok.value[part+1] != '{' and tok.value[part-1] != '{'):
+                    parts.append((True, part+1))
+                    found = True
             elif part == len(tok.value) - 1:
                 parts.append((True, part + 1))
         if parts != []:
@@ -386,6 +390,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         adjust=1
         for thing in tmpf:
             if thing.type == 'FSTR':
+                thing.value=thing.value.replace('{{','{').replace('}}','}')
                 if token == -1:
                     lex.append(thing)
                 else:
@@ -418,6 +423,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmptok.type='NUMBER'
                     elif tmptok.value.strip() in reservedIsNowVar:
                         tmptok.type = 'ID'
+                    elif tmptok.type in {'SQUOTE','DQUOTE'} and lex[token].type in {'ID','FSTR'}:
+                        del lex[token] ; lexIndex-=1
+                        tmptok.type = 'FSTR' ; tmptok.value='f'+tmptok.value
+                    elif tmptok.type == 'LBRACKET' and lex[token].type == 'FSTR' and lex[token].value[-1] != '{':
+                        tmpSkip=True ; lexIndex-=1 ; lex[token].value+='{'
+                    elif tmptok.type == 'ENDIF': tmptok.type = 'COLON'
+                    elif tmptok.type == 'FSTRFRMT' and tmptok.value[-1] == ' ': tmptok.value = tmptok.value[:-1] # account for extra space in minlex
                     if tmpSkip: tmpSkip = False
                     elif token == -1:
                         lex.append(tmptok)
@@ -5828,13 +5840,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             else:
                                 listcomp['list']=f'range(0,{tval},{tok.value.split(":")[0]})'
                         else:
-                            if len(line)==0: return AS_SyntaxError(f'list comprehension requires iterable','myList : x to print\n\t# or\n\t99 : x',lineNumber,data)
-                            if line[-1] == ')':
-                                listcomp['list']=''.join(line)
-                                line=[]
+                            if tok.value.split(':')[0] and tok.value.split(':')[0] not in storedVarsHistory:
+                                tok.type = 'ID' ; listcomp=[]
+                                line.append(decideIfIndentLine(indent,tok.value))
+                                continue
                             else:
-                                listcomp['list']=line[-1]
-                                line=line[:-1]
+                                if len(line)==0: return AS_SyntaxError(f'list comprehension requires iterable','myList : x to print\n\t# or\n\t99 : x',lineNumber,data)
+                                if line[-1] == ')':
+                                    listcomp['list']=''.join(line)
+                                    line=[]
+                                else:
+                                    listcomp['list']=line[-1]
+                                    line=line[:-1]
                     else:
                         pass
                         if debug: print('listcomp pizza',listcomp)
@@ -7648,7 +7665,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 elif tok.type == 'RBRACKET':
                     if bracketScope>0: bracketScope-=1
                 elif tok.type == 'LPAREN': parenScope+=1
-
+                
                 if tok.type != 'IGNORE': line.append(decideIfIndentLine(indent,tok.value))
                 if tok.type == 'WITHAS' and tok.value.startswith('with'):
                     indentSoon=True ; indent+=prettyIndent
@@ -8211,7 +8228,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if tok.value in ASnakeKeywords and tok.value in reservedIsNowVar:
                     line.append(decideIfIndentLine(indent,f'{tok.value} '))
                 else:
-                    line.append(decideIfIndentLine(indent,f'{codeDict[tok.type]} '))
+                    if fstrQuote != '':
+                        line.append(decideIfIndentLine(indent, codeDict[tok.type]))
+                    else:
+                        line.append(decideIfIndentLine(indent,f'{codeDict[tok.type]} '))
 
             lastType=tok.type
             lastValue=tok.value
