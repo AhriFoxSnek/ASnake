@@ -5,7 +5,7 @@ authors = [
 ]
 description = "Python optimizing compiler for the ASnake programming language."
 readme = "README.md"
-license = "Apache License 2.0"
+license = "Apache License-2.0"
 license-files = ["LICENSE.txt"]
 classifiers = [
     "Programming Language :: Python :: 3",
