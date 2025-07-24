@@ -137,6 +137,7 @@ class Lexer(Lexer):
     GREATEQ = r'>=|=>|≥'
     OR      = r'(\|\||or)(?=[ \t])'
     ASSIGN  = r'''=|is( |(?=("|'|{|\[|\()))|(\+|-|\*\*?|\/\/?|:|%|>>|<<|\^|~|\||&)='''
+    PIPE    = r'(into|to|\|>)(?!\S)'
     BITWISE = r'[\^~|&]|<<|>>(?!=)'
     LESS    = r'<|((is )?less (than )?)|(lesser (than )?)'
     GREATER = r'>|((is )?greater (than )?)'
@@ -151,7 +152,6 @@ class Lexer(Lexer):
     EXPONENT= r'\*\*|power(?:\sof(?= |\t))?(?= |\t)|exponent(?=[ \t])'
     OF      = r'(case|of)([ \t]|(?=[\W]))'
     END     = r'end(?=\s|;)'
-    PIPE    = r'(into|to)(?!\S)'
     PIPEGO  = r'pipe(?=[ \t])'
     AND     = r'and(?=[ \t])'
     FROM    = r'from(?=[ \t])'
@@ -1337,7 +1337,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif tok.type == 'PIPEGO' and tok.value not in reservedIsNowVar:
             pipeWrap+=1
             lex.append(tok)
-        elif tok.type == 'PIPE'   and tok.value not in reservedIsNowVar:
+        elif tok.type == 'PIPE'   and (tok.value not in reservedIsNowVar or tok.value == '|>'):
+            if tok.value == '|>': tok.value='to'
             willPipe=True
             lex.append(tok)
         elif tok.type == 'IGNORE':
