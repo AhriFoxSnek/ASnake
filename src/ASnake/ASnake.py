@@ -681,9 +681,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     reservedIsNowVar=[]
     deleteUntilIndentLevel = (False,0)
     pyCompatibility=False
-    definedFunctions={}
     wrapParenEndOfLine=0
     definedVars={}
+    definedFunctions={}
+    for f in pyBuiltinFunctions:
+        definedFunctions[f]=0
 
 
     preLex=list(lexer.tokenize('\n'+data+' \n')) ; preLexIndex=0
@@ -863,15 +865,23 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             else:
                 lex.append(tok)
         elif tok.type == 'ID':
-            if tok.value in defaultTypes and tok.value not in reservedIsNowVar:
+            if tok.value in defaultTypes and tok.value not in reservedIsNowVar and lex[lexIndex].type in typeNewline+('CONSTANT','LINDEX','DEFFUNCT','FROM'):
                 tok.type='TYPE' # dumb fix for it not detecting types
             elif tok.value.isascii() == False:
                 if any(True for c in tok.value if unicodeCategory(c) in {'Zs', 'Cf', 'Cc'}):
                     return AS_SyntaxError(f'Whitespace character in {tok.value} is not permitted.', None, tok.lineno, data)
                 tok.value=convertEmojiToAscii(tok)
-            elif functionLineWrap and not functionPassing and not pyCompatibility and tok.value in definedFunctions \
-            and lex[lexIndex].type not in {'PIPE','PIPEGO'} and not (lex[lexIndex].type == 'RETURN' and lex[lexIndex].value.strip() == 'del'):
-                wrapParenEndOfLine += 1 ; tok.value+='(' ; tok.type = 'FWRAP'
+            elif functionLineWrap and not functionPassing and not pyCompatibility and tok.value in definedFunctions and tok.value not in reservedIsNowVar \
+            and lex[lexIndex].type not in {'PIPE','PIPEGO','ID','TYPE'} and not (lex[lexIndex].type == 'RETURN' and lex[lexIndex].value.strip() == 'del'):
+                if inFrom:
+                    reservedIsNowVar.append(tok.value)
+                else:
+                    wrapParenEndOfLine += 1 ; tok.value+='(' ; tok.type = 'FWRAP'
+            elif functionLineWrap and inFrom and lex[lexIndex].type in {'ID','FRWAP'} and lex[lexIndex].value.replace('(','') in defaultTypes:
+                lex[lexIndex].value = lex[lexIndex].value.replace('(','')
+                lex[lexIndex].type  = 'TYPE'
+                if lex[lexIndex].value in reservedIsNowVar: del reservedIsNowVar[reservedIsNowVar.index(lex[lexIndex].value)]
+                if tok.value in pyBuiltinFunctions: reservedIsNowVar.append(tok.value)
             lex.append(tok)
         elif tok.type == 'TYPEWRAP':
             tok.value=tok.value.replace(':','').replace(' ','')
@@ -1411,13 +1421,29 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
     # end of phase cleanup
     lex=[l for l in lex if l.type not in {'IGNORE','IGNORENL'}]
+    removeParen=0
     for l in range(0,len(lex)-1):
+        if l > len(lex)-1: break
         if lex[l].type == 'FWRAP':
-            if lex[l].value[-1] == '(':
-                lex[l].type = 'FUNCTION'
+            tmpConvertBack=False
+            if lex[l+2].type == 'LISTCOMP':
+                tmpConvertBack=True ; reservedIsNowVar.append(lex[l].value.replace('(',''))
+            elif lex[l].value.replace('(','') in reservedIsNowVar:
+                tmpConvertBack=True
+            elif lex[l-1].type in typeNewline and lex[l].value.replace('(','') in pyBuiltinFunctions and lex[l+1].type in typeAssignables and lex[l].value.replace('(','') != 'print':
+                tmpConvertBack=True ; reservedIsNowVar.append(lex[l].value.replace('(',''))
             else:
+                if lex[l].value[-1] == '(':
+                    lex[l].type = 'FUNCTION'
+                else:
+                    lex[l].type = 'ID'
+            if tmpConvertBack:
+                if lex[l].value[-1] == '(': lex[l].value = lex[l].value[:-1]
                 lex[l].type = 'ID'
-
+                if lex[l + 1].type == 'RPAREN': del lex[l + 1]
+                else: removeParen += 1
+        elif removeParen and lex[l].type == 'RPAREN' and lex[l+1].type in typeNewline+('ENDIF',): del lex[l] ; removeParen-=1
+    del removeParen
     if lex: lex.append(makeToken(lex[-1],'\n','NEWLINE'))
     # ^ need newline at the end , some stuff relies on that
 
@@ -3337,7 +3363,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmp = tmp1st if tmpIsMax else tmp2nd
                                     autoMakeTokens(f"({tmp} ^ (({tmp1st} ^ {tmp2nd}) & -({tmp1st} < {tmp2nd})))", token)
                                 else:
-                                    tmp = '>' if tmpIsMax else '<'   
+                                    tmp = '>' if tmpIsMax else '<'
                                     autoMakeTokens(f"({tmp1st} if {tmp1st} {tmp} {tmp2nd} else {tmp2nd})",token)
                                 if debug: print(f"! max2compare: {'max' if tmpIsMax else 'min'}({tmp1st},{tmp2nd}) --> ({tmp1st} if {tmp1st} {tmp} {tmp2nd} else {tmp2nd})")
 
@@ -3429,6 +3455,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex[token].type = 'NUMBER'
                                     lex[token + 1].type = lex[token + 2].type = 'IGNORE'
                                     if lex[token-1].type in typeNewline and lex[token+3].type in typeNewline: lex.insert(token,makeToken(lex[token],'','DONTDEXP'))
+                                    newOptimization=True
                             elif optCompilerEvalDict['evalStrCenter'] and lex[token].type == 'BUILTINF' and lex[token].value[0] in {'"',"'"} and lex[token].value.endswith('.center') and lex[token+1].type == 'LPAREN' and lex[token+2].type == 'NUMBER' and '.' not in lex[token+2].value and ((lex[token+3].type == 'COMMA' and lex[token+4].type == 'STRING' and len(stripStringQuotes(lex[token+4].value)) == 1 and lex[token+5].type == 'RPAREN') or (lex[token+3].type == 'RPAREN')):
                                 tmpQuote = lex[token].value[0]
                                 if lex[token+3].type == 'COMMA':
