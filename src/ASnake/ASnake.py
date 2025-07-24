@@ -8229,7 +8229,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if tok.value in ASnakeKeywords and tok.value in reservedIsNowVar:
                     line.append(decideIfIndentLine(indent,f'{tok.value} '))
                 else:
-                    if fstrQuote != '':
+                    if fstrQuote != '' and tok.type not in {'NOTHING','AND','OR','FOR','PYIS'}:
                         line.append(decideIfIndentLine(indent, codeDict[tok.type]))
                     else:
                         line.append(decideIfIndentLine(indent,f'{codeDict[tok.type]} '))
