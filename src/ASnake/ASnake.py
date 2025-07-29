@@ -885,10 +885,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tok.value=convertEmojiToAscii(tok)
             elif functionLineWrap and not functionPassing and not pyCompatibility and tok.value in definedFunctions and tok.value not in reservedIsNowVar \
             and lex[lexIndex].type not in {'PIPE','PIPEGO','ID','TYPE'} and not (lex[lexIndex].type == 'RETURN' and lex[lexIndex].value.strip() == 'del'):
-                if inFrom or (lex[lexIndex].type == 'FUNCTION' and lex[lexIndex].value == 'isinstance('):
-                    reservedIsNowVar.append(tok.value)
-                else:
-                    wrapParenEndOfLine += 1 ; tok.value+='(' ; tok.type = 'FWRAP'
+                tmpSafe = True
+                if lex[lexIndex].type == 'COMMA':
+                    for t in range(lexIndex,0,-1):
+                        if lex[t].type in typeNewline: break
+                        elif lex[t].type == 'FUNCTION' and lex[t].value == 'isinstance(':
+                            tmpSafe = False ; break
+                elif lexIndex-1 > 0 and lex[lexIndex-2].type == 'FUNCTION' and lex[lexIndex-2].value == 'isinstance(':
+                    tmpSafe = False
+                if tmpSafe:
+                    if inFrom:
+                        reservedIsNowVar.append(tok.value)
+
+                    else:
+                        wrapParenEndOfLine += 1 ; tok.value+='(' ; tok.type = 'FWRAP'
             elif functionLineWrap and inFrom and lex[lexIndex].type in {'ID','FRWAP'} and lex[lexIndex].value.replace('(','') in defaultTypes:
                 lex[lexIndex].value = lex[lexIndex].value.replace('(','')
                 lex[lexIndex].type  = 'TYPE'
