@@ -885,7 +885,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tok.value=convertEmojiToAscii(tok)
             elif functionLineWrap and not functionPassing and not pyCompatibility and tok.value in definedFunctions and tok.value not in reservedIsNowVar \
             and lex[lexIndex].type not in {'PIPE','PIPEGO','ID','TYPE'} and not (lex[lexIndex].type == 'RETURN' and lex[lexIndex].value.strip() == 'del'):
-                if inFrom:
+                if inFrom or (lex[lexIndex].type == 'FUNCTION' and lex[lexIndex].value == 'isinstance('):
                     reservedIsNowVar.append(tok.value)
                 else:
                     wrapParenEndOfLine += 1 ; tok.value+='(' ; tok.type = 'FWRAP'
