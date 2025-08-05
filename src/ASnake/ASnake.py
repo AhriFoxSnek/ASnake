@@ -1595,6 +1595,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'optCythonConvertTo_libc': True,
                             'startsWithToIndex': True,
                             'idToIs': True,
+                            'deepcopyToPickle':True,
                             }
         optConstantPropagation=True
         optMathEqual=True
@@ -1643,8 +1644,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif compileTo == 'PyPy3':
             # v seems to be slower for some reason on PyPy but faster on Python v
             optNestedLoopItertoolsProduct=optFuncCache=optLoopToMap=optListPlusListToExtend \
-           =optFuncTricksDict['intToFloat']=optFuncTricksDict['startsWithToIndex']\
-           =optConvertMultipleOrToIn=False
+            =optFuncTricksDict['intToFloat']=optFuncTricksDict['startsWithToIndex']\
+            =optFuncTricksDict['deepcopyToPickle']\
+            =optConvertMultipleOrToIn=False
             # v faster in pypy v
             optWalrus=True
         elif compileTo == 'Pyston':
@@ -3429,7 +3431,66 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex.insert(token, makeToken(lex[token], tmp[0], 'ID'))
                                 if debug:
                                     print(f"!idToIs: id({tmp[0]}) == id({tmp[1]})  -->  {tmp[0]} is {tmp[1]}")
+                                    
+                            elif optFuncTricksDict['deepcopyToPickle'] and lex[token].value == 'deepcopy(' and 'copy.' in trackingImported and lex[token-1].type != 'TRY' and lex[token-2].type != 'TRY':
+                                tmpGetBaseIndent=None ; tmpStart=token; tmpBeforeCopy=[]
+                                for t in range(token-1,0,-1):
+                                    tmpStart=t+1
+                                    if lex[t].type == 'NEWLINE': tmpGetBaseIndent=0 ; break
+                                    elif lex[t].type == 'TAB': tmpGetBaseIndent=lex[t].value.count(' ') ; break
+                                    elif lex[t].type == 'THEN': break
+                                    tmpBeforeCopy.append(copy(lex[t]))
 
+                                if lex[tmpStart-2].type != 'TRY': # safe
+                                    tmpBeforeCopy=tmpBeforeCopy[::-1]
+
+                                    tmpGetVar=[]
+                                    tmpParen=1 ; tmp=0
+                                    for t in range(token+1,len(lex)-1):
+                                        if (lex[t].type == 'FUNCTION' and lex[t].value.strip()[-1] in '(') \
+                                        or lex[t].type == 'LPAREN':
+                                            tmpParen+=1
+                                        elif lex[t].type == 'RPAREN': tmpParen-=1
+                                        elif lex[t].type in {'TAB','NEWLINE'}: tmp=t; break
+                                        if tmpParen == 0: tmp = t+1; break
+                                        tmpGetVar.append(copy(lex[t]))
+
+                                    for t in range(token,tmp):
+                                        lex[t].type='IGNORE'
+
+                                    lex.insert(tmpStart,makeToken(lex[token],'try:','TRY'))
+                                    lex.insert(token+1, makeToken(lex[token], 'loads(', 'FUNCTION'))
+                                    lex.insert(token+2, makeToken(lex[token], 'dumps(', 'FUNCTION'))
+                                    tmpf=3
+                                    for t in tmpGetVar:
+                                        lex.insert(token+tmpf,t)
+                                        tmpf+=1
+                                    lex.insert(token+tmpf+1, makeToken(lex[token], ')', 'RPAREN'))
+                                    lex.insert(token+tmpf+2, makeToken(lex[token], ')', 'RPAREN'))
+                                    if tmpGetBaseIndent is None:
+                                        lex.insert(token+tmpf+3, makeToken(lex[token], ';', 'THEN'))
+                                    else:
+                                        lex.insert(token+tmpf+3, makeToken(lex[token], '\n'+(' '*tmpGetBaseIndent), 'TAB'))
+                                    lex.insert(token+tmpf+4,makeToken(lex[token],'except (PickleError, PicklingError, UnpicklingError)','TRY'))
+                                    lex.insert(token+tmpf+5, makeToken(lex[token], 'do', 'THEN'))
+                                    tmpf += 6
+                                    for t in tmpBeforeCopy:
+                                        lex.insert(token+tmpf,t)
+                                        tmpf += 1
+                                    lex.insert(token+tmpf+1, makeToken(lex[token], 'deepcopy(', 'FUNCTION'))
+                                    tmpf+=1
+                                    for t in tmpGetVar:
+                                        lex.insert(token+tmpf,t)
+                                        tmpf += 1
+                                    lex.insert(token+tmpf+1, makeToken(lex[token], ')', 'RPAREN'))
+
+                                    insertAtTopOfCodeIfItIsNotThere('from pickle import PickleError, PicklingError, UnpicklingError, loads, dumps\n')
+                                    for thing in ('loads','dumps','PickleError','PicklingError','UnpicklingError'):
+                                        trackingImported['copy.']+=thing
+                                    if debug: print(f"deepcopyToPickle: deepcopy({''.join([_.value for _ in tmpGetVar])})  --> loads(dumps({''.join([_.value for _ in tmpGetVar])}))")
+                                    newOptimization=True
+                                    del tmpGetVar
+                                del tmpStart, tmpGetBaseIndent, tmpBeforeCopy
 
 
                         if optCompilerEval:
