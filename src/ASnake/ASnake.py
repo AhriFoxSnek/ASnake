@@ -3443,52 +3443,60 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                 if lex[tmpStart-2].type != 'TRY': # safe
                                     tmpBeforeCopy=tmpBeforeCopy[::-1]
-
-                                    tmpGetVar=[]
-                                    tmpParen=1 ; tmp=0
+                                    tmpGetVar=[] ; tmpGetAfterVar=[]
+                                    tmpParen=1 ; tmp=0 ; found=skip=False
                                     for t in range(token+1,len(lex)-1):
                                         if (lex[t].type == 'FUNCTION' and lex[t].value.strip()[-1] in '(') \
                                         or lex[t].type == 'LPAREN':
                                             tmpParen+=1
                                         elif lex[t].type == 'RPAREN': tmpParen-=1
-                                        elif lex[t].type in {'TAB','NEWLINE'}: tmp=t; break
-                                        if tmpParen == 0: tmp = t+1; break
-                                        tmpGetVar.append(copy(lex[t]))
+                                        elif lex[t].type in {'TAB','NEWLINE'}: tmp=t ; break
+                                        if tmpParen == 0: tmp = t+1; found=True ; skip=True
+                                        if not skip and lex[t].type != 'IGNORE':
+                                            if found:
+                                                tmpGetAfterVar.append(copy(lex[t]))
+                                            else:
+                                                tmpGetVar.append(copy(lex[t]))
+                                        else: skip=False
+                                    #print(''.join([_.value for _ in tmpBeforeCopy])+"var"+''.join([_.value for _ in tmpGetAfterVar]))
+                                    if tmpGetVar: # safe
 
-                                    for t in range(token,tmp):
-                                        lex[t].type='IGNORE'
+                                        for t in range(token,tmp):
+                                            lex[t].type='IGNORE'
 
-                                    lex.insert(tmpStart,makeToken(lex[token],'try:','TRY'))
-                                    lex.insert(token+1, makeToken(lex[token], 'loads(', 'FUNCTION'))
-                                    lex.insert(token+2, makeToken(lex[token], 'dumps(', 'FUNCTION'))
-                                    tmpf=3
-                                    for t in tmpGetVar:
-                                        lex.insert(token+tmpf,t)
-                                        tmpf+=1
-                                    lex.insert(token+tmpf+1, makeToken(lex[token], ')', 'RPAREN'))
-                                    lex.insert(token+tmpf+2, makeToken(lex[token], ')', 'RPAREN'))
-                                    if tmpGetBaseIndent is None:
-                                        lex.insert(token+tmpf+3, makeToken(lex[token], ';', 'THEN'))
-                                    else:
-                                        lex.insert(token+tmpf+3, makeToken(lex[token], '\n'+(' '*tmpGetBaseIndent), 'TAB'))
-                                    lex.insert(token+tmpf+4,makeToken(lex[token],'except (PickleError, PicklingError, UnpicklingError)','TRY'))
-                                    lex.insert(token+tmpf+5, makeToken(lex[token], 'do', 'THEN'))
-                                    tmpf += 6
-                                    for t in tmpBeforeCopy:
-                                        lex.insert(token+tmpf,t)
-                                        tmpf += 1
-                                    lex.insert(token+tmpf+1, makeToken(lex[token], 'deepcopy(', 'FUNCTION'))
-                                    tmpf+=1
-                                    for t in tmpGetVar:
-                                        lex.insert(token+tmpf,t)
-                                        tmpf += 1
-                                    lex.insert(token+tmpf+1, makeToken(lex[token], ')', 'RPAREN'))
+                                        lex.insert(tmpStart,makeToken(lex[token],'try:','TRY'))
+                                        lex.insert(token+1, makeToken(lex[token], 'loads(', 'FUNCTION'))
+                                        lex.insert(token+2, makeToken(lex[token], 'dumps(', 'FUNCTION'))
+                                        tmpf=3
+                                        for t in tmpGetVar:
+                                            lex.insert(token+tmpf,t)
+                                            tmpf+=1
+                                        lex.insert(token+tmpf+1, makeToken(lex[token], ')', 'RPAREN'))
+                                        lex.insert(token+tmpf+2, makeToken(lex[token], ')', 'RPAREN'))
+                                        tmpf += 3
+                                        for t in tmpGetAfterVar:
+                                            lex.insert(token+tmpf,t)
+                                            tmpf+=1
+                                        if tmpGetBaseIndent is None:
+                                            lex.insert(token+tmpf, makeToken(lex[token], ';', 'THEN'))
+                                        else:
+                                            lex.insert(token+tmpf, makeToken(lex[token], '\n'+(' '*tmpGetBaseIndent), 'TAB'))
+                                        lex.insert(token+tmpf+1,makeToken(lex[token],'except (PickleError, PicklingError, UnpicklingError)','TRY'))
+                                        lex.insert(token+tmpf+2, makeToken(lex[token], 'do', 'THEN'))
+                                        tmpf += 3
+                                        for t in tmpBeforeCopy \
+                                        + [makeToken(lex[token], 'deepcopy(', 'FUNCTION')] \
+                                        + tmpGetVar \
+                                        + [makeToken(lex[token], ')', 'RPAREN')] \
+                                        + tmpGetAfterVar:
+                                            lex.insert(token+tmpf,t)
+                                            tmpf += 1
 
-                                    insertAtTopOfCodeIfItIsNotThere('from pickle import PickleError, PicklingError, UnpicklingError, loads, dumps\n')
-                                    for thing in ('loads','dumps','PickleError','PicklingError','UnpicklingError'):
-                                        trackingImported['copy.']+=thing
-                                    if debug: print(f"deepcopyToPickle: deepcopy({''.join([_.value for _ in tmpGetVar])})  --> loads(dumps({''.join([_.value for _ in tmpGetVar])}))")
-                                    newOptimization=True
+                                        insertAtTopOfCodeIfItIsNotThere('from pickle import PickleError, PicklingError, UnpicklingError, loads, dumps\n')
+                                        for thing in ('loads','dumps','PickleError','PicklingError','UnpicklingError'):
+                                            trackingImported['copy.']+=thing
+                                        if debug: print(f"deepcopyToPickle: deepcopy({''.join([_.value for _ in tmpGetVar])})  --> loads(dumps({''.join([_.value for _ in tmpGetVar])}))")
+                                        newOptimization=True
                                     del tmpGetVar
                                 del tmpStart, tmpGetBaseIndent, tmpBeforeCopy
 
