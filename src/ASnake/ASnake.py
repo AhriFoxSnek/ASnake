@@ -2885,17 +2885,30 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                     elif lex[token].type in {'LPAREN','LIST','LBRACKET'} and lex[token-1].type == 'INS' and lex[token-1].value.strip() == 'in':
                         if optInSet:
+                            tmpOptimizeType = lex[token].type
+
                             tmpscope=1 ; tmp=0 ; tmpf=[] ; tmpLeftScope = 1 ; inForLoop=hasComma=False
+                            tmpListScope=tmpParenScope=tmpBracketScope=0
                             for tmpi in range(token+1,len(lex)):
                                 tmpLastIndex = tmpi+1
                                 if lex[tmpi].type == lex[token].type: tmpscope+=1 ; tmpLeftScope+=1
-                                elif lex[token].type == 'LPAREN' and lex[tmpi].type == 'RPAREN': tmpscope-=1
-                                elif lex[token].type == 'LIST' and lex[tmpi].type == 'LISTEND': tmpscope -= 1
-                                elif lex[token].type == 'LBRACKET' and lex[tmpi].type == 'RBRACKET': tmpscope-=1
+                                elif tmpOptimizeType == 'LPAREN'   and lex[tmpi].type == 'RPAREN':              tmpscope-=1
+                                elif tmpOptimizeType == 'LIST'     and lex[tmpi].type in {'LISTEND','RINDEX'}:  tmpscope-=1
+                                elif tmpOptimizeType == 'LBRACKET' and lex[tmpi].type == 'RBRACKET':            tmpscope-=1
+                                elif lex[tmpi].type in {'LPAREN','FUNCTION'}: tmpParenScope   += 1
+                                elif lex[tmpi].type == 'RPAREN':              tmpParenScope   -= 1
+                                elif lex[tmpi].type in {'LIST','LINDEX'}:     tmpListScope    += 1
+                                elif lex[tmpi].type in {'LISTEND','RINDEX'}:  tmpListScope    -= 1
+                                elif lex[tmpi].type == 'LBRACKET':            tmpBracketScope += 1
+                                elif lex[tmpi].type == 'RBRACKET':            tmpBracketScope -= 1
                                 elif lex[tmpi].type == 'FOR': tmp=0 ; break
                                 if tmpscope == 0: tmp=tmpi ; break
                                 else:
-                                    if not hasComma and lex[tmpi].type == 'COMMA': hasComma=True
+                                    if not hasComma and lex[tmpi].type == 'COMMA' and tmpscope > 0:
+                                        if   tmpOptimizeType == 'LPAREN'  and tmpBracketScope == tmpListScope  == 0 : hasComma=True
+                                        elif tmpOptimizeType == 'LIST'    and tmpBracketScope == tmpParenScope == 0 : hasComma=True
+                                        elif tmpOptimizeType == 'BRACKET' and tmpListScope    == tmpParenScope == 0 : hasComma=True
+
                                     tmpf.append(copy(lex[tmpi]))
                             for tmpi in range(token-1,0,-1):
                                 if lex[tmpi].type == 'FOR': inForLoop=True ; break
@@ -2906,7 +2919,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 tmpf=[l.value for l in tmpf if l.type != 'COMMA']
                                 seen=set()
                                 tmpsafe=True
-                                if lex[token].type == 'LBRACKET': tmpsafe=False # support sets for evalThingInList
+                                if tmpOptimizeType == 'LBRACKET': tmpsafe=False # support sets for evalThingInList
                                 if not inForLoop:
                                     for t in tmpf:
                                         if t in seen or '[' in t or ']' in t:
@@ -2925,10 +2938,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         lex[ii].type = 'IGNORE'
                                     if debug: print(f"! evalThingIn: {tmpOG} in {seen} --> {tmp}") ; del tmpOG
                                     newOptimization = True
-                                if tmpsafe and not inForLoop:
+                                if tmpsafe and not inForLoop and tmpOptimizeType != 'LBRACKET' and hasComma:
                                     # if all are unique, and doesn't contain list
-                                    lex[token].type='LBRACKET' ; lex[token].value='{'
-                                    lex[tmp].type = 'RBRACKET' ; lex[tmp].value = '}'
+                                    lex[token].type = 'LBRACKET' ; lex[token].value = '{'
+                                    lex[tmp].type   = 'RBRACKET' ; lex[tmp].value   = '}'
                                     if debug: print(f"! converted to set: {{{', '.join(tmpf)}}}")
                                     newOptimization = True
                                 elif optListToTuple and lex[token].type == 'LIST':
