@@ -3305,15 +3305,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex.insert(token, makeToken(lex[token], 'not ', 'INS'))
                                 lex.insert(token, makeToken(lex[token], '(', 'LPAREN'))
 
-                            if optFuncTricksDict['dictlistFunctionToEmpty'] and (lex[token].value == 'list(' or lex[token].value == 'dict(') and lex[token+1].type=='RPAREN':
+                            if optFuncTricksDict['dictlistFunctionToEmpty'] and (lex[token].value in {'list(','dict('} or (compileTo=="PyPy3" and lex[token].value == 'set(')) and lex[token+1].type=='RPAREN':
                                 # x = list()  -->  x = []
                                 # x = dict()  -->  x = {}
-                                if lex[token].value == 'list(': tmpType='list'
-                                else: tmpType='dict'
-                                if tmpType == 'list':
+                                # x = set()   -->  x = {*()}
+                                if lex[token].value == 'list(':
                                     lex[token].type='LIST' ; lex[token].value='['
                                     lex[token+1].type='LISTEND' ; lex[token+1].value=']'
-                                else:
+                                elif lex[token].value == 'set(' and compileTo == "PyPy3": # only faster in pypy
+                                    lex[token].type=lex[token+1].type='IGNORE'
+                                    autoMakeTokens("{*()}",token)
+                                else: # dict(
                                     lex[token].type = 'LBRACKET' ; lex[token].value = '{'
                                     lex[token + 1].type = 'RBRACKET' ; lex[token + 1].value = '}'
 
