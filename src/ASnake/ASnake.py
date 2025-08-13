@@ -7807,9 +7807,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         # xValue in yList --> yList.__contains__(xValue)
                         # faster in Pyston , though not for small lists
                         # better to optimize for the large cases probably unless length can be determined
-                        lex[lexIndex-1].type = tok.type = 'IGNORE'
-                        autoMakeTokens(f".__contains__({lastValue})",lexIndex+1)
-                        line=line[:-1]
+                        if lastValue.strip() not in '{([])}*+^%$@!-+=><':
+                            lex[lexIndex-1].type = tok.type = 'IGNORE'
+                            autoMakeTokens(f".__contains__({lastValue})",lexIndex+1)
+                            line=line[:-1]
 
                     if startOfLine and not inIf:
                         doPrint=True
