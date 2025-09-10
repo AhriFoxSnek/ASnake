@@ -80,11 +80,13 @@ elif platform.system() is 'Linux'
     except do nothing
 
     pyCall = 'python'
-    if len(check_output(['which', 'pacman']).decode()) == 0 
-      # Arch based system will have python always default to latest
-      # otherwise, we should try and find the latest installed version
-      if len(check_output(['which', 'python3']).decode()) > 0
-            pyCall = 'python3'
+    try
+        if len(check_output(['which', 'pacman']).decode()) == 0 
+          # Arch based system will have python always default to latest
+          # otherwise, we should try and find the latest installed version
+          if len(check_output(['which', 'python3']).decode()) > 0
+                pyCall = 'python3'
+    except CalledProcessError do pyCall = 'python3' end
       
       def fixVersionNumber(version):
         tmp = str(version).split('.')
