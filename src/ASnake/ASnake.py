@@ -244,7 +244,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     metaIgnoreIndent = {'ignoreIndentation','ignoreIndent','noindent','noIndent','noIndentation'}
     metaPyIs = {'pyis','pythonIs','pyIs','isPython','pythonis','isIdentity'}
     metaConditionalVersion = {'ifVersion','isVersion','ifVersionIs','isVersionIs','ifVersionGreaterThanOrEqualTo','ifver'}
-    metaElseVersion = {'elseVersion','elseIfVersion','elsever'}
+    metaElseVersion = {'elseVersion','elseIfVersion','elsever','versionElse'}
     metaFunctionLineWrap = {'funcWrap','functionLineWrap','functionWrap','fwrap'}
     metaPyFunc = {'funcPass','funcpass','passFunction','functionPass','pyfunc','pyFunc'}
     metaDefExp = {'defexp','defaultExpression','defaultPrint','expPrint','defprint'}
