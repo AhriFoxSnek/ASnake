@@ -732,7 +732,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         if deleteUntilIndentLevel[0]:
             if currentTab > deleteUntilIndentLevel[1] and tok.type not in typeNewline:
                 continue
-            elif tok.type == 'NEWLINE' and lex[lexIndex].type != 'TAB': deleteUntilIndentLevel = (False,0)
+            elif (tok.type == 'NEWLINE' and lex[lexIndex].type != 'TAB')\
+            or tok.type == 'META' and tok.value.replace('$', '').replace(' ', '').startswith(tuple(metaElseVersion)):
+                deleteUntilIndentLevel = (False,0) # stop deleting
         if crunch:
             if tok.type in typeNewline:
                 crunch = False
@@ -896,7 +898,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if tmpSafe:
                     if inFrom:
                         reservedIsNowVar.append(tok.value)
-
                     else:
                         wrapParenEndOfLine += 1 ; tok.value+='(' ; tok.type = 'FWRAP'
             elif functionLineWrap and inFrom and lex[lexIndex].type in {'ID','FRWAP'} and lex[lexIndex].value.replace('(','') in defaultTypes:
@@ -904,6 +905,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lex[lexIndex].type  = 'TYPE'
                 if lex[lexIndex].value in reservedIsNowVar: del reservedIsNowVar[reservedIsNowVar.index(lex[lexIndex].value)]
                 if tok.value in pyBuiltinFunctions: reservedIsNowVar.append(tok.value)
+            elif lex[lexIndex].type == 'ID' and tok.value in pyBuiltinFunctions:
+                tmpSafe = True
+                for tmpi in range(len(lex)-1,-1,-1):
+                    if   lex[tmpi].type in typeNewline: break
+                    elif lex[tmpi].type not in {'TYPE','CONSTANT','ID'}: tmpSafe=False ; break
+                if tmpSafe:
+                    reservedIsNowVar.append(tok.value)
             lex.append(tok)
         elif tok.type == 'TYPEWRAP':
             tok.value=tok.value.replace(':','').replace(' ','')
@@ -1110,7 +1118,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lexIndex -= 1
             elif metaCall.startswith(tuple(metaConditionalVersion)):
                 error=False
+                if '#' in tok.value: tok.value = tok.value.split('#')[0]  # removes comments
                 tmp = tok.value.split('=')
+
                 if len(tmp) > 1:
                     tmp = fixVersionNumber(tmp[1])
                     try:
@@ -1134,12 +1144,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     for i in tuple(metaConditionalVersion):
                         if metaCall.startswith(i):
                             tmp = i ; break
-                    return AS_SyntaxError(f'Meta {tmp} must be given a float/decimal which represents a Python version.',f'$ {tmp} = 3.8', None, data)
+                    return AS_SyntaxError(f'Meta {tmp} must be given a float/decimal which represents a Python version.',f'$ {tmp} = 3.8', lineNumber, data)
             elif metaCall.startswith(tuple(metaElseVersion)):
                 if '=' in metaCall:
                     return AS_SyntaxError(
                         f'Meta ${metaCall} must not have a =. It triggers when it is lower than previous {tuple(metaConditionalVersion)[0]} meta.',
-                        f'$ {metaCall.split("=")[0]}', None, data)
+                        f'$ {metaCall.split("=")[0]}', lineNumber, data)
                 if metaConditionalVersionTriggered:
                     if pythonVersion >= metaConditionalVersionTriggered:
                         deleteUntilIndentLevel = (True, 0 if lex[lexIndex].type == 'NEWLINE' else currentTab)
@@ -1956,7 +1966,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     elif optListPlusListToExtend and tmpf[0].type == 'FUNCTION' and tmpf[0].value.startswith('list') and tmpf[1].type == 'STRING' and tmpf[2].type == 'RPAREN':
                                         tmpf=None # in cases where optListPlusListToExtend is viable, constant propagation is slower
                                 if valueStop==None: valueStop=len(lex)-1
-                                if tmpf != None: # we got a expression now
+                                if tmpf is not None: # we got a expression now
                                     tmpListOfVarsInside=()
                                     if vartype == 'NUMBER' and optCompilerEval and optCompilerEvalDict['evalTokens']:
                                         try:
@@ -7044,6 +7054,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     else: tmp=('None','BOOL')
                                     lex.insert(lexIndex+2,makeToken(tok,value=tmp[0],type=tmp[1]))
                                     lex.insert(lexIndex+2,makeToken(tok, value='=', type='ASSIGN'))
+                                    
                                 if lexIndex+2 < len(lex) and lex[lexIndex+2].type in typeAssignables:
                                     lex[lexIndex+1].value=f"{lex[lexIndex+1].value}"
 
@@ -7074,6 +7085,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         values=values[::-1]
                                         for t in values:
                                             if ':' in t.value: t.value=t.value.split(':')[0]
+                                            if pythonVersion < 3.06 and len(values)>1 and t == values[-1] and t.value == lex[lexIndex+1].value:
+                                                tmpDict={
+                                                    'str'  : ('""' , 'STRING'),
+                                                    'int'  : ('0'  , 'NUMBER'),
+                                                    'float': ('0.0', 'NUMBER'),
+                                                    'list' : ('[]', 'INDEX'),
+                                                    'dict' : ('{}', 'DICT')
+                                                }
+                                                if tok.value.strip() in tmpDict: tmpf=tmpDict[tok.value.strip()]
+                                                else: tmpf=('None', 'BOOL')
+                                                lex.insert(lexIndex+2, makeToken(lex[lexIndex], "=", "ASSIGN"))
+                                                lex.insert(lexIndex+3, makeToken(lex[lexIndex], tmpf[0], tmpf[1]))
+                                                lex.insert(lexIndex+4, makeToken(lex[lexIndex], ";", "THEN"))
+                                                tmp+=3
                                             lex.insert(tmp-1,t)
 
                     elif lex[lexIndex+1].type == 'COMMAGRP' and '=' in lex[lexIndex+1].value and lastType in typeNewline+('CONST',):
@@ -8192,10 +8217,16 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.type in typeCheckers:
                 check = True
                 if intVsStrDoLen:
-                    tmpAllowedLen={'STRING','LIST','LISTCOMP','DICT','TUPLE','SET'}
+                    tmpAllowedLen={'STRING','LIST','LISTCOMP','DICT','TUPLE','SET','FSTR'}
                     if (lastType in tmpAllowedLen or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] in tmpAllowedLen)) \
                     and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in {'NUMBER','INC'} or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type']=='NUMBER'))):
-                        line[-1]=line[-1].replace(lex[lexIndex-1].value,f"len({lex[lexIndex-1].value})")
+                        if lastType == 'FSTR':
+                            for tmpi in range(len(line)-1,-1,-1):
+                                if REsearch(r'''[ru]?f[ru]?(?:"|')''', line[tmpi]):
+                                    line.insert(tmpi,"len(") ; break
+                            line.append(')')
+                        else:
+                            line[-1]=line[-1].replace(lex[lexIndex-1].value,f"len({lex[lexIndex-1].value})")
                         line.append(decideIfIndentLine(indent,f'{codeDict[tok.type]} '))
                         check = False
                     elif (lastType in {'NUMBER','INC'} or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type']=='NUMBER')) \
