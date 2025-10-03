@@ -88,10 +88,11 @@ if True loop 12 xyz
 if result is 11 $worked
 else 'Loop is new-expression/new-line' $failed
 
-$start
-loop 12 nn f"{nn}"
-if result is '11' $worked
-else 'Fstring DefExp after loop' $failed
+$ ifVersion = 3.6
+	$start
+	loop 12 nn f"{nn}"
+	if result is '11' $worked
+	else 'Fstring DefExp after loop' $failed
 
 
 $start
@@ -102,10 +103,11 @@ d is if True then (24*2)//2 else 24*2
 if a is 3 and b is 6 and c is 12 and d is 24 $worked
 else 'Tenary assignmment' $failed
 
-$start
-f"{if 5 > 1 then 0 else 2}"
-if result is '0' then $worked
-else 'Tenary inside fstring' $failed
+$ ifVersion = 3.6
+	$start
+	f"{if 5 > 1 then 0 else 2}"
+	if result is '0' then $worked
+	else 'Tenary inside fstring' $failed
 
 
 $start
@@ -197,22 +199,22 @@ if ฯ€ is 3.14 $worked
 else 'non-ascii variable' $failed
 
 $start
-๐ค๐’๐งก is 'love'
-if ๐ค๐’๐งก is 'love' $worked
+❤️ is 'love'
+if ❤️ is 'love' $worked
 else '(multi) emoji variable' $failed
 
+$ ifVersion = 3.6
+	$start
+	x is 12
+	if f"{x+2}" is '14' $worked
+	else 'basic f-string parsing' $failed
 
-$start
-x is 12
-if f"{x+2}" is '14' $worked
-else 'basic f-string parsing' $failed
-
-$start
-x is 12
-if f"{x 
-	then 
-		x}" is '1212' $worked
-else 'f-string indent and then' $failed
+	$start
+	x is 12
+	if f"{x 
+		then 
+			x}" is '1212' $worked
+	else 'f-string indent and then' $failed
 
 
 $start
@@ -220,11 +222,12 @@ test does return x+12 from int x
 if test(2) is 14 $worked
 else 'one line asnake function' $failed
 
-$start
-test does f"test{1+3}"
-test
-if result is 'test4' $worked
-else 'default print for fstring on asnake function' $failed
+$ ifVersion = 3.6
+	$start
+	test does f"test{1+3}"
+	test
+	if result is 'test4' $worked
+	else 'default print for fstring on asnake function' $failed
 
 $start
 xint = 3
@@ -337,6 +340,13 @@ y = 12
 if y > xstr do $worked
 else 'int vs str compares len' $failed
 
+$ ifVersion = 3.6
+	$start
+	testFunc does return 1234
+	xint = testFunc()
+	if f"{xint}" > 3 do $worked
+	else 'fstr vs int compares len' $failed
+
 $ ifVersion = 3.8
 	$start
 	y = 4
@@ -381,10 +391,11 @@ $start
 if ix into str into float is 12.0 do $worked
 else 'pipe double into' $failed
 
-$start
-f"{69 to chr}"
-if result is 'E' do $worked
-else 'pipe number in fstring' $failed
+$ ifVersion = 3.6
+	$start
+	f"{69 to chr}"
+	if result is 'E' do $worked
+	else 'pipe number in fstring' $failed
 
 $start
 loop 12 itervar to str * 2
@@ -421,11 +432,11 @@ $start
 if '1' isnt in '23456' do $worked
 else 'isn\'t in to not in syntax alias' $failed
 
-
-$start
-sx  f"{12}"
-if sx f"{12}" do $worked
-else 'assume assign/compare on fstring' $failed
+$ ifVersion = 3.6
+	$start
+	sx  f"{12}"
+	if sx f"{12}" do $worked
+	else 'assume assign/compare on fstring' $failed
 
 
 $start
@@ -493,5 +504,8 @@ if result is 2 do $worked
 else 'functionPass meta off' $failed
 
 
-
-f"Failed={failed} Working={working} out of {max}" to print
+$ ifVersion = 3.6
+	f"Failed={failed} Working={working} out of {max}" to print
+$ elseVersion
+	print f"Failed=%s Working=%s out of %s" % (failed,working,max)
+	
