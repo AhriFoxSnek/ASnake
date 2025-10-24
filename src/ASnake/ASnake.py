@@ -1751,6 +1751,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         #for tmpi in range(token+tmpStart,len(lex)):
                         #    if lex[tmpi].type in typeNewline: break
                         #    else: tmpf.append(copy(lex[tmpi]))
+
+                        if tmpStart == 1 and optLoopAttr and preAllocated and lex[token].value != "ASprint(" and lex[token].value == 'print(' and 'ASprint' in [p[1] for p in preAllocated] and lex[token-1].type not in {'ID', 'ASSIGN'}:
+                            # if in preAllocated, replace it
+                            if debug: print(f"! attrs: print( --> ASprint( {lex[token+1].value}")
+                            lex[token].value = 'ASprint('
+                            newOptimization=True
+
                         safe = False
                         if tmpStart > 0:
                             if lex[token+tmpStart].type == 'MINUS' and lex[token+tmpStart+1].type == 'NUMBER':
@@ -1858,6 +1865,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex[tmpFound+4].value=tmp2ndEndWith
                             newOptimization=True
                             if debug: print(f'! combined print: {lex[tmpFound].value}')
+
+
+
 
                     elif lex[token].type == 'ID':
 
@@ -3771,7 +3781,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     tmpCurrentIndent = 0
                                                     if tmpCurrentIndent < tmptmpIndent: break
                                                     if tmpCurrentIndent > tmptmpIndent and tmpFound: tmpFound = False; break
-                                                    if tmpFound and lex[ii+1].type not in {'ELIF','OF','ELSE'}: tmpInsertHere = ii + 1; break
+                                                    if tmpFound and lex[ii+1].type not in {'ELIF','OF','ELSE'}: tmpInsertHere = ii + 1
                                                 elif lex[ii].type == 'FUNCTION' and lex[ii].value.strip() == t[0]+'(' and tmpCurrentIndent == tmptmpIndent:
                                                     tmpFound=True ; tmpChangeTheseIfFound.append(ii)
                                             if tmpFound:
@@ -4713,6 +4723,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     token+=1
                 else:
                     break # above lex len
+            else: break
 
 
         # last optimizations, run at the end (until no more optimization)
