@@ -1609,8 +1609,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             }
         optConstantPropagation=True
         optMathEqual=True
-        optListToTuple=True
-        optInSet=True
+        optListToTuple=False
         optWalrus=False # seems to be only faster in pypy
         optLoopAttr=True
         optStrFormatToFString=True
@@ -1641,6 +1640,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         optListPlusListToExtend=True
         optLoopToMap=True
         optFuncCache=True
+        optInListOrTupleToSet=True
 
 
         if compileTo == 'Cython':
@@ -1665,7 +1665,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             # v faster in pyston v
             optFuncTricksDict['inTo__contains__']=True
         elif compileTo == 'MicroPython':
-            optListToTuple=optListPlusListToExtend=False # slower
+            optListPlusListToExtend=False # slower
             optFromFunc=optLoopAttr=False # not slower, but takes up too much memory
             optNestedLoopItertoolsProduct=optFuncCache=False # incompatible
 
@@ -2267,14 +2267,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             else: tmpsafe=False # so it doesn't replace the var in var[index]s
                                                         if vartype in {'LIST','ID'} and (tmpIDshow > 1 and lex[tmpi-1].type not in typeCheckers+('INS','EQUAL','LPAREN','BITWISE','ANYOF')+typeMops or (lex[tmpi-1].type == 'LPAREN' and lex[tmpi-2].type in {'BUILTINF','FUNCTION'})) and (lex[tmpi-1].value.replace('(','') not in pyBuiltinFunctions or tmpIDshow > 1):
                                                             tmpsafe=False # functions can modify lists in place, therefore replacing it with the list can break behaviour
-                                                            for tmpii in range(tmpi,0,-1):
-                                                                if lex[tmpii].type in typeNewline+('BUILTINF','FUNCTION','LPAREN'): break
-                                                                elif lex[tmpii].type == 'LAMBDA':
-                                                                    tmpsafe=True
-                                                                    if optListToTuple and isinstance(tmpf[0],str) == False:
-                                                                        tmpf[-1].value='(' ; tmpf[-1].type='LPAREN'
-                                                                        tmpf[0].value = ')' ; tmpf[0].type = 'RPAREN'
-                                                                    break
                                                         if vartype == 'LIST' and lex[tmpi+1].type == 'LISTCOMP': tmpsafe=False # have this until LISTCOMP is smart enough to take in a whole list as an argument
                                                         if lex[tmpi-2].type == 'LOOP' and isinstance(tmpf[0],str) == False and tmpf[0].type == 'RPAREN': tmpsafe=False
                                                         if vartype == 'STRING' and (lex[tmpi-1].type == 'FSTR' or lex[tmpi+1].type == 'FSTR'):
@@ -2904,7 +2896,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex[token+1].value = 'True'  ; lex[token].type = 'IGNORE'
 
                     elif lex[token].type in {'LPAREN','LIST','LBRACKET'} and lex[token-1].type == 'INS' and lex[token-1].value.strip() == 'in':
-                        if optInSet:
+                        if optCompilerEval and optCompilerEvalDict['evalThingInList']:
                             tmpOptimizeType = lex[token].type
 
                             tmpscope=1 ; tmp=0 ; tmpf=[] ; tmpLeftScope = 1 ; inForLoop=hasComma=False
@@ -2958,112 +2950,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         lex[ii].type = 'IGNORE'
                                     if debug: print(f"! evalThingIn: {tmpOG} in {seen} --> {tmp}") ; del tmpOG
                                     newOptimization = True
-                                if tmpsafe and not inForLoop and tmpOptimizeType != 'LBRACKET' and hasComma:
-                                    # if all are unique, and doesn't contain list
-                                    lex[token].type = 'LBRACKET' ; lex[token].value = '{'
-                                    lex[tmp].type   = 'RBRACKET' ; lex[tmp].value   = '}'
-                                    if debug: print(f"! converted to set: {{{', '.join(tmpf)}}}")
-                                    newOptimization = True
-                                elif optListToTuple and lex[token].type == 'LIST':
-                                    # might as well convert it to tuple
-                                    lex[token].type='LPAREN' ; lex[token].value='('
-                                    lex[tmp].type = 'RPAREN' ; lex[tmp].value = ')'
-                                    if debug: print(f"! converted to tuple: ({', '.join(tmpf)})")
-                                    newOptimization = True
-
-                        if optListToTuple and lex[token].type == 'LIST':
-                            if token-2 >= 0 and lex[token].type=='LIST' and lex[token].value!='(' and lex[token-1].value != 'print':
-                                if (lex[token-1].type == 'ID' \
-                                    or lex[token-2].type == 'ID') and \
-                                    (lex[token-3].type != 'TYPE' and lex[token-2].type != 'TYPE'):
-                                        if lex[token-1].type == 'ID': tokID=lex[token-1].value
-                                        else: tokID=lex[token-2].value
-                                        tmpcheck=True
-                                        listEnd=False
-                                        scope=1 # scope is 1 since lex[token] is a LIST
-                                        noListcomp=[]
-                                        listisParen=False
-                                        if lex[token].value=='(': listisParen=True
-
-                                        for ttoken in range(token-1,0,-1): # checking backwards
-                                            if lex[ttoken].type in typeNewline: break
-                                            elif lex[ttoken].type == 'BUILTINF' and lex[ttoken].value in listMods: tmpcheck=False ; break
-                                            elif optListPlusListToExtend and lex[ttoken].type == 'ASSIGN' and ('+' in lex[ttoken].value or (lex[ttoken+1].value == lex[ttoken-1].value and lex[ttoken+2].type == 'PLUS')): tmpcheck=False ; break
 
 
-                                        for ttoken in range(token+1,len(lex)-1):
-                                            #print(scope,lex[ttoken].type,lex[ttoken].value,noListcomp)
-                                            if listEnd == False and lex[ttoken].type == 'LISTEND':
-                                                scope-=1
-                                                if scope<0: scope=0
-                                                if scope == 0:
-                                                    listEnd=ttoken
-                                                    if lex[listEnd+1].type=='PLUS' and lex[listEnd+2].type=='LIST': tmpcheck=False
-                                            else:
-                                                if lex[ttoken].type == 'BUILTINF' and tokID in lex[ttoken].value \
-                                                and any(i for i in listMods if i in lex[ttoken].value):
-                                                    tmpcheck=False
-                                                elif lex[ttoken].type == 'INDEX' and tokID in lex[ttoken].value:
-                                                    tmpcheck=False
-                                                elif lex[ttoken].type == 'ID':
-                                                    if lex[ttoken-2].type in ('FUNCTION','BUILTINF') and any(i for i in listMods if i in lex[ttoken-2].value):
-                                                        tmpcheck = False
-                                                    elif lex[ttoken+1].type == 'ASSIGN' and lex[ttoken+2].value == lex[ttoken].value and (lex[ttoken+3].type == 'PLUS' or '+' in lex[ttoken+1].value):
-                                                        tmpcheck=False
-                                                    elif optListPlusListToExtend and lex[ttoken].value == tokID and lex[ttoken+1].type=='LINDEX':
-                                                        tmpcheck=False
-                                                    elif lex[ttoken-1].type == 'PIPE' \
-                                                    and any(i for i in listMods if i.replace('.','') in lex[ttoken].value):
-                                                        tmpcheck=False
-                                                elif lex[ttoken].type == 'ID' and lex[ttoken+1].type == 'ASSIGN' \
-                                                and lex[ttoken+1].value=='+=' and lex[ttoken].value == tokID:
-                                                    tmpcheck=False
-                                                elif lex[ttoken-1].type == 'LISTEND' and lex[ttoken].type == 'PIPE':
-                                                    tmpcheck=False # ['my','list'] to func
-                                                elif lex[ttoken].type=='LIST':
-                                                    scope+=1
-                                                elif lex[ttoken].type == 'BUILTINF':
-                                                    if ']' in lex[ttoken].value:
-                                                        scope-=lex[ttoken].value.count(']')
-                                                    if '[' in lex[ttoken].value:
-                                                        scope+=lex[ttoken].value.count('[')
-                                                # list comp detection
-                                                elif lex[ttoken].type == 'FOR' and scope==1:
-                                                    noListcomp.append('FOR')
-                                                elif lex[ttoken].type == 'INS' and scope==1:
-                                                    noListcomp.append('INS')
-                                                elif 'FOR' in noListcomp and 'INS' in noListcomp:
-                                                    tmpcheck=False
-                                                    scope+=lex[ttoken].value.count('[')
-                                                    scope-=lex[ttoken].value.count(']')
-                                                elif listisParen and lex[ttoken].type == 'RPAREN': listisParen=False ; scope-=1
-                                                else:
-                                                    scope+=lex[ttoken].value.count('[')
-                                                    scope-=lex[ttoken].value.count(']')
-
-                                            if tmpcheck==False and listEnd: break
-
-                                        if tmpcheck and listEnd \
-                                        and lexIndex+1<len(lex) and lex[listEnd+1].type != 'INDEX': # tuples are not subscriptable
-                                            lex[token].value='(' # dont make its type a LPAREN
-                                            lex[token].type = 'LPAREN' # ^ im a rebel
-                                            lex[listEnd].value=')' ; lex[listEnd].type='RPAREN'
-                                            if debug: print(f'replacing lex #{token} list with tuple: element(s) =',lex[token+1].value)
-                                            newOptimization=True
-                                        if listEnd == False and lex[token].type != 'INDEX': # INDEX is just [] ?
-                                            pass
-                                        else:
-                                            lex[token].type='optLIST'
-                                            if lex[token - 1].type in ('RINDEX', 'ID', 'BUILTINF'):
-                                                # the reason up there i said dont make it LPAREN was because it broke
-                                                # auto assignments to lists. this is easily fixed by detecting it
-                                                # and just adding the ASSIGN ourself
-                                                lex.insert(token, makeToken(lex[token], '=', 'ASSIGN'))
-
-                        if optInSet and (token-1>0 and lex[token-1].type=='INS' and lex[token-1].value.strip() == 'in') and lex[token+1].type not in typeOperators:
-                            # this is just for tokens with all of it packed into one value, multiple tokens are handled elsewhere
-                            if lex[token].value[0] in ('(','[') and lex[token].value[-1] in (')',']'):
-                                lex[token].value=lex[token].value[1:-1] ; lex[token].value='{%s}'%lex[token].value
                     elif lex[token].type == 'IMPORT':
                         tmp = lex[token].value.split()
                         if optFromFunc and not any(True for _ in tmp if _ == 'from'): # no from allowed
@@ -5017,10 +4905,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         # clean up vv
         l = 0
         while l < len(lex):
-            if optListToTuple and lex[l].type=='optLIST':
-                if lex[l].value=='(': lex[l].type='LPAREN'
-                else: lex[l].type='LIST'
-            elif lex[l].type == 'IGNORE': del lex[l] ; l-=1
+            if lex[l].type == 'IGNORE': del lex[l] ; l-=1
             elif lex[l].type == 'FUNCTION' and lex[l].value[-1]!='(' and lex[l+1].type == 'LPAREN':
                 lex[l].value+='(' ; del lex[l+1]
             l+=1
@@ -5761,6 +5646,44 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 else: storeVar(lex[lexIndex-1],tok,lex[lexIndex+1],position=lexIndex)
 
                     # ^^ ID-a moved up here from the else down there so it works with piping
+
+
+                    if optimize and optInListOrTupleToSet and lex[lexIndex-1].type == 'INS' and lex[lexIndex-1].value.strip() == 'in' and lex[lexIndex].type in {'LIST','LPAREN'} and lex[lexIndex-1].type not in {'ID','BUILTINF'}:
+                        safe = True
+                        for t in range(lexIndex - 1, -1, -1):
+                            if lex[t].type == 'FOR': safe = False; break
+                            elif lex[t].type in typeLoop + typeConditionals + typeNewline: break
+                        if safe:
+                            tmpType = lex[lexIndex].type
+                            tmpScope = 1
+                            tmpf = []
+                            # safe from this point on means 'safe for hash', if not, try a tuple instead
+                            for t in range(lexIndex+1, len(lex)):
+                                if lex[t].type in {'LIST', 'LINDEX'}:
+                                    if tmpType == 'LIST': tmpScope += 1
+                                    if lex[t - 1].type not in {'ID','BUILTINF'}: safe = False #lists are unhashable
+                                elif tmpType == 'LIST' and lex[t].type in {'LISTEND', 'RINDEX'}: tmpScope -= 1
+                                elif tmpType == 'LPAREN' and lex[t].type == 'LPAREN': tmpScope += 1
+                                elif tmpType == 'LPAREN' and lex[t].type == 'RPAREN': tmpScope -= 1
+                                elif lex[t].type == 'ID' and lex[t].value in storedVarsHistory and storedVarsHistory[lex[t].value]['type'] in {'LIST','DICT','SET'}:
+                                    safe = False
+
+                                if tmpScope <= 0:
+                                    if safe or compileTo not in {'PyPy3','MicroPython'}: # slower
+                                        lex[t].type = 'RBRACKET' if safe else 'RPAREN'
+                                        lex[t].value = '}' if safe else ')'
+                                    break
+                                if debug: tmpf.append(lex[t].value)
+                            if safe or compileTo not in {'PyPy3','MicroPython'}:
+                                if not safe and tmpType != 'LPAREN': parenScope+=1
+                                else: bracketScope += 1
+                                if tmpType == 'LIST': listScope-=1
+                                elif tmpType == 'LPAREN': parenScope-=1
+                                lex[lexIndex].type = 'LBRACKET' if safe else 'LPAREN'
+                                lex[lexIndex].value = '{' if safe else '('
+                                if debug: print(f"! optimization in {'[' if tmpType == 'LIST' else '('}{' '.join(tmpf)}{']' if tmpType == 'LIST' else ')'}  -->  in {{{' '.join(tmpf)}}}")
+                            del tmpScope, tmpType
+
 
                     if (lexIndex+1 <= len(lex) and lex[lexIndex+1].type == 'PIPE' and 'into' not in lex[lexIndex+1].value) \
                     or (lexIndex-1 >= 0 and lex[lexIndex-1].type == 'PIPE'):
