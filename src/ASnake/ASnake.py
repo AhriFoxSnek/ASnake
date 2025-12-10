@@ -216,7 +216,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     'LISTEND':']','ELLIPSIS':'...','constLPAREN':'(','COLON':':','LINDEX':'[','RINDEX':']',
     "DQUOTE":'"',"SQUOTE":"'", 'LBRACKET':'{','RBRACKET':'}','PYIS':' is '}
 
-    convertType={'int':'NUMBER','float':'NUMBER','Py_ssize_t':'NUMBER','bool':'BOOL','bint':'BOOL','str':'STRING','list':'LIST','dict':'DICT','type':'TYPE','tuple':'TUPLE','set':'SET','bytes':'STRING','object':'ID','range':'FUNCTION','complex':'NUMBER','frozenset':'FUNCTION','bytearray':'STRING','memoryview':'FUNCTION'}
+    convertType={'int':'NUMBER','float':'NUMBER','Py_ssize_t':'NUMBER','bool':'BOOL','bint':'BOOL','str':'STRING','list':'LIST','dict':'DICT','type':'TYPE','tuple':'TUPLE','set':'SET','bytes':'STRING','object':'ID','range':'FUNCTION','complex':'NUMBER','frozenset':'FUNCTION','bytearray':'STRING','memoryview':'FUNCTION','filter':'FUNCTION'}
     cythonConvertType = {'int': 'long long int', 'bool': 'bint', 'float': 'double'}
     for t in cythonConvertType: convertType[cythonConvertType[t]]=convertType[t]
     typeTypes=tuple([t for t in convertType])
@@ -3561,7 +3561,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 assignCheck=[] # a flag that says 'hey, check if this name gets assigned to later'
                                 ignoreVars = []
                                 firstIndent=False # wait until first indent when doing the optimization on for loops: for x in thing.split()  would not benefit since it runs only once
-                                if lex[token].type != 'FOR': firstIndent=True # should only apply to for loops, see above ^
+                                if lex[token].type == 'LOOP' and lex[token+2].type == 'ID': ignoreVars.append(lex[token+2].value) # iter var of loop should not be preallocated
+                                elif lex[token].type != 'FOR': firstIndent=True # should only apply to for loops, see above ^
                                 else:
                                     # don't optimize the iterator variables in for loop
                                     for ii in range(token+1,len(lex)):
@@ -4971,8 +4972,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         if staticType != None:
             if var1.value not in storedVarsHistory:
                 storedVarsHistory[var1.value]={}
-            storedVarsHistory[var1.value]['type']=convertType[staticType.value]
-            storedVarsHistory[var1.value]['staticType']=staticType.value
+            if '[' not in staticType.value:
+                storedVarsHistory[var1.value]['type']=convertType[staticType.value]
+                storedVarsHistory[var1.value]['staticType']=staticType.value
+            else:
+                storedVarsHistory[var1.value]['type'] = convertType[staticType.value.split('[')[0]]
+                storedVarsHistory[var1.value]['staticType'] = staticType.value.split('[')[0]
+
 
         if var2 != None and var2.type == 'ID' and var2.value in storedVarsHistory \
         and storedVarsHistory[var2.value]['type'] in ('LIST','LISTCOMP') and var3.type in typeNewline and var1.type != 'RINDEX':
@@ -5429,7 +5435,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmp=' '.join([ii.value for ii in tmpf])
                                     return AS_SyntaxError(f'{tmp}\n\tfrom syntax must have commas to separate arguments','from thingy, str name, int number = 12,', lineNumber, data)
 
-                                elif i.value in convertType:
+                                elif i.value in convertType or REsearch(r"(?:list|tuple) *(?:\[.+\])",i.value):
                                     tmptype=i
                                 elif i.type == 'ASSIGN': assign=True
                                 elif i.type in {'TIMES','EXPONENT','MINUS'}: kwargs=i.type ; continue
@@ -5461,7 +5467,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     # storing function metadata
                     storedCustomFunctions[tok.value]={}
                     if lex[lexIndex+2].type == 'TYPE':
-                        storedCustomFunctions[tok.value]['type']=convertType[lex[lexIndex+2].value]
+                        if '[' not in lex[lexIndex+2].value:
+                            storedCustomFunctions[tok.value]['type']=convertType[lex[lexIndex+2].value]
+                        else:
+                            storedCustomFunctions[tok.value]['type'] = convertType[lex[lexIndex+2].value.split('[')[0]]
                     else:
                         storedCustomFunctions[tok.value]['type']=None
                     storedCustomFunctions[tok.value]['pure']=not impure
@@ -7834,7 +7843,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 tmpFuncArgs[tmp[0].strip()]=tmp2.group().replace(',','').strip()
                             else:
                                 tmpFuncArgs[tmp[0].strip()]=None
-                        elif REsearch(fr' *(?:{"|".join(defaultTypes)}) +(?:([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*)+ *,?',t):
+                        elif REsearch(fr' *(?:{"(?:\[.+\])?|".join(defaultTypes)}) +(?:([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*)+ *,?',t):
                             # ^ if type, then space, and then var name
                             tmp=t
                             if tmp.endswith(','): tmp=tmp[:-1]
@@ -8146,18 +8155,37 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 check = True
                 if intVsStrDoLen:
                     tmpAllowedLen={'STRING','LIST','LISTCOMP','DICT','TUPLE','SET','FSTR'}
-                    if (lastType in tmpAllowedLen or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] in tmpAllowedLen)) \
+                    tmpLastType = lastType
+                    tmpStartsAt = lexIndex-1
+                    if lex[lexIndex-1].type == 'RPAREN' and lex[lexIndex-2].type in tmpAllowedLen and lex[lexIndex-3].type == 'LPAREN':
+                        tmpLastType = lex[lexIndex-2].type ; tmpStartsAt = lexIndex-2
+                    elif lex[lexIndex-1].type == 'RPAREN' and lex[lexIndex-2].type == 'FSTR':
+                        tmpInFSTR=True ; tmpParen=1 ; tmpSafe=True ; tmpStartsAt=lexIndex-2
+                        for tmpi in range(lexIndex-3,0,-1):
+                            if lex[tmpi].type in typeNewline: tmpSafe=False ; break
+                            elif tmpInFSTR == False and lex[tmpi].type != 'LPAREN': tmpSafe=False ; break
+                            elif lex[tmpi].type == 'FSTR' and lex[tmpi].value[-1] in "\"'": tmpInFSTR = not tmpInFSTR
+                            elif lex[tmpi].type == 'RPAREN': tmpParen+=1
+                            elif lex[tmpi].type == 'LPAREN':
+                                tmpParen-=1
+                                if tmpParen <= 0: tmpStartsAt = tmpi ; break
+                        if tmpSafe: tmpLastType = "FSTR"
+
+                    if (tmpLastType in tmpAllowedLen or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] in tmpAllowedLen)) \
                     and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in {'NUMBER','INC'} or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type']=='NUMBER'))):
-                        if lastType == 'FSTR':
+                        if tmpLastType == 'FSTR':
                             for tmpi in range(len(line)-1,-1,-1):
                                 if REsearch(r'''[ru]?f[ru]?(?:"|')''', line[tmpi]):
                                     line.insert(tmpi,"len(") ; break
                             line.append(')')
                         else:
-                            line[-1]=line[-1].replace(lex[lexIndex-1].value,f"len({lex[lexIndex-1].value})")
+                            if tmpStartsAt == lexIndex-2:
+                                line[-2]=line[-2].replace(lex[lexIndex-2].value,f"len({lex[lexIndex-2].value})")
+                            else:
+                                line[-1]=line[-1].replace(lex[lexIndex-1].value,f"len({lex[lexIndex-1].value})")
                         line.append(decideIfIndentLine(indent,f'{codeDict[tok.type]} '))
                         check = False
-                    elif (lastType in {'NUMBER','INC'} or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type']=='NUMBER')) \
+                    elif (tmpLastType in {'NUMBER','INC'} or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type']=='NUMBER')) \
                     and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in tmpAllowedLen or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type'] in tmpAllowedLen and lex[lexIndex+2].type not in {'LINDEX','INDEX'}))):
                         tmp=False
                         for tmpi in range(lexIndex+1,len(lex)-1):
