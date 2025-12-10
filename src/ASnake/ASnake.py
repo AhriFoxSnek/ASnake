@@ -8156,44 +8156,61 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if intVsStrDoLen:
                     tmpAllowedLen={'STRING','LIST','LISTCOMP','DICT','TUPLE','SET','FSTR'}
                     tmpLastType = lastType
-                    tmpStartsAt = lexIndex-1
-                    if lex[lexIndex-1].type == 'RPAREN' and lex[lexIndex-2].type in tmpAllowedLen and lex[lexIndex-3].type == 'LPAREN':
-                        tmpLastType = lex[lexIndex-2].type ; tmpStartsAt = lexIndex-2
-                    elif lex[lexIndex-1].type == 'RPAREN' and lex[lexIndex-2].type == 'FSTR':
-                        tmpInFSTR=True ; tmpParen=1 ; tmpSafe=True ; tmpStartsAt=lexIndex-2
-                        for tmpi in range(lexIndex-3,0,-1):
-                            if lex[tmpi].type in typeNewline: tmpSafe=False ; break
-                            elif tmpInFSTR == False and lex[tmpi].type != 'LPAREN': tmpSafe=False ; break
-                            elif lex[tmpi].type == 'FSTR' and lex[tmpi].value[-1] in "\"'": tmpInFSTR = not tmpInFSTR
-                            elif lex[tmpi].type == 'RPAREN': tmpParen+=1
-                            elif lex[tmpi].type == 'LPAREN':
-                                tmpParen-=1
-                                if tmpParen <= 0: tmpStartsAt = tmpi ; break
-                        if tmpSafe: tmpLastType = "FSTR"
+                    tmpNextType = lex[lexIndex+1].type
+                    tmpLastStartsAt = lexIndex-1
+                    tmpNextStartsAt = lexIndex+1
+                    if lex[lexIndex-1].type == 'RPAREN' and lex[lexIndex-2].type in tuple(tmpAllowedLen)+('ID',) and lex[lexIndex-3].type == 'LPAREN':
+                        tmpLastType = lex[lexIndex-2].type ; tmpLastStartsAt = lexIndex-2
+                    if lex[lexIndex+1].type == 'LPAREN' and lex[lexIndex+2].type in tuple(tmpAllowedLen)+('ID',) and lex[lexIndex+3].type == 'RPAREN':
+                        tmpNextType = lex[lexIndex+2].type ; tmpNextStartsAt = lexIndex+2
 
-                    if (tmpLastType in tmpAllowedLen or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type'] in tmpAllowedLen)) \
-                    and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in {'NUMBER','INC'} or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type']=='NUMBER'))):
+                    elif (lex[lexIndex-1].type == 'RPAREN' and lex[lexIndex-2].type == 'FSTR') or (lex[lexIndex+1].type == 'LPAREN' and lex[lexIndex+2].type == 'FSTR'):
+                        tmpInFSTR=True ; tmpParen=1 ; tmpSafe=True ; tmpLastStartsAt=lexIndex-2
+                        backwards = True if lex[lexIndex-1].type == 'RPAREN' else False
+                        for tmpi in range(lexIndex-3,0,-1) if backwards else range(lexIndex+3,len(lex)):
+                            if lex[tmpi].type in typeNewline: tmpSafe=False ; break
+                            elif tmpInFSTR == False and ((backwards and lex[tmpi].type != 'LPAREN') or (not backwards and lex[tmpi].type != 'RPAREN')):
+                                tmpSafe=False ; break
+                            elif lex[tmpi].type == 'FSTR' and lex[tmpi].value[-1] in "\"'": tmpInFSTR = not tmpInFSTR
+                            elif lex[tmpi].type in {'LPAREN','RPAREN'}:
+                                if lex[tmpi].type == 'RPAREN': tmpParen+=1 if backwards else -1
+                                else: tmpParen-=1 if backwards else -1
+                                if tmpParen <= 0:
+                                    if backwards: tmpLastStartsAt = tmpi
+                                    else: tmpNextStartsAt = tmpi
+                                    break
+                        if tmpSafe:
+                            if backwards: tmpLastType = "FSTR"
+                            else: tmpNextType = "FSTR"
+
+                    if (tmpLastType in tmpAllowedLen or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[tmpLastStartsAt].value in storedVarsHistory and storedVarsHistory[lex[tmpLastStartsAt].value]['type'] in tmpAllowedLen)) \
+                    and lexIndex+1 < len(lex) and (tmpNextType in {'NUMBER','INC'} or ((tmpNextType=='ID' and lex[tmpNextStartsAt].value in storedVarsHistory and storedVarsHistory[lex[tmpNextStartsAt].value]['type']=='NUMBER'))):
                         if tmpLastType == 'FSTR':
                             for tmpi in range(len(line)-1,-1,-1):
                                 if REsearch(r'''[ru]?f[ru]?(?:"|')''', line[tmpi]):
                                     line.insert(tmpi,"len(") ; break
                             line.append(')')
                         else:
-                            if tmpStartsAt == lexIndex-2:
+                            if tmpLastStartsAt == lexIndex-2:
                                 line[-2]=line[-2].replace(lex[lexIndex-2].value,f"len({lex[lexIndex-2].value})")
                             else:
                                 line[-1]=line[-1].replace(lex[lexIndex-1].value,f"len({lex[lexIndex-1].value})")
                         line.append(decideIfIndentLine(indent,f'{codeDict[tok.type]} '))
                         check = False
-                    elif (tmpLastType in {'NUMBER','INC'} or (lexIndex-1 > 0 and lex[lexIndex-1].type=='ID' and lex[lexIndex-1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-1].value]['type']=='NUMBER')) \
-                    and lexIndex+1 < len(lex) and (lex[lexIndex+1].type in tmpAllowedLen or ((lex[lexIndex+1].type=='ID' and lex[lexIndex+1].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+1].value]['type'] in tmpAllowedLen and lex[lexIndex+2].type not in {'LINDEX','INDEX'}))):
+                    elif (tmpLastType in {'NUMBER','INC'} or (lexIndex-1 > 0 and lex[tmpLastStartsAt].type=='ID' and lex[tmpLastStartsAt].value in storedVarsHistory and storedVarsHistory[lex[tmpLastStartsAt].value]['type']=='NUMBER')) \
+                    and lexIndex+1 < len(lex) and (tmpNextType in tmpAllowedLen or ((tmpNextType=='ID' and lex[tmpNextStartsAt].value in storedVarsHistory and storedVarsHistory[lex[tmpNextStartsAt].value]['type'] in tmpAllowedLen and lex[tmpNextStartsAt+1].type not in {'LINDEX','INDEX'}))):
                         tmp=False
                         for tmpi in range(lexIndex+1,len(lex)-1):
                             if lex[tmpi].type in typeNewline: break
                             elif lex[tmpi].type in {'RINDEX','LISTEND'}:
                                 lex[tmpi].value+=')' ; tmp=(True,tmpi) ; break
                         line.append(f"{codeDict[tok.type]} len(")
-                        if tmp == False: line[-1]+=f'{lex[lexIndex+1].value})'; lex[lexIndex+1].type = 'IGNORE'
+                        if tmp == False:
+                            if tmpNextStartsAt != lexIndex+1 and lex[lexIndex+1].type == 'LPAREN':
+                                line.pop() ; line.append(codeDict[tok.type]+' ')
+                                lex[lexIndex+1].type = 'FUNCTION' ; lex[lexIndex+1].value = 'len('
+                            else:
+                                line[-1]+=f'{lex[lexIndex+1].value})'; lex[lexIndex+1].type = 'IGNORE'
                         else:
                             if lex[tmp[1]+1].type == 'PIPE' and lex[tmp[1]+2].value == 'len':
                                 lex[tmp[1]+2].type='IGNORE' ; lex[tmp[1]+1].type='IGNORE';lex[tmp[1]+1].value='IGNORE'
