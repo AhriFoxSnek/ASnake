@@ -16,11 +16,13 @@ from unicodedata import category as unicodeCategory
 # self/relative
 try:
     from .compiler_consts import *
-except ImportError:
+except (ImportError, ModuleNotFoundError):
     from  compiler_consts import *
-
-ASnakeVersion = 'v0.13.43'
-__version__ = ASnakeVersion[1:]
+try:
+    from . import ASnakeVersion
+except(ImportError, ModuleNotFoundError):
+    ASnakeVersion = 'vTestingBranch'
+    __version__ = ASnakeVersion[1:]
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
     showError=[]
