@@ -43,7 +43,7 @@ requires = ["setuptools", "wheel", "sly>=0.4"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
-version = {attr = "ASnake.ASnake.__version__"}
+version = {attr = "ASnake.__version__"}
 
 [tool.setuptools.package-data]
 "ASnake.data" = ["*.bat", "*.asnake"]
