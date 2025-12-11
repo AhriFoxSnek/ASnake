@@ -13,9 +13,11 @@ from re import sub as REsub
 from keyword import iskeyword
 from unicodedata import category as unicodeCategory
 
-# self
-
-from compiler_consts import *
+# self/relative
+try:
+    from .compiler_consts import *
+except ImportError:
+    from  compiler_consts import *
 
 ASnakeVersion = 'v0.13.43'
 __version__ = ASnakeVersion[1:]
