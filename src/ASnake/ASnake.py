@@ -7799,6 +7799,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmpFuncArgs = tmpFuncArgs.replace(t, '')
                                     tmpf.append(t)
                     tmpFuncArgs={}
+                    tmpTypesForRegex = "(?:\[.+\])?|".join(defaultTypes) # needed for prior python versions to use ASnake compiler, no backslashes in fstr
                     for t in tmpf:
                         if ':' in t:
                             tmp=t.split(':')
@@ -7807,7 +7808,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 tmpFuncArgs[tmp[0].strip()]=tmp2.group().replace(',','').strip()
                             else:
                                 tmpFuncArgs[tmp[0].strip()]=None
-                        elif REsearch(fr' *(?:{"(?:\[.+\])?|".join(defaultTypes)}) +(?:([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*)+ *,?',t):
+                        elif REsearch(fr' *(?:{tmpTypesForRegex}) +(?:([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*)+ *,?',t):
                             # ^ if type, then space, and then var name
                             tmp=t
                             if tmp.endswith(','): tmp=tmp[:-1]
