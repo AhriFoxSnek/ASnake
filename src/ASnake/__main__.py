@@ -9,11 +9,11 @@ from ruff_api import format_string, errors
 
 # standard library
 from subprocess import check_output, CalledProcessError, STDOUT
-from os import path, remove, listdir
+from os import path, remove, getcwd
 from time import monotonic
 from re import sub as REsub
 from re import findall as REfindall
-from platform import python_version, python_version_tuple, python_implementation
+from platform import python_version_tuple, python_implementation
 
 ignoreCodes=('E114', 'E115', 'E116', 'E261', 'E262', 'E265', 'E266', 'E301', 'E302', 'E305', 'E4', 'E701',
                        'E702', 'E704', 'E722', 'E731', 'W3', 'W5', 'W6')
@@ -88,7 +88,6 @@ def execPy(code, fancy=True, pep=True, run=True, execTime=False, headless=False,
         if fancy:
             print(f'\t____________\n\t~ {runtime} Eval\n')
         if headless:
-            from os import getcwd
             with open('ASnakeExec.py', 'w') as f:
                 f.write(code)
             if execTime:
@@ -154,7 +153,7 @@ if __name__ == '__main__':
         argParser.add_argument('-a', '--annotate', action='store_true',help="When compiling to Cython, will compile a html file showing Python to C conversions.")
         argParser.add_argument('-d', '--debug', action='store_true', help="Debug info for compiler developers.")
         argParser.add_argument('-t', '--test', action='store_true', help="Headless run debug for compiler developers.")
-        argParser.add_argument('-as','--asnake-script', action='store',help="Sets path to ASnake's data folder, so you can run ASnake's collection of scripts included with the compiler. Running bare will list files in the data directory.")
+        argParser.add_argument('-as','--asnake-script', action='store', nargs='?', const='list', help="Sets path to ASnake's data folder, so you can run ASnake's collection of scripts included with the compiler. Running bare will list files in the data directory.")
         argParser.add_argument("file", type=FileType("r", encoding='utf-8'), nargs='?', const='notGiven', help="Your ASnake file to compile.")
         return argParser
 
@@ -194,15 +193,19 @@ if __name__ == '__main__':
             tmpASnakeScriptPath=__file__.replace('__main__.py','')
             if '\\' in tmpASnakeScriptPath: tmpASnakeScriptPath=tmpASnakeScriptPath+'data\\'
             else: tmpASnakeScriptPath=tmpASnakeScriptPath+'data/'
-            if not args.asnake_script.endswith('.asnake'): args.asnake_script+='.asnake'
-            if path.isfile(tmpASnakeScriptPath+args.asnake_script):
+            if path.isfile(tmpASnakeScriptPath+args.asnake_script) \
+            or path.isfile(tmpASnakeScriptPath+args.asnake_script+'.asnake'):
+                if not args.asnake_script.endswith('.asnake'): args.asnake_script += '.asnake'
                 ASFile = args.asnake_script
                 args.path = tmpASnakeScriptPath
                 with open(tmpASnakeScriptPath+args.asnake_script, 'r', encoding='utf-8') as f:
                     data=f.read()
             else:
-                print(f'{args.asnake_script} not found. Here is the ASnake script directory:')
-                print('\t'+('\n\t'.join([_ for _ in listdir(tmpASnakeScriptPath) if _.endswith('.asnake')])),end='')
+                print(f'{args.asnake_script+" not found. " if args.asnake_script != "list" else ""}Here is the ASnake script directory:')
+                try:
+                    print('\t'+('\n\t'.join([_ for _ in listdir(tmpASnakeScriptPath) if _.endswith('.asnake')])),end='')
+                except FileNotFoundError:
+                    print('\tOh... Nothing found. Sorry.')
                 exit()
 
         else:
