@@ -328,7 +328,7 @@ if __name__ == '__main__':
                 fileName=fileName.replace("'","\\'")
 
             if args.run_command:
-                p3Command=args.run_command
+                py3Command=args.run_command
             elif WINDOWS:
                 if args.pypy:
                     try:
