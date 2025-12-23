@@ -2,6 +2,7 @@ from subprocess import check_output, CalledProcessError, STDOUT
 from os import system as os_system
 from os import path as os_path
 from os import makedirs
+from os import environ
 from re import fullmatch
 import platform
 $ defprint = os_system
@@ -41,7 +42,9 @@ def add_PowerShell_alias():
 
     print(f"Alias ASnake added to PowerShell profile.")
 
-if platform.system() is 'Windows'
+theOS = platform.system()
+
+if theOS is 'Windows'
     #if check_output().decode() is
     import ASnake
     ASnakePath = ASnake.__file__.replace('\\\\','\\').replace('\\ASnake.py','')
@@ -61,7 +64,7 @@ if platform.system() is 'Windows'
         print "Then re-run this script."
     print "Aliases added! Probably. Try it out. You may need to restart your terminal."
     
-elif platform.system() is 'Linux'
+elif theOS is 'Linux'
     bool:
         bash zsh fish False
     $ def check = check_output(
@@ -109,10 +112,17 @@ elif platform.system() is 'Linux'
     print f"\tbash={bash} zsh={zsh} fish={fish}"
     user = "Would you like to add ASnake as an alias to all of the detected shells? (N/y): " to input
     if 'y' in user.lower()
-        if bash do f'echo "alias ASnake=\'{pyCall} -m ASnake\'" >> ~/.bashrc && source ~/.bashrc'
-        if zsh  do f'echo "alias ASnake=\'{pyCall} -m ASnake\'" >> ~/.zshrc && source ~/.zshrc'
-        if fish do f'echo \'alias ASnake "{pyCall} -m ASnake" ; funcsave ASnake\' | fish'
+        if bash do f'echo  "alias ASnake=\'{pyCall} -m ASnake\'" >> ~/.bashrc'
+        if zsh  do f'echo  "alias ASnake=\'{pyCall} -m ASnake\'" >> ~/.zshrc'
+        if fish do f'echo \'alias ASnake  "{pyCall} -m ASnake" ; funcsave ASnake\' | fish'
     else
         print "Alias add aborted."
         exit()
-    print "Aliases added! Probably. Try it out."
+    print "Aliases added!"
+
+    shell is environ.get("SHELL").split('/')[-1]
+    match shell
+    of 'bash' do print "Restart your shell or run: source ~/.bashrc"
+    of 'zsh'  do print "Restart your shell or run: source ~/.zshrc"
+    else         print "Probably, try it out."
+      
