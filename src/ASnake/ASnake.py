@@ -5303,7 +5303,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         if hasPiped and lastType != 'PIPE': hasPiped=None
         elif hasPiped==None: hasPiped=False
         # ^ delays hasPiped settings to false by one instruction, for multiple pipes per line. hasPiped is to prevent pipe overrides
-        if switchCase['case'] and 'indent' in switchCase and indent<=switchCase['indent'] and tok.type not in {'OF','TAB'} and lastType != 'MATCH':
+        if switchCase['case'] and 'indent' in switchCase and indent < switchCase['indent'] and tok.type not in {'OF','TAB'} and lastType != 'MATCH':
             if lex[lexIndex].type == 'ELSE': pass  # ELSE is an exception where switch-case doesn't end yet
             else:
                 switchCase={'case':False}
@@ -7803,7 +7803,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmpFuncArgs = tmpFuncArgs.replace(t, '')
                                     tmpf.append(t)
                     tmpFuncArgs={}
-                    tmpTypesForRegex = "(?:\[.+\])?|".join(defaultTypes) # needed for prior python versions to use ASnake compiler, no backslashes in fstr
+                    tmpTypesForRegex = r"(?:\[.+\])?|".join(defaultTypes) # needed for prior python versions to use ASnake compiler, no backslashes in fstr
                     for t in tmpf:
                         if ':' in t:
                             tmp=t.split(':')
