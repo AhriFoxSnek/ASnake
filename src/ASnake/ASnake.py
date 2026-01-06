@@ -5474,8 +5474,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if search: notInDef=False # if there is a from, activate it, else default for normal indentation
                     code.append(''.join(line)) ; line=[] ; continue
                 elif inFuncArg: pass # dont write to line if function from argument
-                elif not startOfLine and ((tok.value in storedCustomFunctions) or (tok.value in pyBuiltinFunctions and tok.value not in storedVarsHistory and tok.value not in typeTypes and lex[lexIndex+1].type in typeNewline+typeOperators)) \
-                and '(' not in tok.value and lastType!='FOR' and functionPassing==False and not (lastType == 'RETURN' and lastValue.strip() == 'del'):
+                elif not startOfLine and not functionPassing and ((tok.value in storedCustomFunctions) or (tok.value in pyBuiltinFunctions and tok.value not in storedVarsHistory and tok.value not in typeTypes and lex[lexIndex+1].type in typeNewline+typeOperators)) \
+                and '(' not in tok.value and lastType!='FOR' and not (lastType == 'RETURN' and lastValue.strip() == 'del'):
                     #vvv adding () to function name if it doesn't have one
                     tok.value=f'{tok.value}()' ; tok.type='FUNCTION'
                     if lexIndex+1 < len(lex) and lex[lexIndex+1].type == 'PIPE' and 'into' not in lex[lexIndex+1].value:
@@ -7925,6 +7925,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
             elif tok.type == 'META': # idMETA
                 tmpf=tok.value.split('=')[0].replace(' ','').replace('$','') # needs replace instead of strip()
+                metaCall = tok.value[1:]
                 if tmpf in metaDefExp:
                     tmp=tok.value[tok.value.index('=')+1:]
                     if tmp.strip() == '':
@@ -7951,6 +7952,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     pyCompatibility = metaHandling(metaCall, pyCompatibility)
                     if pyCompatibility:
                         pyIs=True ; functionPassing=True ; expPrint.append('') ; autoEnumerate=False ; intVsStrDoLen=False
+                    else:
+                        pyIs=False; functionPassing=False;                       autoEnumerate=True  ; intVsStrDoLen=True
+                        if expPrint[-1] == '': expPrint.pop()
                 elif tmpf in {'asnake','Asnake','ASnake'}:
                     pyIs=False ; functionPassing=False
                 elif tmpf in {'Cython','cython'}:
