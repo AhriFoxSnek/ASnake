@@ -3183,16 +3183,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex.insert(tmpi, makeToken(lex[token], tmpf, 'TYPE'))
                                     newOptimization = True ;  token+=1
 
-                            if optFuncTricksDict['boolTonotnot'] and (lex[token].type in ('FUNCTION','TYPE') and ((lex[token].value.strip() == 'bool' and lex[token+1].type == 'LPAREN') or lex[token].value == 'bool(')):
+                            if optFuncTricksDict['boolTonotnot'] and (lex[token].type in ('FUNCTION','TYPE') and lex[token+1].type != 'RPAREN' and ((lex[token].value.strip() == 'bool' and lex[token+1].type == 'LPAREN') or lex[token].value == 'bool(')):
                                 # x = bool(var)  -->  x = not not var
                                 if '(' not in lex[token].value and lex[token+1].type == 'LPAREN':
                                     lex[token].type = lex[token + 1].type = 'INS'
                                     lex[token].value = lex[token + 1].value = 'not '
-                                else:
+                                    lex.insert(token, makeToken(lex[token], '(', 'LPAREN'))
+                                elif not functionPassing:
                                     lex[token].type = 'IGNORE'
                                     lex.insert(token, makeToken(lex[token], 'not ', 'INS'))
                                     lex.insert(token, makeToken(lex[token], 'not ', 'INS'))
-                                lex.insert(token, makeToken(lex[token], '(', 'LPAREN'))
+                                    lex.insert(token, makeToken(lex[token], '(', 'LPAREN'))
 
                             if optFuncTricksDict['dictlistFunctionToEmpty'] and (lex[token].value in {'list(','dict('} or (compileTo=="PyPy3" and lex[token].value == 'set(')) and lex[token+1].type=='RPAREN':
                                 # x = list()  -->  x = []
