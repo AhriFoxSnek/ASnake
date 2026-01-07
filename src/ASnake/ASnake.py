@@ -1132,6 +1132,16 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     return AS_SyntaxError(
                         f'Meta ${metaCall} must follow after a {tuple(metaConditionalVersion)[0]} meta.',
                         f'$ {tuple(metaConditionalVersion)[0]} = 3.8\n\t\tprint 3.8\n\t${metaCall}\n\t\tprint "elsed!"', None, data)
+            elif metaCall.startswith(tuple(metaIfCython)):
+                if '#' in tok.value: tok.value = tok.value.split('#')[0]  # removes comments
+                if compileTo == "Cython":
+                    lex.append(makeToken(tok, 'if', 'IF'))
+                    lex.append(makeToken(tok, 'True', 'BOOL'))
+                    lex.append(makeToken(tok, 'do', 'THEN'))
+                    lexIndex += 2
+                else:
+                    deleteUntilIndentLevel = (True, 0 if lex[lexIndex].type == 'NEWLINE' else currentTab)
+                    lexIndex -= 1
             elif metaCall.startswith(tuple(metaPyCompat)):
                 pyCompatibility = metaHandling(tok.value, pyCompatibility)
                 lex.append(tok)
