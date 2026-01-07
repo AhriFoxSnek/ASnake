@@ -1134,14 +1134,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         f'$ {tuple(metaConditionalVersion)[0]} = 3.8\n\t\tprint 3.8\n\t${metaCall}\n\t\tprint "elsed!"', None, data)
             elif metaCall.startswith(tuple(metaIfCython)):
                 if '#' in tok.value: tok.value = tok.value.split('#')[0]  # removes comments
-                if compileTo == "Cython":
-                    lex.append(makeToken(tok, 'if', 'IF'))
-                    lex.append(makeToken(tok, 'True', 'BOOL'))
-                    lex.append(makeToken(tok, 'do', 'THEN'))
-                    lexIndex += 2
-                else:
+                if compileTo != "Cython":
                     deleteUntilIndentLevel = (True, 0 if lex[lexIndex].type == 'NEWLINE' else currentTab)
-                    lexIndex -= 1
+                lexIndex -= 1
             elif metaCall.startswith(tuple(metaPyCompat)):
                 pyCompatibility = metaHandling(tok.value, pyCompatibility)
                 lex.append(tok)
