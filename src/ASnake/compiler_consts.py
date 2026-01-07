@@ -38,4 +38,4 @@ metaFunctionLineWrap = {'funcWrap','functionLineWrap','functionWrap','fwrap'}
 metaPyFunc = {'funcPass','funcpass','passFunction','functionPass','pyfunc','pyFunc'}
 metaDefExp = {'defexp','defaultExpression','defaultPrint','expPrint','defprint'}
 metaIgnoreDefExpFunc = {'noDefExpOnFunc', 'defExpIgnoreFunction', 'defaultExpressionIgnoreFunction', 'ignoreDefExpFunction'}
-
+metaIfCython = {'ifCython','isCython','ifcython','if_compiling_cython','if_Cython'}
