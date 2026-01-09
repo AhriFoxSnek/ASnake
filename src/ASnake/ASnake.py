@@ -6929,7 +6929,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     elif lastType == 'PIPE': pass
                     elif lexIndex+1 < len(lex) and lex[lexIndex+1].type in typeAssignables:
                         if multiType:
-                            if compileTo == "Cython" and firstType == 'tuple' and ',' in secondType:
+                            if compileTo == "Cython" and firstType == 'tuple' and ',' in secondType and all(True if _.strip() in {'int','bool','float'} else False for _ in secondType.split(',')):
+                                secondType = ', '.join([cythonConvertType[_] for _ in secondType.split(',')])
                                 lex[lexIndex+1].value = f"cdef ({secondType}) {lex[lexIndex+1].value}"
                             else:
                                 lex[lexIndex+1].value=f"{lex[lexIndex+1].value}: {firstType.capitalize()}[{secondType}]"
