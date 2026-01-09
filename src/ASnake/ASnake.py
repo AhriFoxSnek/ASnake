@@ -118,6 +118,8 @@ class Lexer(Lexer):
     PYDEF   = r'''(c|cp)?def +([\w.\[\d:,\] ]* )?\w+ *\(([^()]|\((?:[^)]|'.*[()]+.*'|".*[()]+.*")*\))*\)*( *((-> *[\w\[\], {}]+)? *):?)(?!return)'''
     PYCLASS = r'class ([a-z]|[A-Z])\w*(\(.*\))?:?'
     STRLIT  = r'[rf]?\"\"\"[\w\W]+?\"\"\"|[rf]?\'\'\'[\w\W]+?\'\'\''
+    TYPEWRAP= fr'({"|".join(defaultTypes)})( ?\[\w*\])? *: *(#.*)?(?=\n)'
+    TYPE    = '(?=\\s?)%s(?:(?:\\[(?:\\s*%s\\s*,?)+\\])|(?=\\s+))' % (f'(?:{"|".join(defaultTypes)})', f'(?:{"|".join(defaultTypes)})')
     INDEX   = r'''(?:([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*?\.)?([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*?(?:\[[^\[\]]*(?:\[[^\[\]]*\])?[^\[\]]*\])+'''
     LIST    = r'\['
     LISTEND = r'\]'
@@ -128,8 +130,6 @@ class Lexer(Lexer):
     NRANGE  = r'(-?(\d+|\w+(\(.\))?)\.\.\.?(-?\d+|\w+(\(.\))?))|-?\d+ ?to ?-?\d+'
     BUILTINF= r"""(([a-zA-Z_]+\d*|[^\s\d='";()+\-*[\],{}]*|(f|u)?\"[^\"]*\"|(f|u)?\'[^\"\']*\')\.([^\u0000-\u007F\s]|[a-zA-Z_])+([^\u0000-\u007F\s]|[a-zA-Z0-9_])*)+"""
     TRY     = r'(((try)|(except +([A-Z]\w+|\w+\.\w+)( +as +\w*)?)|(except)|(finally))(( *:?)|( +(do|then))))'
-    TYPEWRAP= fr'({"|".join(defaultTypes)})( ?\[\w*\])? *: *(#.*)?(?=\n)'
-    TYPE    = '\\s%s\\s'%f'({"|".join(defaultTypes)})'
     LAMBDA  = r'lambda ?(\w* *,?)*:'
     FSTRFRMT= r':,? *(?:\=?[*=._]?[><^|%.+])?(?:(?:\d+(?:\.\d+)?[dfxsn%]?)| *[dbxXogGeEncs](?![^}])|(?: *%[YmdHMS][:-]? *)+)'  # for formatting at end of fstrings brackets
     LISTCOMP= r'''\-?\w*: ([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*(?!"|')'''
@@ -444,7 +444,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if tmpPreColon.isdigit():
                             insertOrAppend(token, makeToken(tok, tmpPreColon, 'NUMBER'))
                         else:
-                            insertOrAppend(token,makeToken(tok, tmpPreColon, 'ID'))
+                            insertOrAppend(token, makeToken(tok, tmpPreColon, 'ID'))
                     insertOrAppend(token,makeToken(tok, ':', 'COLON'))
                     lex[tmpLI].lineno = lineNumber
                     insertOrAppend(token,[ii for ii in miniLex(i.value.split(':')[-1])][0])
@@ -6882,7 +6882,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if doPrint: line.append(decideIfIndentLine(indent,f'{expPrint[-1]}(')); bigWrap = True; rParen += 1
                     line.append(decideIfIndentLine(indent, tok.value))
 
-                elif lex[lexIndex+1].type not in {'ID','LIST'} and lastType not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT'):
+                elif lex[lexIndex+1].type not in {'ID','LIST','LINDEX'} and lastType not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT'):
                     return AS_SyntaxError(f"Type must be declared to a variable. '{lex[lexIndex+1].value}' is invalid.",f'{tok.value} variable = value', lineNumber, data)
                 elif lastType in typeCheckers:
                     line.append(tok.value)
@@ -6929,11 +6929,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     elif lastType == 'PIPE': pass
                     elif lexIndex+1 < len(lex) and lex[lexIndex+1].type in typeAssignables:
                         if multiType:
-                            lex[lexIndex+1].value=f"{lex[lexIndex+1].value}: {firstType.capitalize()}[{secondType}]"
-                            if lexIndex+2 < len(lex) and lex[lexIndex+2].type in typeAssignables:
-                                lex[lexIndex+1].value=f"{lex[lexIndex+1].value}"
+                            if compileTo == "Cython" and firstType == 'tuple' and ',' in secondType:
+                                lex[lexIndex+1].value = f"cdef ({secondType}) {lex[lexIndex+1].value}"
+                            else:
+                                lex[lexIndex+1].value=f"{lex[lexIndex+1].value}: {firstType.capitalize()}[{secondType}]"
+                                if lexIndex+2 < len(lex) and lex[lexIndex+2].type in typeAssignables:
+                                    lex[lexIndex+1].value=f"{lex[lexIndex+1].value}"
 
-                            insertAtTopOfCodeIfItIsNotThere(f'from typing import {firstType.capitalize()}')
+                                insertAtTopOfCodeIfItIsNotThere(f'from typing import {firstType.capitalize()}')
                         else:
                             if compileTo == 'Cython' and inLoop[0]==False and lex[lexIndex+1].value not in storedVarsHistory:
                                 if lex[lexIndex + 2].type == 'COMMA':
@@ -6947,7 +6950,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tok.value = cythonConvertType[tok.value] if tok.value in cythonConvertType else tok.value
                                     if not line or 'DEF ' != line[-1]:
                                         line.append(decideIfIndentLine(indent,f"cdef {tok.value} "))
-                            else:# compileTo == 'Python':
+                            else:
                                 if pythonVersion >= 3.06:
                                     if lex[lexIndex+2].type == 'COMMA':
                                         tmp=[]
