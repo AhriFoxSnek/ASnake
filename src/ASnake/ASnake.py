@@ -6908,10 +6908,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if lastType == 'DEFFUNCT' and pythonVersion > 3.04:
                         if multiType:
                             if line == []:
-                                code[-1]=code[-1][:code[-1].rindex(':\n')]+f' -> {firstType.capitalize()}[{secondType}]:\n'
+                                code[-1]=code[-1][:code[-1].rindex(':\n')]+f' -> {firstType.capitalize() if pythonVersion<3.09 else firstType}[{secondType}]:\n'
                             else:
-                                line[-1]=line[-1].replace(':\n',f' -> {firstType.capitalize()}[{secondType}]:\n')
-                            tmp=f'from typing import {firstType.capitalize()}'
+                                line[-1]=line[-1].replace(':\n',f' -> {firstType.capitalize() if pythonVersion<3.09 else firstType}[{secondType}]:\n')
+                            if pythonVersion < 3.09: tmp=f'from typing import {firstType.capitalize()}'
                             if any(True for i in code if i == tmp)==False:
                                 code.insert(1,tmp)
                         else:
@@ -6933,11 +6933,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 secondType = ', '.join([cythonConvertType[_] for _ in secondType.split(',')])
                                 lex[lexIndex+1].value = f"cdef ({secondType}) {lex[lexIndex+1].value}"
                             else:
-                                lex[lexIndex+1].value=f"{lex[lexIndex+1].value}: {firstType.capitalize()}[{secondType}]"
+                                lex[lexIndex+1].value=f"{lex[lexIndex+1].value}: {firstType.capitalize() if pythonVersion<3.09 else firstType}[{secondType}]"
                                 if lexIndex+2 < len(lex) and lex[lexIndex+2].type in typeAssignables:
                                     lex[lexIndex+1].value=f"{lex[lexIndex+1].value}"
-
-                                insertAtTopOfCodeIfItIsNotThere(f'from typing import {firstType.capitalize()}')
+                                if pythonVersion < 3.09:
+                                    insertAtTopOfCodeIfItIsNotThere(f'from typing import {firstType.capitalize()}')
                         else:
                             if compileTo == 'Cython' and inLoop[0]==False and lex[lexIndex+1].value not in storedVarsHistory:
                                 if lex[lexIndex + 2].type == 'COMMA':
@@ -7116,7 +7116,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if lex[lexIndex+1].value in convertType: tmpf=convertType[lex[lexIndex+1].value]
                                 else: tmpf=lex[lexIndex+1].value
                                 storedVarsHistory[lex[lexIndex+2].value]={'value': lex[lexIndex+2].value+'[0]', 'type': tmpf}
-                                if pythonVersion > 3.04 and compileTo != 'MicroPython':
+                                if 3.04 < pythonVersion < 3.09  and compileTo != 'MicroPython':
                                     insertAtTopOfCodeIfItIsNotThere('from typing import Tuple\n')
                                     lex[lexIndex+1].type=lex[lexIndex+2].type='IGNORE'
                                     if lex[lexIndex+3].type != 'ASSIGN':
