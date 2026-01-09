@@ -8033,11 +8033,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if pythonVersion >= 3.08:
                                     line.append(f'({tmp} := {tmp} {tok.value[0]} 1)')
                                 else:
-                                    tmp=False
+                                    tmptmp=False
                                     for i in range(lexIndex,0,-1):
-                                        if lex[i].type in {'IF','WHILE'} and lex[i-1].type in typeNewline: tmp=True ; break
+                                        if lex[i].type in {'IF','WHILE'} and lex[i-1].type in typeNewline: tmptmp=True ; break
                                         elif lex[i].type in typeNewline: break
-                                    if not tmp:
+                                    if not tmptmp:
                                         return AS_SyntaxError(f"{tok.value} cannot be after an of when compiling to version {pythonVersion}",f'if {tok.value}', lineNumber, data)
 
                                     code.insert(-1, decideIfIndentLine(lastIndent[2][-1],f'{tok.value[2:]}{tok.value[0]}=1\n'))
