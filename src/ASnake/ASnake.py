@@ -217,10 +217,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     # metaInformation will override various meta variables, allowing metas to be overridden before code is ran.
 
     miniLex = Lexer().tokenize
+    def fixVersionNumber(version):
+        tmp = str(version).split('.')
+        if len(tmp[-1]) == 1:
+            # convert sub .10 versions to have a 0
+            # like 3.7 -> 3.07
+            version=float(tmp[0]+'.0'+tmp[1])
+        return version
 
     if compileTo == 'PyPy3' and (pythonVersion == latestPythonVersionSupported or (not isinstance(pythonVersion, str) and pythonVersion > 3.8)):
                                 pythonVersion='3.10'
-    elif compileTo == 'Cython': pythonVersion='3.6'
+    elif compileTo == 'Cython' and float(fixVersionNumber(pythonVersion)) < 3.11:
+                                pythonVersion='3.6'
     elif compileTo == 'Pyston': pythonVersion='3.8'
     elif compileTo == 'MicroPython': pythonVersion='3.8'
     elif compileTo == 'Codon':  pythonVersion='3.10'
@@ -229,13 +237,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     code = [f"# Python{pythonVersion} for {implementation} compiled by ASnake "+ASnakeVersion]
 
 
-    def fixVersionNumber(version):
-        tmp = str(version).split('.')
-        if len(tmp[-1]) == 1:
-            # convert sub .10 versions to have a 0
-            # like 3.7 -> 3.07
-            version=float(tmp[0]+'.0'+tmp[1])
-        return version
     pythonVersion=fixVersionNumber(pythonVersion)
 
     if isinstance(pythonVersion, str):
