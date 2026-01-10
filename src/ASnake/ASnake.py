@@ -701,7 +701,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         if deleteUntilIndentLevel[0]:
             if currentTab > deleteUntilIndentLevel[1] and tok.type not in typeNewline:
                 continue
-            elif (tok.type == 'NEWLINE' and lex[lexIndex].type != 'TAB')\
+            elif (tok.type == 'NEWLINE' and lex[lexIndex].type != 'TAB') or (currentTab <= deleteUntilIndentLevel[1])\
             or tok.type == 'META' and tok.value.replace('$', '').replace(' ', '').startswith(tuple(metaElseVersion)):
                 deleteUntilIndentLevel = (False,0) # stop deleting
         if crunch:
@@ -1136,9 +1136,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif metaCall.startswith(tuple(metaIfCython)):
                 if '#' in tok.value: tok.value = tok.value.split('#')[0]  # removes comments
                 if compileTo != "Cython":
-                    lex.append(makeToken(tok, 'end', 'END'))
-                    lex.append(makeToken(tok, '\n', 'NEWLINE'))
-                    lexIndex += 2
+                    currentTab+=prettyIndent
                     deleteUntilIndentLevel = (True, 0 if lex[lexIndex].type == 'NEWLINE' else currentTab)
                 lexIndex -= 1
             elif metaCall.startswith(tuple(metaPyCompat)):
