@@ -66,7 +66,10 @@ class Calc(ast.NodeVisitor):
     def visit_BinOp(self, node):
         return _OP_MAP[type(node.op)](self.visit(node.left), self.visit(node.right))
     def visit_Constant(self, node):
-        return node.n
+        try:
+            return node.n
+        except AttributeError:
+            return node
     def visit_Expr(self, node):
         return self.visit(node.value)
     def visit_UnaryOp(self, node):
@@ -117,7 +120,7 @@ class Lexer(Lexer):
     FUNCMOD = r'@.*'
     PYDEF   = r'''(c|cp)?def +([\w.\[\d:,\] ]* )?\w+ *\(([^()]|\((?:[^)]|'.*[()]+.*'|".*[()]+.*")*\))*\)*( *((-> *[\w\[\], {}]+)? *):?)(?!return)'''
     PYCLASS = r'class ([a-z]|[A-Z])\w*(\(.*\))?:?'
-    STRLIT  = r'[rf]?\"\"\"[\w\W]+?\"\"\"|[rf]?\'\'\'[\w\W]+?\'\'\''
+    STRLIT  = r'[rftRFT]?\"\"\"[\w\W]+?\"\"\"|[rftRTF]?\'\'\'[\w\W]+?\'\'\''
     TYPEWRAP= fr'({"|".join(defaultTypes)})( ?\[\w*\])? *: *(#.*)?(?=\n)'
     TYPE    = '(?=\\s?)%s(?:(?:\\[(?:\\s*%s\\s*,?)+\\])|(?=\\s+))' % (f'(?:{"|".join(defaultTypes)})', f'(?:{"|".join(defaultTypes)})')
     INDEX   = r'''(?:([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*?\.)?([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*?(?:\[[^\[\]]*(?:\[[^\[\]]*\])?[^\[\]]*\])+'''
@@ -133,10 +136,10 @@ class Lexer(Lexer):
     LAMBDA  = r'lambda ?(\w* *,?)*:'
     FSTRFRMT= r':,? *(?:\=?[*=._]?[><^|%.+])?(?:(?:\d+(?:\.\d+)?[dfxsn%]?)| *[dbxXogGeEncs](?![^}])|(?: *%[YmdHMS][:-]? *)+)'  # for formatting at end of fstrings brackets
     LISTCOMP= r'''\-?\w*: ([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*(?!"|')'''
-    STRING  = r"([fubFUB]?\"\"\"(?:[^\"\\]|\\.|\"(?!\"\"))*\"\"\")|([fubFUB]?'''(?:[^'\\]|\\.|'(?!''))*''')|([fubFUB]?\"(?:\\.|[^\"\\])*\")|([fubFUB]?'(?:\\.|[^'\\])*')"
+    STRING  = r"([tfubTFUB]?\"\"\"(?:[^\"\\]|\\.|\"(?!\"\"))*\"\"\")|([tfubTFUB]?'''(?:[^'\\]|\\.|'(?!''))*''')|([tfubTFUB]?\"(?:\\.|[^\"\\])*\")|([tfubTFUB]?'(?:\\.|[^'\\])*')"
     LBRACKET= r'{'
     RBRACKET= r'}'
-    STRRAW  = r"""[fFbB]?[rR](([fF]?\"{3}(\\"|[^"])+?\"{3})|([fF]?\'{3}(\\'|[^'])+?\'{3})|([fF]?\"(\\"|[^"\n])+?\")|([fF]?\'(\\'|[^'\n])+?\'))"""
+    STRRAW  = r"""[tTfFbB]?[rR](([tTfF]?\"{3}(\\"|[^"])+?\"{3})|([tTfF]?\'{3}(\\'|[^'])+?\'{3})|([tTfF]?\"(\\"|[^"\n])+?\")|([tTfF]?\'(\\'|[^'\n])+?\'))"""
     IMPORT  = r"""(^|(?! )|from +[^'"\n ]*) ?c?import(?:(?: [^\n;]*)| *\*)"""
     EQUAL   = r'==|equals?(?= |\t)'
     NOTIN   = r"isn'?t +in( |(?=\n))"
@@ -201,7 +204,7 @@ class Lexer(Lexer):
     # COLON    = the : character
     # FWRAP    = a function meant to wrap the line (to the right)
 
-latestPythonVersionSupported='3.13'
+latestPythonVersionSupported='3.14'
 
 def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonVersion=latestPythonVersionSupported,enforceTyping=False,variableInformation={},outputInternals=False,metaInformation=False):
     global showWarning # for disabling syntax warnings for miniLex, can produce warnings that are not the users fault
@@ -1051,7 +1054,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             lex.append(tok)
         elif tok.type in {'STRAW','STRLIT','STRING'}:
             if tok.type in {'STRRAW','STRLIT'}: tok.type='STRING'
-            if tok.value[0] in 'fF':
+            if tok.value[0] in 'tTfF':
                 if len([i for i in ('{','}') if i not in tok.value])>0:
                     tok.value=tok.value[1:] # optimization if f-string doesnt use {} then convert to regular string, better performance
                     # produces better behaviour for the compiler, so do it even if optimization isn't on
@@ -1103,6 +1106,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             lex.append(makeToken(tok, 'do', 'THEN'))
                             lexIndex+=2
                         else:
+                            currentTab += prettyIndent
                             deleteUntilIndentLevel = (True, 0 if lex[lexIndex].type == 'NEWLINE' else currentTab)
                             lexIndex-=1
                         metaConditionalVersionTriggered = tmp
@@ -1121,6 +1125,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         f'$ {metaCall.split("=")[0]}', lineNumber, data)
                 if metaConditionalVersionTriggered:
                     if pythonVersion >= metaConditionalVersionTriggered:
+                        currentTab += prettyIndent
                         deleteUntilIndentLevel = (True, 0 if lex[lexIndex].type == 'NEWLINE' else currentTab)
                         lexIndex -= 1
                     else:
@@ -2328,7 +2333,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                                     # when folding an fstr onto an fstr, make sure quote types dont collide
                                                                     tmpFSTRcheck=False
                                                                     tmpOtherFSTRQuote = tmpf[1].value[0] if tmpf[1].value[0] in {'"',"'"} else tmpf[1].value[1]
-                                                                    if lex[tmpi-1].value[0] in 'fF' and lex[tmpi-1].value[1] == tmpOtherFSTRQuote:
+                                                                    if lex[tmpi-1].value[0] in 'tTfF' and lex[tmpi-1].value[1] == tmpOtherFSTRQuote:
                                                                         tmpFSTRcheck=tmpi-1
                                                                         if lex[tmpi - 1].value[1] == "'": tmpFSTRq = '"'
                                                                         else: tmpFSTRq = "'"
@@ -3933,7 +3938,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             del tmpBaseIndent
 
                     elif lex[token].type == 'STRING':
-                        if optStrFormatToFString and '%s' in lex[token].value and lex[token].value[0] not in 'fF' and all(True if i not in lex[token].value else False for i in {'%i','%d','%g','%G','%c','%r','%-','%x','%u','%o','%X','%E','%e','%f','%F','%+', '%0','%1','%2','%3','%4','%5','%6','%7','%8','%9'} ):
+                        if optStrFormatToFString and '%s' in lex[token].value and lex[token].value[0] not in 'tTfF' and all(True if i not in lex[token].value else False for i in {'%i','%d','%g','%G','%c','%r','%-','%x','%u','%o','%X','%E','%e','%f','%F','%+', '%0','%1','%2','%3','%4','%5','%6','%7','%8','%9'} ):
                             #print('~~~')
                             tmpModuloCheck = tmpParenUsed = False
                             tmpf=[]
@@ -4031,7 +4036,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             #if debug and tmpf: print('optStrFormatToFString',[[f.type for f in toks] for toks in tmpf])
                             safe = False
                             while tmpf:
-                                if len(tmpf[0]) == 1 and tmpf[0][0].type == 'STRING' and tmpf[0][0].value[0] not in 'fFrR' and '{' not in tmpf[0][0].value[0]:
+                                if len(tmpf[0]) == 1 and tmpf[0][0].type == 'STRING' and tmpf[0][0].value[0] not in 'tTfFrR' and '{' not in tmpf[0][0].value[0]:
                                     tmp=tmpf[0][0].value
                                     if tmp.startswith('"""') or tmp.startswith("'''"):
                                         tmp=tmp[3:-3]
@@ -5976,7 +5981,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         line.insert(tmpcheck, f' for {listcomp["x"]} in {listcomp["list"]} ')
                         line.append(' ]')
                     else:
-                        if lex[lexIndex-2].type == 'LISTCOMP' and lex[lexIndex-1].type in typeAssignables and lex[lexIndex-1].value[0] in 'fF' == False\
+                        if lex[lexIndex-2].type == 'LISTCOMP' and lex[lexIndex-1].type in typeAssignables and lex[lexIndex-1].value[0] in 'tTfF' == False\
                         and (lex[lexIndex-3].type == 'NUMBER' or (lex[lexIndex-3].value in storedVarsHistory and storedVarsHistory[lex[lexIndex-3].value]['type']=='NUMBER')):
                                 # cool optimization, faster. returns list*number instead of list-comp
                                 line=line[:-2]
@@ -7104,7 +7109,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
             elif tok.type == 'CONSTANT': # idCONSTANT
                 if (lexIndex+3 < len(lex) or lexIndex+2 < len(lex)) and (lex[lexIndex+1].type == 'ID' or lex[lexIndex+2].type == 'ID'):
-                    if compileTo != 'Cython' or (compileTo=='Cython' and ((lex[lexIndex+2].type == 'ASSIGN' and lex[lexIndex+3].type not in ('STRING','LIST','DICT','NUMBER','SET') or lex[lexIndex+3].value[0] in 'fF') or (lex[lexIndex+1].type == 'ID' and lex[lexIndex+2].type not in ('STRING','LIST','DICT','NUMBER','SET') or lex[lexIndex+2].value[0] in 'fF') or (lex[lexIndex+2].type == 'ID' and lex[lexIndex+3].type not in ('STRING','LIST','DICT','NUMBER','SET','ASSIGN') or lex[lexIndex+3].value[0] in 'fF'))):
+                    if compileTo != 'Cython' or (compileTo=='Cython' and ((lex[lexIndex+2].type == 'ASSIGN' and lex[lexIndex+3].type not in ('STRING','LIST','DICT','NUMBER','SET') or lex[lexIndex+3].value[0] in 'tTfF') or (lex[lexIndex+1].type == 'ID' and lex[lexIndex+2].type not in ('STRING','LIST','DICT','NUMBER','SET') or lex[lexIndex+2].value[0] in 'tTfF') or (lex[lexIndex+2].type == 'ID' and lex[lexIndex+3].type not in ('STRING','LIST','DICT','NUMBER','SET','ASSIGN') or lex[lexIndex+3].value[0] in 'tTfF'))):
                         # ^^ when Cython, check if it can be compile-time-constant, else defaults to our implementation
                         if (pythonVersion >= 3.04 and pythonVersion < 3.08) or compileTo == 'MicroPython': # old implementation
                             # deprecate ?
