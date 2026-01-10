@@ -504,6 +504,15 @@ if result is 2 do $worked
 else 'functionPass meta off' $failed
 
 
+$ ifVersion = 3.14
+  from string import templatelib
+  $start
+  ix = 14
+  t"And, the number is {ix}"
+  if isinstance(result, templatelib.Template) then $worked
+  else 'basic template string' $failed
+
+
 $ ifVersion = 3.6
 	f"Failed={failed} Working={working} out of {max}" to print
 $ elseVersion
