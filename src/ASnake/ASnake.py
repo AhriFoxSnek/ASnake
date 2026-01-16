@@ -229,12 +229,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         return version
 
     if compileTo == 'PyPy3' and (pythonVersion == latestPythonVersionSupported or (not isinstance(pythonVersion, str) and pythonVersion > 3.8)):
-                                pythonVersion='3.10'
+                                pythonVersion='3.11'
     elif compileTo == 'Cython' and float(fixVersionNumber(pythonVersion)) < 3.11:
                                 pythonVersion='3.6'
     elif compileTo == 'Pyston': pythonVersion='3.8'
     elif compileTo == 'MicroPython': pythonVersion='3.8'
-    elif compileTo == 'Codon':  pythonVersion='3.10'
 
     implementation = compileTo if compileTo != 'Python' else 'CPython'
     code = [f"# Python{pythonVersion} for {implementation} compiled by ASnake "+ASnakeVersion]
@@ -704,7 +703,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         if deleteUntilIndentLevel[0]:
             if currentTab > deleteUntilIndentLevel[1] and tok.type not in typeNewline:
                 continue
-            elif (tok.type == 'NEWLINE' and lex[lexIndex].type != 'TAB') or (currentTab <= deleteUntilIndentLevel[1])\
+            elif (tok.type not in typeNewline and lex[lexIndex].type == 'NEWLINE') or (currentTab <= deleteUntilIndentLevel[1] and lex[lexIndex].type == 'TAB')\
             or tok.type == 'META' and tok.value.replace('$', '').replace(' ', '').startswith(tuple(metaElseVersion)):
                 deleteUntilIndentLevel = (False,0) # stop deleting
         if crunch:
@@ -1125,8 +1124,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         f'$ {metaCall.split("=")[0]}', lineNumber, data)
                 if metaConditionalVersionTriggered:
                     if pythonVersion >= metaConditionalVersionTriggered:
-                        currentTab += prettyIndent
                         deleteUntilIndentLevel = (True, 0 if lex[lexIndex].type == 'NEWLINE' else currentTab)
+                        currentTab += prettyIndent
                         lexIndex -= 1
                     else:
                         lex.append(makeToken(tok, 'if', 'IF'))
@@ -1141,8 +1140,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif metaCall.startswith(tuple(metaIfCython)):
                 if '#' in tok.value: tok.value = tok.value.split('#')[0]  # removes comments
                 if compileTo != "Cython":
-                    currentTab+=prettyIndent
                     deleteUntilIndentLevel = (True, 0 if lex[lexIndex].type == 'NEWLINE' else currentTab)
+                    currentTab+=prettyIndent
                 lexIndex -= 1
             elif metaCall.startswith(tuple(metaPyCompat)):
                 pyCompatibility = metaHandling(tok.value, pyCompatibility)
@@ -5944,7 +5943,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     continue
 
                 if tok.type == 'THEN' and not ('list' in listcomp and 'x' in listcomp):
-                    if indentSoon and parenScope == 0 and ':' not in line[-1] :
+                    if indentSoon and parenScope == 0 and line and ':' not in line[-1] :
                         if lexIndex+1 < len(lex) and lex[lexIndex+1].type == 'TAB' and 'while' in line[0]:
                             continue
                         else: line.append(':\n')
