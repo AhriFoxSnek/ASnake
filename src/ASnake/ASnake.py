@@ -1354,7 +1354,21 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if lex[lexIndex].value.strip() in pyReservedKeywords:
                     return AS_SyntaxError(f'{lex[lexIndex].value} is a reserved keyword. Use a different name.','myFunction does', lineNumber, data)
                 return AS_SyntaxError(rf'{lex[lexIndex].value} is not a valid function name.\n\tFunction names should start with a letter or underscore.\n\tAvoid character literals like ()\!=<>/\\\'"*^%#@:&$.' + '{}','myFunction does', lineNumber, data)
-            elif lexIndex-1 > 0 and lex[lexIndex-1].type not in typeNewline+('ASYNC',):
+            elif lexIndex-1 > 0 and lex[lexIndex-1].type not in typeNewline+('ASYNC','IGNORE'):
+                if parenScope:
+                    tmp = 0
+                    tmpParen = parenScope
+                    for t in range(len(lex)-1,0,-1):
+                        if lex[t].type in {'LPAREN','FUNCTION'}: tmpParen -= 1
+                        elif lex[t].type == 'RPAREN': tmpParen +=1
+                        if tmpParen == 0: tmp = t ; break
+                    if tmp:
+                        tmpf = []
+                        for t in range(tmp-1,len(lex)-1):
+                            if lex[t].type in typeNewline+('OF',): break
+                            else: tmpf.append(lex[t])
+                        tmpf = ' '.join([_.value for _ in tmpf]).replace('\n','').replace(' '*prettyIndent,'')
+                        return AS_SyntaxError(f'You should add an extra closing parenthesis.',tmpf+')', lex[tmp-1].lineno, data)
                 return AS_SyntaxError(f'{lex[lexIndex-1].value+lex[lexIndex].value} is not a valid function name.\n\tFunction names should start with a letter or underscore.\n\tThere should be some sort of newline or newline indicator before the function name.',lex[lexIndex-1].value+'\n\t'+lex[lexIndex].value+' does', lineNumber, data)
 
             if lex[lexIndex].value not in definedFunctions: definedFunctions[lex[lexIndex].value] = currentTab
