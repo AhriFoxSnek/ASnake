@@ -6930,9 +6930,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 code[-1]=code[-1][:code[-1].rindex(':\n')]+f' -> {firstType.capitalize() if pythonVersion<3.09 else firstType}[{secondType}]:\n'
                             else:
                                 line[-1]=line[-1].replace(':\n',f' -> {firstType.capitalize() if pythonVersion<3.09 else firstType}[{secondType}]:\n')
-                            if pythonVersion < 3.09: tmp=f'from typing import {firstType.capitalize()}'
-                            if any(True for i in code if i == tmp)==False:
-                                code.insert(1,tmp)
+                            if pythonVersion < 3.09: insertAtTopOfCodeIfItIsNotThere(f'from typing import {firstType.capitalize()}')
                         else:
                             if compileTo == 'Cython' and (lastValue.startswith('cpdoes') or lastValue.startswith('cdoes')):
                                 tmp=code[-1].split()
@@ -8345,7 +8343,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     storedIndents.append(storedIndents[-1]+prettyIndent)
                 elif indent<storedIndents[-1]: storedIndents.pop()
 
-
                 # vvv uncomment for debugging indentation via including it as comment.
                 #if lastType!='DEFFUNCT':
                 #    tmp=f'\n# {tok.type,indent,storedIndents,lastIndent[:2]}\n'
@@ -8356,8 +8353,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             #        tmp=f'\n# AS Line {lineNumber-1}: {tmpf}\n'
             #        if startOfLine and comment and code[-1]!=tmp: code.append(tmp)
 
-    if len(line) > 0:
-        code.append(''.join(line))
+    if line: code.append(''.join(line))
     if compileTo == 'Cython':
         keepAtTop.append(makeToken(lex[0], '#cython: language_level=3', 'CYLEVEL'))
     if keepAtTop:
