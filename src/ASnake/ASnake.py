@@ -643,7 +643,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     if metaInformation:
         inlineReplace=metaInformation[0]
 
-    metaConditionalVersionTriggered = False
+    metaConditionalVersionValue     = 0
+    metaConditionalVersionTriggered = None
+    metaConditionalCythonTriggered  = None
 
     comments=[]
     keepAtTop=[] # for lines that should be kept up top
@@ -704,7 +706,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             if currentTab > deleteUntilIndentLevel[1] and tok.type not in typeNewline:
                 continue
             elif (tok.type not in typeNewline and lex[lexIndex].type == 'NEWLINE') or (currentTab <= deleteUntilIndentLevel[1] and lex[lexIndex].type == 'TAB')\
-            or tok.type == 'META' and tok.value.replace('$', '').replace(' ', '').startswith(tuple(metaElseVersion)):
+            or tok.type == 'META' and tok.value.replace('$', '').replace(' ', '').startswith(tuple(metaElse)):
                 deleteUntilIndentLevel = (False,0) # stop deleting
         if crunch:
             if tok.type in typeNewline:
@@ -1091,7 +1093,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 error=False
                 if '#' in tok.value: tok.value = tok.value.split('#')[0]  # removes comments
                 tmp = tok.value.split('=')
-
+                metaConditionalVersionTriggered = True
                 if len(tmp) > 1:
                     tmp = fixVersionNumber(tmp[1])
                     try:
@@ -1108,7 +1110,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             currentTab += prettyIndent
                             deleteUntilIndentLevel = (True, 0 if lex[lexIndex].type == 'NEWLINE' else currentTab)
                             lexIndex-=1
-                        metaConditionalVersionTriggered = tmp
+                        metaConditionalVersionValue = tmp
                 else:
                     error=True
                 if error:
@@ -1117,13 +1119,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if metaCall.startswith(i):
                             tmp = i ; break
                     return AS_SyntaxError(f'Meta {tmp} must be given a float/decimal which represents a Python version.',f'$ {tmp} = 3.8', lineNumber, data)
-            elif metaCall.startswith(tuple(metaElseVersion)):
+            elif metaCall.lower().startswith(tuple(metaElse)):
                 if '=' in metaCall:
                     return AS_SyntaxError(
-                        f'Meta ${metaCall} must not have a =. It triggers when it is lower than previous {tuple(metaConditionalVersion)[0]} meta.',
+                        f'Meta ${metaCall} must not have a =. It triggers when the previous conditional meta is not true.',
                         f'$ {metaCall.split("=")[0]}', lineNumber, data)
                 if metaConditionalVersionTriggered:
-                    if pythonVersion >= metaConditionalVersionTriggered:
+                    if pythonVersion >= metaConditionalVersionValue:
                         deleteUntilIndentLevel = (True, 0 if lex[lexIndex].type == 'NEWLINE' else currentTab)
                         currentTab += prettyIndent
                         lexIndex -= 1
@@ -1132,16 +1134,24 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         lex.append(makeToken(tok, 'True', 'BOOL'))
                         lex.append(makeToken(tok, 'do', 'THEN'))
                         lexIndex += 2
-                    metaConditionalVersionTriggered = False
+                    metaConditionalVersionTriggered = None
+                elif metaConditionalCythonTriggered:
+                    if compileTo == "Cython":
+                        deleteUntilIndentLevel = (True, 0 if lex[lexIndex].type == 'NEWLINE' else currentTab)
+                        currentTab += prettyIndent
+                    lexIndex -= 1
+                    metaConditionalCythonTriggered = None
+
                 else:
-                    return AS_SyntaxError(
-                        f'Meta ${metaCall} must follow after a {tuple(metaConditionalVersion)[0]} meta.',
-                        f'$ {tuple(metaConditionalVersion)[0]} = 3.8\n\t\tprint 3.8\n\t${metaCall}\n\t\tprint "elsed!"', None, data)
+                     return AS_SyntaxError(
+                            f'Meta ${metaCall} must follow after a conditional meta of some kind.',
+                            f'$ {tuple(metaConditionalVersion)[0]} = 3.8\n\t\tprint 3.8\n\t${metaCall}\n\t\tprint "elsed!"', None, data)
             elif metaCall.startswith(tuple(metaIfCython)):
                 if '#' in tok.value: tok.value = tok.value.split('#')[0]  # removes comments
                 if compileTo != "Cython":
                     deleteUntilIndentLevel = (True, 0 if lex[lexIndex].type == 'NEWLINE' else currentTab)
                     currentTab+=prettyIndent
+                metaConditionalCythonTriggered = True
                 lexIndex -= 1
             elif metaCall.startswith(tuple(metaPyCompat)):
                 pyCompatibility = metaHandling(tok.value, pyCompatibility)
