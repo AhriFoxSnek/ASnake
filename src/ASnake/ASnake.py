@@ -230,7 +230,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
     if compileTo == 'PyPy3' and (pythonVersion == latestPythonVersionSupported or (not isinstance(pythonVersion, str) and pythonVersion > 3.8)):
                                 pythonVersion='3.11'
-    elif compileTo == 'Cython' and float(fixVersionNumber(pythonVersion)) < 3.11:
+    elif compileTo == 'Cython' and False:
                                 pythonVersion='3.6'
     elif compileTo == 'Pyston': pythonVersion='3.8'
     elif compileTo == 'MicroPython': pythonVersion='3.8'
@@ -5441,6 +5441,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                 elif i.value in convertType or REsearch(r"(?:list|tuple) *(?:\[.+\])",i.value):
                                     tmptype=i
+                                    if pythonVersion < 3.09 and '[' in i.value: tmptype.value=i.value.split('[')[0]
                                 elif i.type == 'ASSIGN': assign=True
                                 elif i.type in {'TIMES','EXPONENT','MINUS'}: kwargs=i.type ; continue
                                 elif assign:
@@ -6140,7 +6141,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 , lineNumber if line else lineNumber-1 ,data)
                 else:
                     safe=True
-                    if optimize and optListPlusListToExtend and lastValue in storedVarsHistory and (
+                    if optimize and optListPlusListToExtend and lastValue in storedVarsHistory and lex[lexIndex-1].type not in {'LISTEND','RINDEX'} and (
                             ('type' in storedVarsHistory[lastValue] and storedVarsHistory[lastValue]['type'] in ('LIST', 'LISTCOMP')) or (
                             'staticType' in storedVarsHistory[lastValue] and storedVarsHistory[lastValue]['staticType'] == 'list' )):
                         if '+' in tok.value or (lex[lexIndex+1].type == 'ID' and lex[lexIndex+1].value == lastValue and lex[lexIndex+2].type=='PLUS'):
@@ -6149,7 +6150,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             tok.type='LPAREN' ; rParen+=1 ; bigWrap=True ; tok.value='('
                             lex[lexIndex-1].type = 'BUILTINF' ; lex[lexIndex-1].value = lastValue+'.extend'
                             lastValue='(' ; lastType='LPAREN'
-                            line[-1]=line[-1][:-1]+'.extend(' ; continue
+                            if lex[lexIndex-1].value[0] == ']':
+                                line[-1]=line[-1]     +'.extend(' ; continue
+                            else:
+                                line[-1]=line[-1][:-1]+'.extend(' ; continue
 
                     if lastType == 'FUNCTION' and lex[lexIndex-1].value in storedCustomFunctions and '(' not in lex[lexIndex-1].value:
                         storedCustomFunctions.remove(lex[lexIndex-1].value) ; lex[lexIndex-1].type = 'ID'
@@ -6455,7 +6459,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if lex[lexIndex+1].type == 'ID': tmp=lex[lexIndex+1].value
                             else: tmp='x'
                             return AS_SyntaxError('When doing Python list comprehensions, you need a variable before the \'for\'.', f'[ {tmp} for {tmp} in range(12) ]', lineNumber, data)
-                        if compileTo == 'Cython' and optimize and lastType in typeNewline and lex[lexIndex+1].type == 'ID' and not inLoop[0] and not lastIndent[4] and lex[lexIndex+1].value not in storedVarsHistory and lastIndent[2] == []:
+                        if compileTo == 'Cython' and optimize and lastType in typeNewline and lex[lexIndex+1].type == 'ID' and not inLoop[0] and not lastIndent[4] and lex[lexIndex+1].value not in storedVarsHistory and lastIndent[2] == [] and ((lex[lexIndex+3].value in storedVarsHistory and storedVarsHistory[lex[lexIndex+3].value]["type"] == 'NUMBER') or (lex[lexIndex+3].type == 'FUNCTION' and lex[lexIndex+3].value.replace('(','') in {"AS_range","range"})):
                             check=True
                             if lex[lexIndex+2].type == 'INS' and lex[lexIndex+3].value in storedVarsHistory and 'type' in storedVarsHistory[lex[lexIndex+3].value] and storedVarsHistory[lex[lexIndex+3].value]['type'] in ('TUPLE','LIST','SET'):
                                 check=False
