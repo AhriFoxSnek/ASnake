@@ -68,7 +68,7 @@ class Calc(ast.NodeVisitor):
         try:
             return node.n
         except AttributeError:
-            return node
+            return node.value
     def visit_Expr(self, node):
         return self.visit(node.value)
     def visit_UnaryOp(self, node):
@@ -2838,18 +2838,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
 
 
-                        elif optFuncTricks and optFuncTricksDict['insertMathConstants'] and lex[token].type in {'BUILTINF','ID'} and \
-                            (  ((lex[token].value == 'pi' or lex[token].value == 'math.pi') and 'math.' in trackingImported and 'pi' in trackingImported['math.'])
-                            or ((lex[token].value == 'e'  or lex[token].value == 'math.e' ) and 'math.' in trackingImported and 'e'  in trackingImported['math.'])
-                                ):
-                                # math.pi --> 3.141592653589793
-                                tmp='3.141592653589793' if lex[token].value.endswith('pi') else '2.718281828459045' # pi or e
-                                if debug: print(f'! insertMathConstants: {lex[token].value} --> {tmp}')
-                                lex[token].type = 'NUMBER' ; lex[token].value = tmp
-                                #wasImported['math.'].remove('pi')
-                                # ^ in event of dead import elimination being implemented, uncomment
-                                newOptimization = True
-
                         elif optFuncTricks and optFuncTricksDict['insertStringConstants'] and lex[token].type in {'BUILTINF','ID'} and 'string.' in trackingImported and \
                             lex[token].value in {'ascii_letters','ascii_lowercase','ascii_uppercase','digits','hexdigits','octdigits','punctuation','printable','whitespace'} \
                             and any(_ for _ in ('ascii_letters','ascii_lowercase','ascii_uppercase','digits','hexdigits','octdigits','punctuation','printable','whitespace') if _ in trackingImported['string.']):
@@ -2875,6 +2863,16 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex[token].type = 'STRING'
                                 del tmpPrintable
                                 newOptimization = True
+
+                    elif lex[token].type in {'BUILTINF','ID'} and optFuncTricks and optFuncTricksDict['insertMathConstants'] \
+                    and ((lex[token].value in {'e','pi'} or lex[token].value.split('.')[-1] in {'e','pi'}) and any(m + '.' in trackingImported and (lex[token].value.split('.')[-1] in trackingImported[m + '.'] or lex[token].value in trackingImported[m + '.']) for m in ('math', 'numpy', 'scipy'))):
+                        # math.pi --> 3.141592653589793
+                        tmp='3.141592653589793' if lex[token].value.endswith('pi') else '2.718281828459045' # pi or e
+                        if debug: print(f'! insertMathConstants: {lex[token].value} --> {tmp}')
+                        lex[token].type = 'NUMBER' ; lex[token].value = tmp
+                        #wasImported['math.'].remove('pi')
+                        # ^ in event of dead import elimination being implemented, uncomment
+                        newOptimization = True
 
 
                     elif lex[token].type == 'META':
@@ -4363,7 +4361,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if optCompilerEval and optCompilerEvalDict['evalTokens'] and lex[token].type in {'STRING','NUMBER'}: # jumpy
                         # math or string evaluation
                         bitwiseOrderOps = {'~': 5, '<<': 4, '>>': 4, '&': 3, '^': 2, '|': 1}
-                        tmpTypeSafe = typeNewline + ('RPAREN', 'ASSIGN', 'FUNCTION', 'LPAREN', 'ELSE', 'DEFEXP', 'LINDEX')
+                        tmpTypeSafe = typeNewline + ('RPAREN', 'ASSIGN', 'FUNCTION', 'LPAREN', 'ELSE', 'DEFEXP', 'LINDEX', 'COMMA')
                         check=False
                         # these blocks help follow the order of operations for more accuracy
                         if                                        (token+3 < len(lex)-1 and lex[token + 3].type == 'RPAREN' and lex[token - 3].type in {'LPAREN','FUNCTION'} and lex[token - 2].type == lex[token + 2].type == 'NUMBER' and lex[token - 1].type in orderOfOps and  lex[token + 1].type in orderOfOps and orderOfOps[lex[token - 1].type] == orderOfOps[lex[token + 1].type]) \
@@ -4451,7 +4449,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 check=False
 
                         if check:
-                            if lex[token].type == 'NUMBER' and lex[token+1].type in typeOperators and (lex[token+2].type == 'NUMBER' or (lex[token+2].type == 'LPAREN' and lex[token+3].type == 'NUMBER') or isANegativeNumberTokens(token+2)):
+                            if lex[token].type == 'NUMBER' and lex[token+1].type in typeOperators and (lex[token+2].type == 'NUMBER' or (lex[token+2].type in {'LPAREN','COMMA','FUNCTION'} and lex[token+3].type == 'NUMBER') or isANegativeNumberTokens(token+2)):
                                 tmpf=[] ; tmpscope=0 ; tmpLastOperator=fail=False
                                 for tmpi in range(token,len(lex)-1):
                                     if lex[tmpi].type in typeOperators+('NUMBER','LPAREN','RPAREN'):
@@ -4465,6 +4463,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             else:
                                                 tmpLastOperator = lex[tmpi].type
                                         tmpf.append(lex[tmpi])
+                                    elif lex[tmpi].type == 'COMMA': break
                                     else:
                                         if tmpf[-1].type in typeOperators: del tmpf[-1]
                                         break
@@ -4495,7 +4494,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             lex[token-2].type = lex[token+1].type = 'IGNORE'
                                         if tmpLeftHasMinus: lex[token-1].type = 'IGNORE'
                                         newOptimization=True
-                                    except (TypeError, ZeroDivisionError, SyntaxError): pass # SyntaxError means the expression sent to compilerNumberEval made no sense
+                                    except (TypeError, ZeroDivisionError, SyntaxError) as e:
+                                        # SyntaxError means the expression sent to compilerNumberEval made no sense
+                                        if debug: print("CompileTimeEvalError: ",e,'\n\t',[_.value for _ in tmpf])
                             while lex[token].type == 'STRING' and lex[token+1].type == 'PLUS' and lex[token+2].type == 'STRING' \
                             and lex[token].value.startswith("'''")==False and lex[token].value.startswith('"""')==False and lex[token+2].value.startswith("'''")==False and lex[token+2].value.startswith('"""')==False:
                                 if lex[token+3].type in typeOperators and orderOfOps[lex[token+3].type] > orderOfOps[lex[token+1].type]: break
