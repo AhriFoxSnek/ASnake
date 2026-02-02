@@ -17,7 +17,7 @@ from unicodedata import category as unicodeCategory
 try:
     from .compiler_consts import *
 except (ImportError, ModuleNotFoundError):
-    from  compiler_consts import *
+    from compiler_consts import *
 try:
     from . import ASnakeVersion
 except(ImportError, ModuleNotFoundError):
@@ -42,11 +42,10 @@ def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syn
 
     return f'# ASnake {ASnakeVersion} ERROR\nprint("""\n{showError}\n""")'
 
-defaultTypes=set('bool|int|float|complex|str|list|tuple|set|dict|bytearray|bytes|enumerate|filter|frozenset|map|memoryview|object|property|range|reversed|slice|staticmethod|super|type|zip'.split('|'))
-pureStdPythonModules = "abc,array,base64,binascii,bisect,calendar,cmath,collections,colorsys,contextvars,copy,dataclasses,decimal,enum,fractions,graphlib,heapq,itertools,keyword,math,numbers,operator,pprint,re,reprlib,statistics,string,struct,textwrap,token,types,typing,unicodedata".split(',')
+defaultTypes={'bool','int','float','complex','str','list','tuple','set','dict','bytearray','bytes','enumerate','filter','frozenset','map','memoryview','object','property','range','reversed','slice','staticmethod','super','type','zip'}
+pureStdPythonModules = {"abc","array","base64","binascii","bisect","calendar","cmath","collections","colorsys","contextvars","copy","dataclasses","decimal","enum","fractions","graphlib","heapq","itertools","keyword","math","numbers","operator","pprint","re","reprlib","statistics","string","struct","textwrap","token","types","typing","unicodedata"}
 
-import ast
-import operator
+import ast, operator
 _OP_MAP = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
@@ -207,7 +206,7 @@ class Lexer(Lexer):
 latestPythonVersionSupported='3.14'
 
 def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonVersion=latestPythonVersionSupported,enforceTyping=False,variableInformation={},outputInternals=False,metaInformation=False):
-    global showWarning # for disabling syntax warnings for miniLex, can produce warnings that are not the users fault
+    global showWarning # for disabling syntax warnings for miniLex, can produce warnings that are not the user's fault
     # data is the string version of code for parsing
     # optimize when True will enable optimization phase and optimizations, False will disable any optimizations.
     # comment when True will output comments in the final file, False will attempt to have minimal comments.
@@ -619,9 +618,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         returnValue = theMeta
         if len(tmp) > 1:
             tmp = tmp[1].lower().strip()
-            if tmp in {'true', 'yes', 'on'}:
-                returnValue = True
-            elif tmp in {'no', 'false', 'off'}:
+            #if tmp in {'true', 'yes', 'on'}:
+            #    returnValue = True
+            #elif tmp in {'no', 'false', 'off'}:
+            if tmp in {'no', 'false', 'off'}:
                 returnValue = False
             else:
                 returnValue = True
@@ -819,7 +819,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             lex.append(tok)
             tok.type=tmptok.type
             del tmptok
-        elif debug and len(lex) > lexIndex: print(f'lex={lexIndex} ln={lineNumber} ps={parenScope} lexType={lex[lexIndex].type}\ttype={tok.type}, value={tok.value}')
+        elif debug and len(lex) > lexIndex:
+            print(f'lex={lexIndex} ln={lineNumber} ps={parenScope} lexType={lex[lexIndex].type}\ttype={tok.type}, value={tok.value}')
 
         if tok.type in {'COMMENT', 'IGNORENL', 'INDEX', 'NEWLINE', 'PYDEF', 'PYPASS', 'STRING', 'STRLIT', 'STRRAW', 'TAB', 'THEN', 'TYPEWRAP'}:
             # ^ every type that can have a newline should be included
@@ -827,7 +828,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         tok.lineno = lineNumber
 
         if tok.type == 'NUMBER':
-            if pythonVersion < 3.06 and '_' in tok.value: tok.value = tok.value.replace('_', '')
+            if pythonVersion < 3.06 and '_' in tok.value:
+                tok.value = tok.value.replace('_', '')
             lex.append(tok)
         elif tok.type in {'HEXDEC','SCINOTAT'}:
             tok.type = 'NUMBER' ; lex.append(tok)
@@ -1395,7 +1397,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     tmp = REfindall(REcheck, tmpFuncArgs)
                     if tmp:
                         for t in tmp:
-                            if t:  tmpFuncArgs = tmpFuncArgs.replace(t, '') ; tmpf.append(t)
+                            if t: tmpFuncArgs = tmpFuncArgs.replace(t, '') ; tmpf.append(t)
                 tmpFuncArgs = {}
                 for t in tmpf:
                     if ':' in t:
@@ -3098,18 +3100,14 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     # ^ but that breaks expected behaviour of functions not trigger defexp unless operated upon
                                     newOptimization=True
                                     if 'random.' in wasImported:
-                                        if 'random' in wasImported['random.']:
-                                            pass
-                                        else:
-                                            wasImported['random.'].append('random')
+                                        if 'random' in wasImported['random.']: pass
+                                        else: wasImported['random.'].append('random')
                                     else:
                                         wasImported['random.']=['random']
                                 if tmpGetRandBits:
                                     if 'random.' in wasImported:
-                                        if 'getrandbits' in wasImported['random.']:
-                                            pass
-                                        else:
-                                            wasImported['random.'].append('getrandbits')
+                                        if 'getrandbits' in wasImported['random.']: pass
+                                        else: wasImported['random.'].append('getrandbits')
                                     else:
                                         wasImported = {'random.': ['getrandbits']}
                                     newOptimization = True
@@ -5223,9 +5221,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
         # TODO: detect default expressions. the function can be impure, however we can check if the function in expPrint is marked as safe.
 
-        impure = False
-        tmp = 1
-        tmpIndent=0
+        impure = False ; tmp = 1 ; tmpIndent=0
         withoutFromSafe=False # for asnake func, declares it is safe even if no from found
         for tmpi in range(lexIndex,0,-1):
             if lex[tmpi].type in typeNewline:
@@ -5277,16 +5273,16 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             line.append(decideIfIndentLine(indent, f'@{tmpCache}{"(maxsize=128)" if tmpCache == "lru_cache" else ""}\n', False))
 
 
-    inlineReplace = metaInformation[0]
-    expPrint = metaInformation[1]
+    inlineReplace =     metaInformation[0]
+    expPrint =          metaInformation[1]
     ignoreIndentation = metaInformation[2]
-    functionPassing = metaInformation[3]
-    pyIs = metaInformation[4]
-    autoEnumerate = metaInformation[5]
-    intVsStrDoLen = metaInformation[6]
+    functionPassing =   metaInformation[3]
+    pyIs =              metaInformation[4]
+    autoEnumerate =     metaInformation[5]
+    intVsStrDoLen =     metaInformation[6]
     metaDefaultExpressionWithFunction = metaInformation[7]
-    functionLineWrap = metaInformation[8]
-    pyCompatibility = False
+    functionLineWrap =  metaInformation[8]
+    pyCompatibility =   False
     # ^ resetting METAs
 
 
@@ -6630,7 +6626,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if tmp[-1].isdigit(): tmp[-1]=int(tmp[-1])+1
                                 else: tmp[-1]+='+1'
 
-                        number1=number2=None
+                        number1 = number2 = None
                         if tmp[0].isdigit():
                             number1=int(tmp[0])
                         elif tmp[0] in storedVarsHistory and storedVarsHistory[tmp[0]]['type']=='NUMBER':
@@ -6891,11 +6887,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.type == 'COMMA': # idCOMMA
                 if lexIndex-1 > 0 and lexIndex+1 < len(lex)-1 and len(line)>0:
                     if lex[lexIndex+1].type not in typeNewline+('IGNORE','INC','FSTR','PIPEGO','PIPE','PYPASS') and lex[lexIndex-1].type != 'IGNORE':
-                        if lex[lexIndex+1].type == 'RBRACKET':                bracketScope -= 1
-                        elif lex[lexIndex+1].type == 'RPAREN':                parenScope   -= 1
-                        elif lex[lexIndex+1].type in {'LPAREN', 'FUNCTION'}:  parenScope   += 1
-                        elif lex[lexIndex+1].type in {'LISTEND','RINDEX'}:    listScope    -= 1
-                        elif lex[lexIndex+1].type in {'LIST', 'LINDEX'}:      listScope    += 1
+                        if lex[lexIndex+1].type == 'RBRACKET':               bracketScope -= 1
+                        elif lex[lexIndex+1].type == 'RPAREN':               parenScope   -= 1
+                        elif lex[lexIndex+1].type in {'LPAREN', 'FUNCTION'}: parenScope   += 1
+                        elif lex[lexIndex+1].type in {'LISTEND','RINDEX'}:   listScope    -= 1
+                        elif lex[lexIndex+1].type in {'LIST', 'LINDEX'}:     listScope    += 1
                         elif lex[lexIndex+1].type == 'META' and lex[lexIndex+1].value.replace('$','').strip() in inlineReplace:
                             lex[lexIndex+1].value=inlineReplace[lex[lexIndex+1].value.replace('$','').strip()]
                         lex[lexIndex+1].value=f'{line[-1]},{lex[lexIndex+1].value}'
@@ -7037,8 +7033,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                     'str'  : ('""' , 'STRING'),
                                                     'int'  : ('0'  , 'NUMBER'),
                                                     'float': ('0.0', 'NUMBER'),
-                                                    'list' : ('[]', 'INDEX'),
-                                                    'dict' : ('{}', 'DICT')
+                                                    'list' : ('[]', 'INDEX'  ),
+                                                    'dict' : ('{}', 'DICT'   )
                                                 }
                                                 if tok.value.strip() in tmpDict: tmpf=tmpDict[tok.value.strip()]
                                                 else: tmpf=('None', 'BOOL')
@@ -8385,4 +8381,5 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         return ('\n'.join(code), lex, storedVarsHistory,metaInformation)
     else:
         return '\n'.join(code)
+
 
