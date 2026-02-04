@@ -108,6 +108,29 @@ $ ifVersion = 3.6
 	f"{if 5 > 1 then 0 else 2}"
 	if result is '0' then $worked
 	else 'Tenary inside fstring' $failed
+	
+	
+$start
+"yay" if True else "oh nuu"
+if result is 'yay' then $worked
+else 'Python Bare tenary triggering defexp' $failed
+
+$start
+if True then "yay" else "oh nuu"
+if result is 'yay' then $worked
+else 'ASnake Bare tenary triggering defexp' $failed
+
+
+$start
+getResult 2 if True else 3
+if result is 2 then $worked
+else 'function wrapping Python tenary' $failed
+
+$start
+getResult if True then 2 else 3
+if result is 2 then $worked
+else 'function wrapping ASnake tenary' $failed
+
 
 
 $start
@@ -515,6 +538,6 @@ $ ifVersion = 3.14
 
 $ ifVersion = 3.6
 	f"Failed={failed} Working={working} out of {max}" to print
-$ elseVersion
+$ else
 	print f"Failed=%s Working=%s out of %s" % (failed,working,max)
 	
