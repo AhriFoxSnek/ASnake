@@ -554,7 +554,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             #    return tmpi+1
 
     def endOfLineChores(tok):
-        nonlocal constWrap, line, rParen, incWrap, bigWrap, inLoop, parenScope, indent, startOfLine
+        nonlocal constWrap, line, rParen, incWrap, bigWrap, inLoop, parenScope, indent, startOfLine, tenary
         if constWrap:
             if len([i for i in line if ',' in i]) > 1:
                 line.append(')')
@@ -594,6 +594,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         incWrap=[]
 
         bigWrap = False
+        tenary  = False
 
     def addParenUntilDone():
         nonlocal wrapParenEndOfLine, lex, lexIndex, parenScope
@@ -666,6 +667,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     reservedIsNowVar=[]
     deleteUntilIndentLevel = (False,0)
     pyCompatibility=False
+    tenary=False
     wrapParenEndOfLine=0
     definedVars={}
     definedFunctions={}
@@ -904,6 +906,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tok.type='IGNORE'
                 lex.pop()
                 lexIndex-=2
+            elif tok.type == 'THEN' and tenary: lex.append(tok)
             else:
                 if not pyCompatibility and lex[lexIndex].type == 'NUMBER' and lexIndex > 1 and lex[lexIndex-1].type == 'INS' and lex[lexIndex-1].value.strip() == 'in':
                     # ASnake syntax:  in 12 --> range(12)
@@ -981,6 +984,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     cullOutOfScopeFunctions()
                     addParenUntilDone()
                     definedVars = {var:definedVars[var] for var in definedVars if definedVars[var]['indent'] <= currentTab}
+                    tenary=False
 
                     lex.append(tok)
             inFrom=False
@@ -1343,7 +1347,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             keepAtTop.append(tok) ; lexIndex-=1
         elif tok.type == 'IF' and lex[lexIndex].type in {"OR","AND"}:
             lexIndex-=1
-        elif tok.type == 'ELSE' and wrapParenEndOfLine:
+        elif tok.type == 'ELSE' and wrapParenEndOfLine and not tenary:
             addParenUntilDone() ; lex.append(tok)
         elif tok.type == 'PIPEGO' and tok.value not in reservedIsNowVar:
             pipeWrap+=1
@@ -1439,6 +1443,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if ((lex[lexIndex].type in typeNewline) or (lex[lexIndex].type in {'CONSTANT','TYPE','COMMA'})): pass
                 else: tok.value = codeDict[tok.type]
             lex.append(tok)
+            
+            if tok.type == "IF" and lex[lexIndex].type in typeAssignables+("FWRAP",): tenary=True
         # checks
         if lex and lex[lexIndex].type == 'TYPE' and tok.type != 'ID' and lex[lexIndex-1].type not in ('PIPE','COMMA','FROM','CONSTANT','DEFFUNCT')+typeNewline and tok.type != 'CONSTANT':
             lex[lexIndex].type='ID' ; reservedIsNowVar.append(lex[lexIndex].value.strip())
@@ -5297,7 +5303,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     listScope=0 # ^^ same but for [ ]
     indentSoon=False
     startOfLine=True
-    tenary=False
     inIf=False
     inReturn=False
     lastType=None
@@ -5314,6 +5319,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     rParen=0
     constWrap=False
     incWrap=[['',0]]
+    tenary = False
 
     listcomp={}
     lexIndex=-1
@@ -5776,16 +5782,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lexIndex+1 <= len(lex) and tok.type != 'LISTEND':
                                 if lex[lexIndex-1].type == 'CONSTANT' and lex[lexIndex + 1].type in typeNewline:
                                     return AS_SyntaxError('constant requires assignment',f'{lex[lexIndex - 1].value} {tok.value} = 12', lineNumber, data)
-                                elif lex[lexIndex+1].type in typeNewline+typeConditionals+('TRY','ELSE') and tok.type != 'FUNCTION' and not fstrQuote:
+                                elif lex[lexIndex+1].type in typeNewline+('TRY','ELSE') and tok.type != 'FUNCTION' and not fstrQuote:
                                     doPrint=True
                                 elif lexIndex-1 >= 0 and ((lex[lexIndex-1].type in typeNewline+('TRY',) and not fstrQuote) or (lexIndex-3>0 and lex[lexIndex-3].type=='LOOP') or (lex[lexIndex-1].type == 'DEFFUNCT' or (lex[lexIndex-1].type == 'TYPE' and lex[lexIndex-2].type == 'DEFFUNCT')) or (lex[lexIndex-1].type == 'ELSE' and lex[lexIndex-2].type in typeNewline) ):
-                                    tmp=rParen
+                                    tmp=rParen ; tmpTenary = False
                                     rParen+=1
                                     tmpHaveSeenOperator=False
                                     for tmpi in range(lexIndex,len(lex)-1):
                                         if lex[tmpi].type in typeNewline+('FROM',): break
                                         elif (tmpi == lexIndex or tmpHaveSeenOperator) and lex[tmpi].type == 'FUNCTION':
                                             pass
+                                        elif lex[tmpi].type == "IF" and lex[tmpi-1].type in typeAssignables: tmpTenary = True
+                                        elif lex[tmpi].type == "ELSE" and tmpTenary: tmpTenary = False
                                         elif lex[tmpi].type not in typePrintable:
                                             rParen-=1 ; break
                                         elif lex[tmpi].type == 'RINDEX' and lex[tmpi+1].type == 'ID':
