@@ -140,7 +140,7 @@ class Lexer(Lexer):
     RBRACKET= r'}'
     STRRAW  = r"""[tTfFbB]?[rR](([tTfF]?\"{3}(\\"|[^"])+?\"{3})|([tTfF]?\'{3}(\\'|[^'])+?\'{3})|([tTfF]?\"(\\"|[^"\n])+?\")|([tTfF]?\'(\\'|[^'\n])+?\'))"""
     IMPORT  = r"""(^|(?! )|from +[^'"\n ]*) ?c?import(?:(?: [^\n;]*)| *\*)"""
-    EQUAL   = r'==|equals?(?= |\t)'
+    EQUAL   = r'==|equals?(?: *to)(?= |\t)'
     NOTIN   = r"isn'?t +in( |(?=\n))"
     NOTEQ   = r'!=|isnt|isn\'t|not +equal|unequal'
     LESSEQ  = r'<=|=<|≤'
