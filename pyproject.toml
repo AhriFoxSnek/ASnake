@@ -1,7 +1,7 @@
 [project]
 name = "ASnake"
 authors = [
-  { name="Ahri Fox"},
+  { name="Ahri Fox" },
 ]
 description = "Python optimizing compiler for the ASnake programming language."
 readme = "README.md"
@@ -15,18 +15,20 @@ classifiers = [
     "Intended Audience :: Developers",
     "Natural Language :: English",
     "Programming Language :: Cython",
+    "Programming Language :: Python :: Implementation",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: MicroPython",
     "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Software Development :: Compilers",
     "Topic :: Software Development :: Code Generators",
     "Topic :: Software Development :: Version Control :: Git"
 ]
-keywords = ["programming language","transpiler","pyston","compiler"]
+keywords = ["programming language","transpiler","pyston","compiler","optimizer"]
 requires-python = ">=3.6"
 dependencies = [
     "sly>=0.4",
     "autopep8>=1.5.5",
-    "ruff-api>=0.1.0"
+    "ruff-api>=0.1.0",
 ]
 dynamic = ["version"]
 
