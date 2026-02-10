@@ -21,26 +21,28 @@ except (ImportError, ModuleNotFoundError):
 try:
     from . import ASnakeVersion
 except(ImportError, ModuleNotFoundError):
-    ASnakeVersion = 'vTestingBranch' ; __version__ = ASnakeVersion[1:]
+    ASnakeVersion = 'vTestingBranch'
+    __version__ = ASnakeVersion[1:]
 
 def AS_SyntaxError(text=None,suggestion=None,lineNumber=0,code='',errorType='Syntax error'):
-    theError=""
+    showError=[]
     if text != None:
-        theError += f'{errorType}:\n\t{text}'
+        showError.append(f'{errorType}:\n\t{text}')
     else:
-        theError += f"{errorType}"
+        showError.append(f'{errorType}.')
     if suggestion != None:
-        theError += 'Suggestion, try something like:\n\t'+suggestion
+        showError.append(f'Suggestion, try something like:\n\t'+suggestion)
     if lineNumber != None:
-        try: theError += f'Offending line {lineNumber}:\n{code.split('\n')[lineNumber-1]}'
+        try: showError.append(f'Offending line {lineNumber}:\n'+str(code.split('\n')[lineNumber-1]))
         except IndexError:
-            try: theError += f'Sorry, line number error. Info for lang-dev:\n\t{lineNumber} {text.count('\n')}'#,len([i for i in lex if i.type in typeNewline]))
+            try: showError.append('Sorry, line number error. Info for lang-dev:\n\t'+str(lineNumber)+' '+str(text.count('\n')))#,len([i for i in lex if i.type in typeNewline]))
             except Exception as e: print(e)
-    #print(theError)
+    showError='\n'.join(showError)
+    #print(showError)
 
-    return f'# ASnake {ASnakeVersion} ERROR\nprint("""\n{theError}\n""")'
+    return f'# ASnake {ASnakeVersion} ERROR\nprint("""\n{showError}\n""")'
 
-defaultTypes = {'bool','int','float','complex','str','list','tuple','set','dict','bytearray','bytes','enumerate','filter','frozenset','map','memoryview','object','property','range','reversed','slice','staticmethod','super','type','zip'}
+defaultTypes={'bool','int','float','complex','str','list','tuple','set','dict','bytearray','bytes','enumerate','filter','frozenset','map','memoryview','object','property','range','reversed','slice','staticmethod','super','type','zip'}
 pureStdPythonModules = {"abc","array","base64","binascii","bisect","calendar","cmath","collections","colorsys","contextvars","copy","dataclasses","decimal","enum","fractions","graphlib","heapq","itertools","keyword","math","numbers","operator","pprint","re","reprlib","statistics","string","struct","textwrap","token","types","typing","unicodedata"}
 
 import ast, operator
@@ -79,16 +81,18 @@ showWarning = True
 class Lexer(Lexer):
 
     def error(self, t):
-        if showWarning:print(f"# ASnake {ASnakeVersion} Warning: Illegal character in:\n'''\n{t.value}'''")
+        if showWarning:
+            print(f"# ASnake {ASnakeVersion} Warning: Illegal character in:\n'''\n{t.value}'''")
         self.index += 1
 
-    # Set of token names. This is always required
-    tokens = { ID, NUMBER, PLUS, MINUS, TIMES, DIVIDE, RDIVIDE, ASSIGN, 
-               LPAREN, RPAREN, STRING, NEWLINE, GREATER, GREATEQ, LESS,
-               LESSEQ, EQUAL, ELIF, IF, ELSE, THEN, LISTCOMP, WHILE, IGNORENL,
-               NOTHING, FUNCTION, NOTEQ, LIST, BUILTINF, INS, IMPORT, TAB,
-               MATCH, OF, PIPE, INDEX, PYPASS, AND, OR, DEFFUNCT, FROM, RETURN, 
-               TYPE, FOR, END, ARE, ANYOF, BOOL, COMMA, CONSTANT, TRY, LOOP, STRLIT,
+    # Set of token names.   This is always required
+    tokens = { ID, NUMBER, PLUS, MINUS, TIMES,
+               DIVIDE, RDIVIDE, ASSIGN, LPAREN, RPAREN, STRING, NEWLINE,
+               GREATER, GREATEQ, LESS, LESSEQ, EQUAL, ELIF, IF, ELSE, THEN,
+               LISTCOMP, WHILE, IGNORENL, NOTHING, FUNCTION, NOTEQ,
+               LIST, BUILTINF, INS, IMPORT, TAB, MATCH, OF, PIPE, INDEX,
+               PYPASS, AND, OR, DEFFUNCT, FROM, RETURN, TYPE, FOR,
+               END, ARE, ANYOF, BOOL, COMMA, CONSTANT, TRY, LOOP, STRLIT,
                STRRAW, SET, DICT, MODULO, ASYNC, NRANGE, EXPONENT, PYDEF,
                META, SCOPE, BITWISE, DIVMOD, TYPEWRAP, SHEBANG, COMMENT,
                FUNCMOD, WITHAS, LISTEND, ENDIF, INC, BREAK, LBRACKET, RBRACKET,
@@ -2892,6 +2896,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             else: pyIs = False
                         elif metaCallSplit in metaPyIs:
                             pyIs = metaHandling(metaCall, pyIs)
+                        elif metaCallSplit in metaDefExp and '=' in lex[token].value:
+                            tmp = lex[token].value[lex[token].value.index('=') + 1:].strip().replace(' ','')
+                            if tmp and '$' in tmp:
+                                for key, val in inlineReplace.items():
+                                    tmp = tmp.replace('$' + key, val)
+                            expPrint.append(tmp.replace(' ',''))
 
 
                     elif optCompilerEval and optCompilerEvalDict['evalNotBoolInversion'] and lex[token].type == 'INS' and lex[token].value.strip() == 'not' and lex[token+1].type == 'BOOL':
@@ -4671,8 +4681,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             else: lex[token].value=f'from {importedName} import *'
                             del wasImported[importedName]
 
-                elif optDeadVariableElimination and lex[token].type == 'ID' and lex[token].value != 'print':
-                    if ((lex[token].value not in definedFuncs and lex[token + 1].type in typeAssignables and lex[token+1].type!='LIST') or (lex[token + 1].type=='ASSIGN' and lex[token + 1].value in ('=','is','is '))) and lex[token - 1].type in typeNewline + ('CONSTANT', 'TYPE'):
+                elif optDeadVariableElimination and lex[token].type == 'ID' and lex[token].value not in expPrint:
+                    if ((lex[token].value not in definedFuncs and lex[token + 1].type in typeAssignables and lex[token+1].type!='LIST') or (lex[token + 1].type=='ASSIGN' and lex[token + 1].value in {'=','is','is '})) and lex[token - 1].type in typeNewline + ('CONSTANT', 'TYPE'):
                         delPoint = tmpIndent = None ; check = True ; tmpReplaceWithPass = inCase = isConstant = outOfBlock = False
                         tmpCurrentIndent = 0 ; tmpParenScope=0
                         # tmpIndent is var's indent, tmpCurrentIndent is iterations indent
@@ -8386,6 +8396,5 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         return ('\n'.join(code), lex, storedVarsHistory,metaInformation)
     else:
         return '\n'.join(code)
-
 
 
