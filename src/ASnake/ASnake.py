@@ -4682,7 +4682,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             del wasImported[importedName]
 
                 elif optDeadVariableElimination and lex[token].type == 'ID' and lex[token].value not in expPrint:
-                    if ((lex[token].value not in definedFuncs and lex[token + 1].type in typeAssignables and lex[token+1].type!='LIST') or (lex[token + 1].type=='ASSIGN' and lex[token + 1].value in {'=','is','is '})) and lex[token - 1].type in typeNewline + ('CONSTANT', 'TYPE'):
+                    if ((lex[token].value not in definedFuncs and lex[token + 1].type in typeAssignables and lex[token+1].type!='LIST') or (lex[token + 1].type=='ASSIGN' and lex[token+1].value.strip() in {'=','is','is '})) and lex[token-1].type in typeNewline + ('CONSTANT', 'TYPE'):
                         delPoint = tmpIndent = None ; check = True ; tmpReplaceWithPass = inCase = isConstant = outOfBlock = False
                         tmpCurrentIndent = 0 ; tmpParenScope=0
                         # tmpIndent is var's indent, tmpCurrentIndent is iterations indent
@@ -4771,7 +4771,13 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             elif lex[tmpi].type == 'RPAREN': tmpParenScope-=1
                             elif lex[tmpi].type == 'CONSTANT' and not delPoint: isConstant = True
                         if tmpParenScope > 0: check=False
-                        if delPoint == None or tmpIndent == None: check=False
+                        if delPoint == None or (tmpIndent == None and not tmpSkipCheck): check=False
+                        elif tmpSkipCheck and tmpIndent == None:
+                            for tmpi in range(token - 1, -1, -1):
+                                if lex[tmpi].type == "NEWLINE": tmpIndent = 0 ; break
+                                elif lex[tmpi].type == "TAB": tmpIndent = lex[tmpi].value.replace('\t', ' ').count(' ') ; break
+                                elif lex[tmpi].type in {'IF','ELIF', 'ELSE'}: tmpReplaceWithPass=True # tenarys likey
+                            tmpIndent = 0
                         if (token-1<=0): check=True ; delPoint = tmpIndent = 0
                         if check:
                             breakOnNextNL = ttenary = inCase = tmpCallsFunction = tmpOutOfAssign = tmpInConditional = tmpOutOfStartingBlock = tmpInOtherFunction = False
