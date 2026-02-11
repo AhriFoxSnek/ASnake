@@ -6659,6 +6659,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             if 'value' in storedVarsHistory[tmp[-1]]:
                                 number2=int(storedVarsHistory[tmp[-1]]['value'])
                         if number1 != None and number2 != None and number1 > number2:
+                            if isinstance(tmp[-1], int): tmp[-1]=str(tmp[-1])
                             tmp[-1]+=', -1'
 
                         line.append(decideIfIndentLine(indent,f'for {forthingin} in range({tmp[0]},{tmp[-1]}):\n'))
