@@ -65,8 +65,7 @@ class Calc(ast.NodeVisitor):
     def visit_BinOp(self, node):
         return _OP_MAP[type(node.op)](self.visit(node.left), self.visit(node.right))
     def visit_Constant(self, node):
-        try:
-            return node.n
+        try:return node.n
         except AttributeError:
             return node.value
     def visit_Expr(self, node):
@@ -85,7 +84,7 @@ class Lexer(Lexer):
             print(f"# ASnake {ASnakeVersion} Warning: Illegal character in:\n'''\n{t.value}'''")
         self.index += 1
 
-    # Set of token names.   This is always required
+    # Set of token names.  This is always required
     tokens = { ID, NUMBER, PLUS, MINUS, TIMES,
                DIVIDE, RDIVIDE, ASSIGN, LPAREN, RPAREN, STRING, NEWLINE,
                GREATER, GREATEQ, LESS, LESSEQ, EQUAL, ELIF, IF, ELSE, THEN,
@@ -228,11 +227,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         return version
 
     if compileTo == 'PyPy3' and (pythonVersion == latestPythonVersionSupported or (not isinstance(pythonVersion, str) and pythonVersion > 3.8)):
-                                pythonVersion='3.11'
-    elif compileTo == 'Cython' and False:
-                                pythonVersion='3.6'
-    elif compileTo == 'Pyston': pythonVersion='3.8'
-    elif compileTo == 'MicroPython': pythonVersion='3.8'
+                                    pythonVersion='3.11'
+    #elif compileTo == 'Cython' and False: pythonVersion='3.6'
+    elif compileTo == 'Pyston':     pythonVersion='3.8'
+    elif compileTo == 'MicroPython':pythonVersion='3.8'
 
     implementation = compileTo if compileTo != 'Python' else 'CPython'
     code = [f"# Python{pythonVersion} for {implementation} compiled by ASnake "+ASnakeVersion]
@@ -241,10 +239,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     pythonVersion=fixVersionNumber(pythonVersion)
 
     if isinstance(pythonVersion, str):
-        pythonVersion=float(pythonVersion)
+        pythonVersion = float(pythonVersion)
 
     if pythonVersion >= 3.10:
-        codeDict['OF']='case'
+        codeDict['OF'] = 'case'
 
 
     # meta
@@ -272,9 +270,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
 
     def makeToken(clone,value=None,type=None,lineno=None):
-        tmptok=copy(clone)
-        if value != None: tmptok.value=value
-        if type != None: tmptok.type=type
+        tmptok = copy(clone)
+        if value  != None: tmptok.value=value
+        if type   != None: tmptok.type=type
         if lineno != None: tmptok.lineno=lineno
         return tmptok
 
@@ -357,7 +355,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     tmpf.append(makeToken(tok, tok.value[parts[part - 1][1]:parts[part][1]], "FPARSE"))
             # FSTR is bare string, FPARSE is code inside string to be parsed
         tok.type = 'IGNORE'
-        adjust=1
+        adjust = 1
         for thing in tmpf:
             if thing.type == 'FSTR':
                 thing.value=thing.value.replace('{{','{').replace('}}','}')
@@ -403,7 +401,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if tmpSkip: tmpSkip = False
                     elif token == -1:
                         lex.append(tmptok)
-                    else: lex.insert(token+adjust,tmptok) ; adjust+=1
+                    else: lex.insert(token+adjust,tmptok) ; adjust += 1
                     lexIndex += 1
                 if pruneDict:
                     lex.append(makeToken(tok, '}', 'RBRACKET'))
@@ -425,13 +423,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             if debug: print(elementsAdded,'---', thing)
             if token:
                 lex.insert(token,thing)
-                token-=1
+                token -= 1
             else:
                 lex.append(thing)
 
-        if tmp:
-            insertOrAppend(token,tmp)
-        tmpLI=token if token else -1
+        if tmp: insertOrAppend(token,tmp)
+        tmpLI=  token if token else -1
         tmpIter=list(miniLex(''.join(tmpf[1:]) + ' '))
         tmpIter.insert(0,makeToken(tok, '[', 'LINDEX'))
         if token: tmpIter=reversed(tmpIter)
@@ -578,7 +575,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         if inLoop[0] == None:
             if tok.type not in typeNewline: line.append(':\n')
             indent += prettyIndent
-            startOfLine = True
+            startOfLine=True
             inLoop[0] = True
             if len(inLoop) > 2:
                 line.append(decideIfIndentLine(indent, inLoop[2]))
@@ -591,7 +588,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     line.append('\n') ; startOfLine = True
                     line.append(decideIfIndentLine(indent, incWrap[iw][0]))
                     incWrap[iw][1] -= 1
-        incWrap=[]
+        incWrap = []
 
         bigWrap = False
         tenary  = False
@@ -600,7 +597,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         nonlocal wrapParenEndOfLine, lex, lexIndex, parenScope
         # adds ) until wrapParenEndOfLine is 0, intended for right before a line ends
         if lexIndex < 2: return
-        if wrapParenEndOfLine < 0: wrapParenEndOfLine=0 ; return
+        if wrapParenEndOfLine < 0: wrapParenEndOfLine = 0 ; return
         if lex[lexIndex].type == 'ENDIF': position=lexIndex
         else: position=lexIndex+1
         while wrapParenEndOfLine:
@@ -694,12 +691,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             metaCall = preLex[token].value.replace('$', '').replace(' ', '')
             if metaCall.startswith(tuple(metaIgnoreIndent)):
                 ignoreIndentation = metaHandling(preLex[token].value, ignoreIndentation)
-        token+=1
+        token += 1
     del token
     preLex=[t for t in preLex if t.type != 'IGNORE']
     ignoreIndentation = metaInformation[2]
 
-    showWarning=False
+    showWarning = False
     # start of prephase
     # warning to self, when checking previous token, do not do lexIndex-1, lexIndex is the previous, as current token hasn't been added yet
     for tok in preLex:
@@ -8403,5 +8400,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         return ('\n'.join(code), lex, storedVarsHistory,metaInformation)
     else:
         return '\n'.join(code)
+
 
 
