@@ -1485,6 +1485,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if lex[l + 1].type == 'RPAREN': del lex[l + 1]
                 else: removeParen += 1
         elif removeParen and lex[l].type == 'RPAREN' and lex[l+1].type in typeNewline+('ENDIF',): del lex[l] ; removeParen-=1
+
     del removeParen
     if lex: lex.append(makeToken(lex[-1],'\n','NEWLINE'))
     # ^ need newline at the end , some stuff relies on that
@@ -1497,6 +1498,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         for tok in lex: # a prephase for optimization phase
             if tok.type in {'TIMES', 'PLUS', 'DIVIDE', 'MINUS'}: # removes wording for the compilerNumberEval function
                 tok.value = codeDict[tok.type]
+            elif tok.type == 'BOOL':
+                tok.value = tok.value.lower().capitalize()
 
         def compilerNumberEval(toks):
             if isinstance(toks[0],str) == False:
