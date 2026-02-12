@@ -173,7 +173,7 @@ class Lexer(Lexer):
     ANYOF   = r'(any|all|each) +(of )?'
     INS     = r'(not|in)( |(?=\n))'
     ARE     = r"(arent|aren\'t|are)(?=[ \n\t])"
-    BOOL    = r'True|False|None'
+    BOOL    = r'[Tt][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee]|[Nn][Oo][Nn][Ee]'
     MODULO  = r'%|modulo(?= |\n|\t)|remainder(?=[ \n\t])'
     INC     = r'''((\+{2}|\-{2})[^\[\]\(\)\+\-\/\*\d\s,="'][^\s\+\-\/\*,\(\)=><"']*(\[.*\])?)|([^\[\]\(\)\+\-\/\*\d\s,="'][^\s\+\-\/\*,="']*(\[.*\])?(\+{2}|\-{2}))'''
     HEXDEC  = r'(?<!\w)0[xXob][0-9a-fA-F]+(?!\w)'
@@ -1297,7 +1297,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     lex.append(tmptok) ; lexIndex+=1 ; del tmptok
                 lex.append(tok)
             elif (any(True for x in ASnakeKeywords if x == lex[lexIndex].value.strip()) \
-            or any(True for x in [i for i in convertType]+list(defaultTypes) if x == lex[lexIndex].value)):
+            or any(True for x in [i for i in convertType]+list(defaultTypes) if x == lex[lexIndex].value) \
+            or (lex[lexIndex].type == 'BOOL' and lex[lexIndex].value not in {'True','False','None'})):
                 # !! allows reassignment of reserved keywords !!
                 lex[lexIndex].type = 'ID' ; lex.append(tok) ; reservedIsNowVar.append(lex[lexIndex].value.strip())
             elif lex[lexIndex].type == 'FWRAP':
@@ -5704,6 +5705,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if debug: print(f"! optimization in {'[' if tmpType == 'LIST' else '('}{' '.join(tmpf)}{']' if tmpType == 'LIST' else ')'}  -->  in {{{' '.join(tmpf)}}}")
                             del tmpScope, tmpType
 
+                    if tok.type == 'BOOL': tok.value = tok.value.lower().capitalize()
 
                     if (lexIndex+1 <= len(lex) and lex[lexIndex+1].type == 'PIPE' and 'into' not in lex[lexIndex+1].value) \
                     or (lexIndex-1 >= 0 and lex[lexIndex-1].type == 'PIPE'):
@@ -7647,7 +7649,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if check:
                             line.append(decideIfIndentLine(indent,f'{expPrint[-1]}('))
                             rParen+=1 ; bigWrap=True
-                elif tok.type == 'LPAREN' and startOfLine and inIf==False:
+                elif tok.type == 'LPAREN' and startOfLine and not inIf:
                     tmp=rParen
                     rParen+=1
                     for tmpi in range(lexIndex,len(lex)-1):
@@ -7746,7 +7748,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if tok.type == 'LBRACKET': bracketScope+=1
                 elif tok.type == 'RBRACKET':
                     if bracketScope>0: bracketScope-=1
-                elif tok.type == 'LPAREN': parenScope+=1
+                elif tok.type == 'LPAREN':
+                    parenScope+=1
+                    if lastType in {'BREAK','NOTHING'}:
+                        return AS_SyntaxError(f"{lastValue} is a syntax statement, not a function.",lastValue,lineNumber,data)
                 
                 if tok.type != 'IGNORE': line.append(decideIfIndentLine(indent,tok.value))
                 if tok.type == 'WITHAS' and tok.value.startswith('with'):
@@ -7825,7 +7830,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     if 'yield' not in tok.value and lastType not in typeNewline:
                         line.append('\n') ; startOfLine=True
                     inIf=True ; inReturn=True
-
 
 
                 if tok.type in {'LIST','BOOL','DICT','SET'} and startOfLine and lexIndex+1 < len(lex) and lex[lexIndex+1].type in typeNewline and lex[lexIndex-1].type not in typeConditionals and inIf==False:
