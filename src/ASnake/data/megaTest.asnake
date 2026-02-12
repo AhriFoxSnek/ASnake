@@ -15,6 +15,10 @@ $ inline worked = then working++
 # setup ^^
 
 $start
+if true $worked
+else 'non capitalized bool' $failed
+
+$start
 if 5 to float to str == '5.0' $worked
 else 'Basic piping' $failed
 
