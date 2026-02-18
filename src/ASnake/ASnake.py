@@ -4693,8 +4693,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmpVarIsDefinedInFunction = None # if the var was defined in a function or on outer scope. for use when checking ahead
                         tmpLowestIndent=(None,0) # track lowest indent 1st: in func 2nd: lowest indent
                         for tmpi in range(token-1, -1, -1):
-                            #print(lex[token].value, '-!', lex[tmpi].value, lex[tmpi].type, tmpIndent,check,tmpInsideFunction)
-                            if tmpSkipCheck and delPoint != None and (outOfBlock or tmpCurrentIndent == 0): check=True ; break
+                            #print(lex[token].value, '-!', lex[tmpi].value, lex[tmpi].type, tmpIndent,check,tmpInsideFunction, delPoint)
+                            if tmpSkipCheck and delPoint != None and (outOfBlock or tmpCurrentIndent == 0):
+                                if  lex[tmpi].type == 'TRY' \
+                                and lex[tmpi].value.replace(' ','').replace('\t','').replace(':','') in {'try','except'}:
+                                    tmpReplaceWithPass = True # try do var
+                                check=True ; break
                             if lex[tmpi].type == 'TAB':
                                 if tmpIndent==None: tmpIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
                                 if delPoint==None:
@@ -4751,7 +4755,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     if tmpInsideFunction:
                                         if tmpVarIsDefinedInFunction == None: tmpVarIsDefinedInFunction = True
                                         tmpLowestIndent = (True, tmpLowestIndent[1])
-                            elif (lex[tmpi].type in typeConditionals or (lex[tmpi].type == 'TRY' and 'try' in lex[tmpi].value)) and delPoint:
+                            elif delPoint and (lex[tmpi].type in typeConditionals or (lex[tmpi].type == 'TRY' and ('try' in lex[tmpi].value or 'except' in lex[tmpi].value))):
                                 # prevents dead variables defined in conditionals from breaking syntax
                                 tmpReplaceWithPass = True
                                 if lex[tmpi].type == 'IF':
