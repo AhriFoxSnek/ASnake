@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # dependencies
-from sly.lex import LexError
+from sly.lex import LexError, Token
 from sly import Lexer
 
 # standard library
@@ -277,14 +277,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         return tmptok
 
     def convertEmojiToAscii(tok):
-        if any(True for c in tok.value if unicodeCategory(c) in {'Zs', 'Cf', 'Cc'}):
+        theStr = tok.value if isinstance(tok, Token) else tok
+        if any(True for c in theStr if unicodeCategory(c) in {'Zs', 'Cf', 'Cc'}):
             return AS_SyntaxError(f'Whitespace character in {tok.value} is not permitted.', None, tok.lineno, data)
         tmp = ''
         if compileTo == 'Cython':
             cutoff = 256  # cython likes ascii only
         else:
             cutoff = 9000  # is first emoji
-        for c in tok.value:
+        for c in theStr:
             if ord(c) > cutoff or unicodeCategory(c) not in {'Lu', 'Ll', 'Lt', 'Lm', 'Lo', 'Nl', 'Other_ID_Start', 'Other_ID_Continue'}:
                 if c == '.':
                     tmp += '.'
@@ -7852,12 +7853,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.type == 'IGNORE':
                 pass
             elif tok.type == 'PYDEF': # support for Python style function define
+                #idPYDEF
                 if tok.value.startswith('cdef') and compileTo != 'Cython': tok.value=tok.value[1:]
                 elif tok.value.startswith('cpdef') and compileTo != 'Cython': tok.value=tok.value[2:]
                 funcName = tok.value.split('def')[1].split('(')[0].replace(' ', '') # get function name
                 if funcName not in storedCustomFunctions:
                     # create entry in storedCustomFunctions
                     storedCustomFunctions[funcName]={}
+                if not funcName.isascii():
+                    tok.value = tok.value.replace(funcName,convertEmojiToAscii(funcName)) # jumpy
 
                 tmpFuncArgs = REsearch(r'\((.*)\)(?=(?: *-> *.*)?(?::|\n|$))',tok.value)
                 if tmpFuncArgs:
