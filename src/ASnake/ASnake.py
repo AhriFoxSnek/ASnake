@@ -4870,7 +4870,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                         if check:  # remove the var
                             #print('-------', lex[token].value)
-                            ttenary = tmpPass = False ; tmpEnd = tmpParenScope = tmpListScope = 0
+                            ttenary = tmpPass = False ; tmpEnd = tmpParenScope = tmpListScope = tmpSetScope = 0
                             for tmpi in range(delPoint+1, len(lex)*2):
                                 #print(lex[tmpi].type,lex[tmpi].value,f"({tmpParenScope}",f"[{tmpListScope}")
                                 if tmpi >= len(lex)-1:
@@ -4883,7 +4883,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     tmpEnd=tmpi ; break
                                 elif ttenary and lex[tmpi].type == 'ELSE': ttenary=False
 
-                                if not ttenary and lex[tmpi].type in typeNewline and tmpListScope <= 0 and tmpParenScope <= 0:
+                                if not ttenary and lex[tmpi].type in typeNewline and tmpListScope <= 0 and tmpParenScope <= 0 and tmpSetScope <= 0:
                                     tmpEnd=tmpi ; break
                                 else:
                                     if tmpReplaceWithPass:
@@ -4910,6 +4910,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         elif lex[tmpi].type == 'optLIST':
                                             if lex[tmpi].value == '[': tmpListScope+=1
                                             else: tmpParenScope += 1
+                                        elif lex[tmpi].type == 'LBRACKET': tmpSetScope+=1
+                                        elif lex[tmpi].type == 'RBRACKET': tmpSetScope-=1
                                         lex[tmpi].type = 'IGNORE'
                             if tmpPass:
                                 # for removing the INCs from the expression while still keeping their effects by splitting them into new lines
