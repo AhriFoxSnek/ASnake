@@ -1245,6 +1245,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     tmptok.type=[i for i in miniLex(tmptok.value+' ')][0].type
                     tmptok.lineno=lineNumber
                     lex.append(tmptok)
+            elif tok.value.split(':')[-1].strip() in defaultTypes:
+                lex.append(makeToken(tok, tok.value.split(':')[-1].strip(), 'TYPE'))
+                lexIndex+=1
+                tok.value = tok.value.split(':')[0]
+                tok.type = 'ID'
+                lex.append(tok)
             else: lex.append(tok)
         elif tok.type in {'NEWLINE','COMMENT'}:
             if lexIndex>1 and lex[lexIndex].type == 'TAB':
@@ -7861,7 +7867,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     # create entry in storedCustomFunctions
                     storedCustomFunctions[funcName]={}
                 if not funcName.isascii():
-                    tok.value = tok.value.replace(funcName,convertEmojiToAscii(funcName)) # jumpy
+                    tok.value = tok.value.replace(funcName,convertEmojiToAscii(funcName))
 
                 tmpFuncArgs = REsearch(r'\((.*)\)(?=(?: *-> *.*)?(?::|\n|$))',tok.value)
                 if tmpFuncArgs:
