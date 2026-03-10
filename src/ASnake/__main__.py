@@ -306,9 +306,12 @@ if __name__ == '__main__':
                 args.path+='.py'
             ASFile,tmpPath=args.path,ASFile
         filePath='/'.join(ASFile.split('/')[:-1])+'/'
-        ASFileExt=ASFile.rsplit('.')[-1]
-        ASFile='.'.join(ASFile.rsplit('.')[:-1])
-        ASFile = ASFile.split('/')[-1]
+        if '.' in ASFile:
+            ASFileExt = ASFile.rsplit('.')[-1]
+            ASFile='.'.join(ASFile.rsplit('.')[:-1])
+        else:
+            ASFileExt = ''
+        ASFile = "".join(x for x in ASFile.split('/')[-1])
         fileName=f'{ASFile}.py{"x" if compileTo=="Cython" else ""}'
         if pep or headless:
             print('# format time: ', end='', flush=True)
