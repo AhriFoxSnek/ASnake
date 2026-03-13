@@ -1642,8 +1642,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             'evalNotBoolInversion': True,  # Only provides performance to pypy, but its easy enough to leave it default
             'evalChrFunc': True,
             'evalIntFunc': True,
-            'evalStrCenter':True,
-            'evalStrInStr':True,
+            'evalStrInStr': True,
+            'evalStrConvertMethods': True,
         }
         optPow=True
         optDeadVariableElimination=True
@@ -3491,16 +3491,74 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex[token + 1].type = lex[token + 2].type = 'IGNORE'
                                     if lex[token-1].type in typeNewline and lex[token+3].type in typeNewline: lex.insert(token,makeToken(lex[token],'','DONTDEXP'))
                                     newOptimization=True
-                            elif optCompilerEvalDict['evalStrCenter'] and lex[token].type == 'BUILTINF' and lex[token].value[0] in {'"',"'"} and lex[token].value.endswith('.center') and lex[token+1].type == 'LPAREN' and lex[token+2].type == 'NUMBER' and '.' not in lex[token+2].value and ((lex[token+3].type == 'COMMA' and lex[token+4].type == 'STRING' and len(stripStringQuotes(lex[token+4].value)) == 1 and lex[token+5].type == 'RPAREN') or (lex[token+3].type == 'RPAREN')):
-                                tmpQuote = lex[token].value[0]
-                                if lex[token+3].type == 'COMMA':
-                                    lex[token+4].type=lex[token+5].type='IGNORE'
-                                    tmpFill = stripStringQuotes(lex[token+4].value)
+                            elif optCompilerEvalDict['evalStrConvertMethods'] and lex[token].type == 'BUILTINF' and (lex[token].value[0] in {'"',"'"} or lex[token-1].type == 'STRING'): # jumpy
+                                if lex[token].value[0] in {'"', "'"}:
+                                    tmpQuote = lex[token].value[0]
+                                    tmpStrng = stripStringQuotes(lex[token].value.split('.')[0])
                                 else:
-                                    tmpFill = ' '
-                                lex[token].value = tmpQuote + stripStringQuotes(lex[token].value.split('.')[0]).center(int(lex[token+2].value),tmpFill) + tmpQuote
-                                lex[token+1].type=lex[token+2].type=lex[token+3].type='IGNORE'
-                                lex[token].type = 'STRING'
+                                    tmpQuote = False
+                                tmpSafe = False
+                                if lex[token].value.endswith('.center') and lex[token+1].type == 'LPAREN' and lex[token+2].type == 'NUMBER' and '.' not in lex[token+2].value and ((lex[token+3].type == 'COMMA' and lex[token+4].type == 'STRING' and len(stripStringQuotes(lex[token+4].value)) == 1 and lex[token+5].type == 'RPAREN') or (lex[token+3].type == 'RPAREN')):
+                                    # center
+                                    if lex[token+3].type == 'COMMA':
+                                        lex[token+4].type=lex[token+5].type='IGNORE'
+                                        tmpFill = stripStringQuotes(lex[token+4].value)
+                                    else:
+                                        tmpFill = ' '
+                                    if tmpQuote:
+                                        lex[token].value = tmpQuote +  tmpStrng.center(int(lex[token+2].value),tmpFill) + tmpQuote
+                                    else:
+                                        lex[token-1].value = lex[token-1].value[0] + stripStringQuotes(lex[token-1].value).center(int(lex[token+2].value),tmpFill) + lex[token-1].value[0]
+                                    lex[token+1].type=lex[token+2].type=lex[token+3].type='IGNORE' ; tmpSafe = True
+                                elif lex[token].value.endswith('.upper') and lex[token+1].type == 'LPAREN' and lex[token+2].type == 'RPAREN':
+                                    # upper
+                                    if tmpQuote:
+                                        lex[token].value = tmpQuote + tmpStrng.upper() + tmpQuote
+                                    else:
+                                        lex[token-1].value = lex[token-1].value.upper()
+                                    lex[token+1].type = lex[token+2].type = 'IGNORE' ; tmpSafe = True
+                                elif lex[token].value.endswith('.lower') and lex[token+1].type == 'LPAREN' and lex[token+2].type == 'RPAREN':
+                                    # lower
+                                    if tmpQuote:
+                                        lex[token].value = tmpQuote + tmpStrng.lower() + tmpQuote
+                                    else:
+                                        lex[token-1].value = lex[token-1].value.lower()
+                                    lex[token+1].type = lex[token+2].type = 'IGNORE' ; tmpSafe = True
+                                elif lex[token].value.endswith('.casefold') and lex[token+1].type == 'LPAREN' and lex[token+2].type == 'RPAREN':
+                                    # casefold
+                                    if tmpQuote:
+                                        lex[token].value = tmpQuote + tmpStrng.casefold() + tmpQuote
+                                    else:
+                                        lex[token-1].value = lex[token-1].value.casefold()
+                                    lex[token+1].type = lex[token+2].type = 'IGNORE' ; tmpSafe = True
+                                elif lex[token].value.endswith('.title') and lex[token+1].type == 'LPAREN' and lex[token+2].type == 'RPAREN':
+                                    # title
+                                    if tmpQuote:
+                                        lex[token].value = tmpQuote + tmpStrng.title() + tmpQuote
+                                    else:
+                                        lex[token-1].value = lex[token-1].value.title()
+                                    lex[token+1].type = lex[token+2].type = 'IGNORE' ; tmpSafe = True
+                                elif lex[token].value.endswith('.swapcase') and lex[token+1].type == 'LPAREN' and lex[token+2].type == 'RPAREN':
+                                    # swapcase
+                                    if tmpQuote:
+                                        lex[token].value = tmpQuote + tmpStrng.swapcase() + tmpQuote
+                                    else:
+                                        lex[token-1].value = lex[token-1].value.swapcase()
+                                    lex[token+1].type = lex[token+2].type = 'IGNORE' ; tmpSafe = True
+                                elif lex[token].value.endswith('.capitalize') and lex[token+1].type == 'LPAREN' and lex[token+2].type == 'RPAREN':
+                                    # capitalize
+                                    if tmpQuote:
+                                        lex[token].value = tmpQuote + tmpStrng.capitalize() + tmpQuote
+                                    else:
+                                        lex[token-1].value = lex[token-1].value.capitalize()
+                                    lex[token+1].type = lex[token+2].type = 'IGNORE' ; tmpSafe = True
+
+                                if tmpSafe:
+                                    if tmpQuote:
+                                        lex[token].type = 'STRING'
+                                    else:
+                                        lex[token].type = 'IGNORE'
+
 
 
 
