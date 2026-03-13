@@ -3204,7 +3204,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     if tmpf != None and tmpf[0] > 1:
                                         if debug: print(f"! compilerEval: len of {lex[token+tmp].value}{lex[token+tmp+1].value}{lex[token+tmp+2].value}{lex[token+tmp+3].value} -->  {tmpf[0]}")
                                         lex[token].type = 'NUMBER' ; lex[token].value = str(tmpf[0])
-                                        for t in range(token+1,tmpf[1]+2):
+                                        for t in range(token+1,tmpf[1]+3):
                                             lex[t].type='IGNORE'
                                         newOptimization = True
 
@@ -4758,7 +4758,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         tmpVarIsDefinedInFunction = None # if the var was defined in a function or on outer scope. for use when checking ahead
                         tmpLowestIndent=(None,0) # track lowest indent 1st: in func 2nd: lowest indent
                         for tmpi in range(token-1, -1, -1):
-                            #print(lex[token].value, '-!', lex[tmpi].value, lex[tmpi].type, tmpIndent,check,tmpInsideFunction, delPoint)
+                            #print(lex[token].value, '-!', lex[tmpi].value, lex[tmpi].type, tmpIndent,check,tmpInsideFunction, tmpReplaceWithPass, delPoint)
                             if tmpSkipCheck and delPoint != None and (outOfBlock or tmpCurrentIndent == 0):
                                 if  lex[tmpi].type == 'TRY' \
                                 and lex[tmpi].value.replace(' ','').replace('\t','').replace(':','') in {'try','except'}:
@@ -4770,6 +4770,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     delPoint=tmpi
                                     if lex[tmpi-1].type in typeConditionals+('PYDEF', 'DEFFUNCT'): tmpReplaceWithPass = True
                                 tmpCurrentIndent = lex[tmpi].value.replace('\t', ' ').count(' ')
+                                if tmpCurrentIndent < tmpIndent: tmpReplaceWithPass = True
                                 inCase=False
                                 if tmpCurrentIndent < tmpLowestIndent[1]: tmpLowestIndent = (tmpLowestIndent[0], tmpCurrentIndent)
                             elif lex[tmpi].type == 'NEWLINE':
