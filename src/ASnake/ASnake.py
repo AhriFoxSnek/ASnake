@@ -1601,6 +1601,26 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 insideIndex.append(copy(lex[li]))
             return False
 
+        def matchAhead(lexIndex, matchType: str = '', matchValue: str = '', stopOnTypes=typeNewline, careAboutParenScope=True):
+            parenScope=0
+            for t in range(lexIndex,len(lex)-1):
+                if lex[t].type in stopOnTypes: break
+                elif matchType and  lex[t].type  == matchType:
+                    if careAboutParenScope:
+                        if parenScope == 0: return t
+                    else:
+                        return t
+                elif matchValue and lex[t].value == matchValue:
+                    if careAboutParenScope:
+                        if parenScope == 0: return t
+                    else: return t
+                if careAboutParenScope and lex[t].type in {'LPAREN','FUNCTION','RPAREN'}:
+                    if lex[t].type == 'LPAREN' or (lex[t].type == 'FUNCTION' and lex[t].value.strip()[-1] == '('):
+                                                  parenScope += 1
+                    elif lex[t].type == 'RPAREN': parenScope -= 1
+            return False
+
+
         # idOPTARGS
         # vv you can choose to disable specific optimizations
         optFromFunc=True
@@ -3491,7 +3511,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex[token + 1].type = lex[token + 2].type = 'IGNORE'
                                     if lex[token-1].type in typeNewline and lex[token+3].type in typeNewline: lex.insert(token,makeToken(lex[token],'','DONTDEXP'))
                                     newOptimization=True
-                            elif optCompilerEvalDict['evalStrConvertMethods'] and lex[token].type == 'BUILTINF' and (lex[token].value[0] in {'"',"'"} or lex[token-1].type == 'STRING'): # jumpy
+                            elif optCompilerEvalDict['evalStrConvertMethods'] and lex[token].type == 'BUILTINF' and (lex[token].value[0] in {'"',"'"} or lex[token-1].type == 'STRING'):
                                 if lex[token].value[0] in {'"', "'"}:
                                     tmpQuote = lex[token].value[0]
                                     tmpStrng = stripStringQuotes(lex[token].value.split('.')[0])
@@ -4456,7 +4476,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         elif token+3 < len(lex)-1 and ((lex[token+3].type == 'PIPE' and lex[token+3].value == 'to') or lex[token+1].type in typeNewline or lex[token+2].type in typeNewline): pass
                         elif lex[token-1].type in orderOfOps and lex[token+1].type in orderOfOps and not (lex[token-1].type == 'MINUS' and lex[token-2].type in tuple(orderOfOps)+tmpTypeSafe):
                             #print('#-1', lex[token].value)
-                            if (lex[token-1].type in {'LPAREN','FUNCTION'} or (orderOfOps[lex[token-1].type] < orderOfOps[lex[token+1].type]) or (lex[token-1].type=='MINUS' and lex[token-2].type in orderOfOps and (lex[token-2].type=='LPAREN' or orderOfOps[lex[token-2].type] < orderOfOps[lex[token+1].type])) ) \
+                            if (lex[token-1].type in {'LPAREN','FUNCTION'} or (orderOfOps[lex[token-1].type] <= orderOfOps[lex[token+1].type]) or (lex[token-1].type=='MINUS' and lex[token-2].type in orderOfOps and (lex[token-2].type=='LPAREN' or orderOfOps[lex[token-2].type] < orderOfOps[lex[token+1].type])) ) \
                             and token+4 <= len(lex)-1 and ((lex[token+3].type in typeNewline+('RPAREN',) or (isANegativeNumberTokens(token+2) and lex[token+4].type in typeNewline+('RPAREN',))) or not ((lex[token+3].type in orderOfOps and (orderOfOps[lex[token+3].type] > orderOfOps[lex[token+1].type])) or (isANegativeNumberTokens(token+2) and lex[token+4].type in orderOfOps and orderOfOps[lex[token+4].type] > orderOfOps[lex[token+1].type]))) \
                             and not (token+3 < len(lex) and lex[token+1].type == 'EXPONENT' and lex[token+3].type == 'EXPONENT') and not (token+4 < len(lex) and lex[token+1].type == 'EXPONENT' and isANegativeNumberTokens(token+2) and lex[token+4].type == 'EXPONENT'):
                                 # 'normal'
@@ -4493,6 +4513,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 # simple string eval
                                 #print("1.4", lex[token].value)
                                 check=True
+                        elif lex[token].type == 'NUMBER' and (lex[token+1].type in {'PLUS','TIMES'} or (lex[token+1].type == 'BITWISE' and lex[token+1].value.strip() in '&|^')) and lex[token+2].type in {'ID','FUNCTION'} and matchAhead(token+2, lex[token+1].type, lex[token+1].value.strip(), typeNewline+('MINUS','DIVIDE','RDIVIDE','COMMA','ASSIGN','INS')+typeCheckers) and lex[matchAhead(token+2, lex[token+1].type, lex[token+1].value.strip(), typeNewline+('MINUS','DIVIDE','RDIVIDE','COMMA','ASSIGN','INS')+typeCheckers)+1].type == 'NUMBER':
+                            # 1+x+2 --> x+3
+                            tmp = matchAhead(token+2, lex[token+1].type, lex[token+1].value.strip(), typeNewline+('MINUS','DIVIDE','RDIVIDE','COMMA','ASSIGN','INS')+typeCheckers)
+                            lex[tmp+1].value = compilerNumberEval([lex[token],lex[token+1],lex[tmp+1]])
+                            lex[token].type = lex[token+1].type = 'IGNORE'
+                            newOptimization = True ; check = False
+                            #for _ in range(token,tmp+2):
+                            #    print(lex[_].value,end='')
+                            #print()
                         elif (lex[token-1].type in tmpTypeSafe+typeCheckers or (lex[token-1].type=='MINUS' and lex[token-2].type in tmpTypeSafe)) and lex[token+1].type in orderOfOps:
                             # when last token isnt operator, checks ahead and also handles bitwise
                             #print('#2', lex[token].value)
@@ -4520,6 +4549,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 # simple three token eval
                                 check = True
                                 #print('#2.4',lex[token].value)
+
+
                         if token-2 > 0 and lex[token-1].type == 'MINUS' and lex[token-2].type in typeOperators and lex[token-2].type in orderOfOps and lex[token+1].type in orderOfOps and orderOfOps[lex[token+1].type] < orderOfOps[lex[token-1].type]:
                             check = False
                         if check and lex[token-1].type == 'BITWISE' and lex[token+1].type == 'BITWISE':
