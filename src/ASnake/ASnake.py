@@ -1601,11 +1601,11 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 insideIndex.append(copy(lex[li]))
             return False
 
-        def matchAhead(lexIndex, matchType: str = '', matchValue: str = '', stopOnTypes=typeNewline, careAboutParenScope=True):
+        def matchAhead(lexIndex, matchType = '', matchValue: str = '', stopOnTypes=typeNewline, careAboutParenScope=True):
             parenScope=0
             for t in range(lexIndex,len(lex)-1):
                 if lex[t].type in stopOnTypes: break
-                elif matchType and  lex[t].type  == matchType:
+                elif matchType and ((isinstance(matchType, str) and lex[t].type == matchType) or lex[t].type in matchType):
                     if careAboutParenScope:
                         if parenScope == 0: return t
                     else:
@@ -3731,6 +3731,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lexAdd=0
                                     tmp=[]
                                     tmpInsertHere = token # all prealloc in the same spot
+
                                     for t in tmpf:
                                         tmpval=t[0].split('.')
                                         check=False
@@ -3777,33 +3778,34 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                         if tmpASname not in tmp and (tmpindent,tmpASname) not in preAllocated \
                                         and (not preAllocated or all(True if pa[1] != tmpASname or pa[0] > tmpindent else False for pa in preAllocated) ):
-                                            #print(tmpASname,tmpInsertHere,lex[tmpInsertHere].value,lex[tmpInsertHere+1].value,)
+                                            tmpInsertInThisSpot = tmpInsertHere if t[0] in pyBuiltinFunctions else token+lexAdd # for safety
+                                            #print(tmpASname,tmpInsertInThisSpot,lex[tmpInsertInThisSpot].value,lex[tmpInsertInThisSpot+1].value,)
                                             preAllocated.add((tmpindent,tmpASname))
-                                            if lex[tmpInsertHere - 1].type == 'DEFFUNCT': subBy = 0
+                                            if lex[tmpInsertInThisSpot - 1].type == 'DEFFUNCT': subBy = 0
                                             #
-                                            tmptok=copy(lex[tmpInsertHere])
+                                            tmptok=copy(lex[tmpInsertInThisSpot])
                                             tmptok.value=t[0]
                                             tmptok.type='BUILTINF'
-                                            lex.insert(tmpInsertHere-subBy,tmptok)
+                                            lex.insert(tmpInsertInThisSpot-subBy,tmptok)
                                             #
-                                            tmptok=copy(lex[tmpInsertHere])
+                                            tmptok=copy(lex[tmpInsertInThisSpot])
                                             tmptok.value='='
                                             tmptok.type='ASSIGN'
-                                            lex.insert(tmpInsertHere-subBy,tmptok)
+                                            lex.insert(tmpInsertInThisSpot-subBy,tmptok)
                                             #
-                                            tmptok=copy(lex[tmpInsertHere])
+                                            tmptok=copy(lex[tmpInsertInThisSpot])
                                             tmptok.value=tmpASname
                                             tmptok.type='ID'
-                                            lex.insert(tmpInsertHere-subBy,tmptok)
+                                            lex.insert(tmpInsertInThisSpot-subBy,tmptok)
                                             #
                                             if subBy > 0: # not in def
-                                                tmptok=copy(lex[tmpInsertHere])
+                                                tmptok=copy(lex[tmpInsertInThisSpot])
                                                 tmptok.value=f'\n{" "*tmpindent}' if tmpindent > 0 else '\n'
                                                 tmptok.type='TAB' if tmpindent > 0 else 'NEWLINE'
                                                 tmptok.lineno=0 # to not mess up lineNumber for errors
-                                                lex.insert(tmpInsertHere-subBy,tmptok)
+                                                lex.insert(tmpInsertInThisSpot-subBy,tmptok)
                                             else: # in def
-                                                lex.insert(tmpInsertHere+3,makeToken(tok,'then','THEN'))
+                                                lex.insert(tmpInsertInThisSpot+3,makeToken(tok,'then','THEN'))
                                             #
                                             lexIndex+=4
                                             lexAdd+=4
@@ -4473,6 +4475,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex.insert(token + 1, makeToken(lex[token], ')', 'RPAREN'))
                                 lex.insert(token - 3, makeToken(lex[token], '(', 'LPAREN'))
                             newOptimization=True # needs another iteration
+                        elif lex[token].type == 'NUMBER' and (lex[token+1].type in {'PLUS','TIMES'} or (lex[token+1].type == 'BITWISE' and lex[token+1].value.strip() in '&|^')) and lex[token+2].type in {'ID','FUNCTION'} and matchAhead(token+2, lex[token+1].type, lex[token+1].value.strip(), typeNewline+('MINUS','DIVIDE','RDIVIDE','COMMA','ASSIGN','INS')+typeCheckers) and lex[matchAhead(token+2, lex[token+1].type, lex[token+1].value.strip(), typeNewline+('MINUS','DIVIDE','RDIVIDE','COMMA','ASSIGN','INS')+typeCheckers)+1].type == 'NUMBER':
+                            # 1+x+2 --> x+3
+                            tmp = matchAhead(token+2, lex[token+1].type, lex[token+1].value.strip(), typeNewline+('MINUS','DIVIDE','RDIVIDE','COMMA','ASSIGN','INS')+typeCheckers)
+                            lex[tmp+1].value = compilerNumberEval([lex[token],lex[token+1],lex[tmp+1]])
+                            lex[token].type = lex[token+1].type = 'IGNORE'
+                            newOptimization = True ; check = False
+                            #for _ in range(token,tmp+2):
+                            #    print(lex[_].value,end='')
+                            #print()
                         elif token+3 < len(lex)-1 and ((lex[token+3].type == 'PIPE' and lex[token+3].value == 'to') or lex[token+1].type in typeNewline or lex[token+2].type in typeNewline): pass
                         elif lex[token-1].type in orderOfOps and lex[token+1].type in orderOfOps and not (lex[token-1].type == 'MINUS' and lex[token-2].type in tuple(orderOfOps)+tmpTypeSafe):
                             #print('#-1', lex[token].value)
@@ -4513,15 +4524,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 # simple string eval
                                 #print("1.4", lex[token].value)
                                 check=True
-                        elif lex[token].type == 'NUMBER' and (lex[token+1].type in {'PLUS','TIMES'} or (lex[token+1].type == 'BITWISE' and lex[token+1].value.strip() in '&|^')) and lex[token+2].type in {'ID','FUNCTION'} and matchAhead(token+2, lex[token+1].type, lex[token+1].value.strip(), typeNewline+('MINUS','DIVIDE','RDIVIDE','COMMA','ASSIGN','INS')+typeCheckers) and lex[matchAhead(token+2, lex[token+1].type, lex[token+1].value.strip(), typeNewline+('MINUS','DIVIDE','RDIVIDE','COMMA','ASSIGN','INS')+typeCheckers)+1].type == 'NUMBER':
-                            # 1+x+2 --> x+3
-                            tmp = matchAhead(token+2, lex[token+1].type, lex[token+1].value.strip(), typeNewline+('MINUS','DIVIDE','RDIVIDE','COMMA','ASSIGN','INS')+typeCheckers)
-                            lex[tmp+1].value = compilerNumberEval([lex[token],lex[token+1],lex[tmp+1]])
-                            lex[token].type = lex[token+1].type = 'IGNORE'
-                            newOptimization = True ; check = False
-                            #for _ in range(token,tmp+2):
-                            #    print(lex[_].value,end='')
-                            #print()
                         elif (lex[token-1].type in tmpTypeSafe+typeCheckers or (lex[token-1].type=='MINUS' and lex[token-2].type in tmpTypeSafe)) and lex[token+1].type in orderOfOps:
                             # when last token isnt operator, checks ahead and also handles bitwise
                             #print('#2', lex[token].value)
