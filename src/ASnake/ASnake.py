@@ -1787,9 +1787,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                               tmpStart=2
                         elif lex[token].type == 'STRING': tmpStart=0
                         else: tmpStart=1
-                        #for tmpi in range(token+tmpStart,len(lex)):
-                        #    if lex[tmpi].type in typeNewline: break
-                        #    else: tmpf.append(copy(lex[tmpi]))
 
                         if tmpStart == 1 and optLoopAttr and preAllocated and lex[token].value != "ASprint(" and lex[token].value == 'print(' and 'ASprint' in [p[1] for p in preAllocated] and lex[token-1].type not in {'ID', 'ASSIGN'}:
                             # if in preAllocated, replace it
@@ -1803,7 +1800,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 tmpStart+=1
                                 lex[token+tmpStart-1].type='IGNORE'
                                 lex[token+tmpStart].value = '-'+lex[token+tmpStart].value
-                            if lex[token+tmpStart].type in {'STRING','NUMBER'}:
+                            if lex[token+tmpStart].type in {'STRING','NUMBER',}:
                                 tmpf = copy(lex[token+tmpStart])
                                 if lex[token+tmpStart+1].type in ('RPAREN',)+typeNewline: safe=True
                                 elif token+tmpStart+4 < len(lex)-1 and lex[token+tmpStart+1].type == 'COMMA' and lex[token+tmpStart+2].type == 'ID' and lex[token+tmpStart+2].value == 'end' \
@@ -1837,7 +1834,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
                                     for tmpii in range(tmpi + 1, len(lex)):
                                         if lex[tmpii].type in typeNewline: break
-                                        elif lex[tmpii].type in {'FSTR','STRING','NUMBER'} and lex[tmpii-1].type not in {'ASSIGN','TIMES','FUNCTION'} \
+                                        elif lex[tmpii].type in {'FSTR','STRING','NUMBER'} and (lex[tmpii-1].type not in {'ASSIGN','TIMES','FUNCTION'} or (lex[tmpii-1].type == 'FUNCTION' and lex[tmpii-1].value.replace('(','').strip() in {'print','ASprint'}) and lex[tmpii-2].type in typeNewline) \
                                         and ((lex[tmpii+1].type in typeNewline or (lex[tmpii+1].type == 'RPAREN' and lex[tmpii+2].type in typeNewline)) \
                                         or (lex[tmpii+1].type == 'COMMA' and lex[tmpii+2].type == 'ID' and lex[tmpii+2].value == 'end' and lex[tmpii+3].type == 'ASSIGN')):
                                             safe=True ; tmpFound=tmpii
@@ -1850,12 +1847,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     break
                                 elif lex[tmpi].type in typeConditionals and not tmpOutOfFirstLine: break
                                 elif lex[tmpi].type == 'FUNCTION' and lex[tmpi].value.replace('(','') not in tmpSafeFunctions:
-                                    safe=False ; break # unknown potentially unpure functions can break behaviour
+                                    safe=False ; break # unknown potentially unpure functions can break behavior
                         if tmpFound and tmpf and (lex[tmpFound].value.endswith("'''") or lex[tmpFound].value.endswith('"""'))\
                         and (tmpf.value.endswith("'''") or tmpf.value.endswith('"""')):
                             safe=False # TODO: COULD be safe, I just don't feel like handling it rn
                         if safe:
-                            if tmpStart == 0: lex[token-1].type='IGNORE'
+                            if tmpStart == 0 or lex[token-1].type == 'LPAREN': lex[token-1].type='IGNORE'
                             # delete self
                             for tmpi in range(token, len(lex)):
                                 if lex[tmpi].type in typeNewline: break
@@ -1905,6 +1902,20 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             newOptimization=True
                             if debug: print(f'! combined print: {lex[tmpFound].value}')
 
+                    elif optCompressPrint and lex[token].type == 'FSTR' and lex[token].value[0] != 't' and lex[token+1].type in {'STRING','NUMBER'} and lex[token+2].type == 'FSTR':
+                        # simple removal of unneeded FSTR embed
+                        if debug: tmp = lex[token].value+lex[token+1].value+lex[token+2].value
+                        if lex[token+1].type == 'STRING': lex[token+1].value = stripStringQuotes(lex[token+1].value)
+                        lex[token].value   = lex[token].value[:-1]
+                        lex[token+2].value = lex[token+2].value[1:]
+                        lex[token].value += lex[token+1].value + lex[token+2].value
+                        lex[token+1].type = lex[token+2].type = 'IGNORE'
+                        del lex[token+1], lex[token+1]
+                        if lex[token].value[0] == 'f' and lex[token].value[-1] in '\'"':
+                            lex[token].value = lex[token].value[1:]
+                            lex[token].type = 'STRING'
+                        newOptimization=True
+                        if debug: print(f'! removed unneeded fstr: {tmp} --> {lex[token].value}')
 
 
 
@@ -4699,7 +4710,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 del tmpFound, tmpStart
 
                     if optCompilerEval \
-                    and ((lex[token-1].type == 'LPAREN' and lex[token+1].type == 'RPAREN' and (lex[token-2].type in ('LPAREN','ASSIGN','DEFEXP')+typeNewline+typeOperators or (lex[token-2].type == 'FUNCTION' and lex[token-2].value[-1] == '(')) and lex[token].type != 'FUNCTION') \
+                    and ((lex[token-1].type == 'LPAREN' and lex[token+1].type == 'RPAREN' and (lex[token-2].type in ('LPAREN','ASSIGN','DEFEXP','FSTR')+typeNewline+typeOperators or (lex[token-2].type == 'FUNCTION' and lex[token-2].value[-1] == '(')) and lex[token].type != 'FUNCTION') \
                     or (lex[token-1].type == 'MINUS' and lex[token-2].type == 'LPAREN' and lex[token+1].type == 'RPAREN' and (lex[token-3].type in ('LPAREN','ASSIGN','DEFEXP')+typeNewline+typeOperators or (lex[token-3].type == 'FUNCTION' and lex[token-3].value[-1] == '(')) and lex[token].type != 'FUNCTION')):
                         # remove useless paren like:  (-12)
                         #print(lex[token-2].type,lex[token-1].type,lex[token].type,lex[token].value,lex[token+1].type,888888888888)
