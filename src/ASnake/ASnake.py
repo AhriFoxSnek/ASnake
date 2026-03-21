@@ -1908,6 +1908,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         if lex[token+1].type == 'STRING': lex[token+1].value = stripStringQuotes(lex[token+1].value)
                         lex[token].value   = lex[token].value[:-1]
                         lex[token+2].value = lex[token+2].value[1:]
+                        if lex[token+1].value == None:  lex[token+1].value = ''
                         lex[token].value += lex[token+1].value + lex[token+2].value
                         lex[token+1].type = lex[token+2].type = 'IGNORE'
                         del lex[token+1], lex[token+1]
