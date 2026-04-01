@@ -3389,7 +3389,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if len(tmpf) == 1:
                                     lex[token].type=lex[token+1].type=lex[token+2].type=lex[token+3].type='IGNORE'
                                     tmpVar = '.'.join(lex[token].value.split('.')[:-1])
-                                    tmp=f"({tmpVar}[0] == '{tmpf}') if {tmpVar} else {tmpVar}"
+                                    tmp=f"({tmpVar}[0] == '{tmpf}') if {tmpVar} else False"
                                     if debug: print(f"! startswith to index {lex[token].value}({lex[token + 2].value})  -->  {tmp}")
                                     autoMakeTokens(tmp,token-1)
                                     newOptimization = True
