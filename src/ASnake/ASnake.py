@@ -1824,6 +1824,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if tmpPrintIndent == None: tmpPrintIndent=tmpCurrentIndent
                                     if tmpCurrentIndent != tmpPrintIndent: break
                                     tmpOutOfFirstLine=True
+                                    if lex[tmpi+1].type in typeConditionals: break
                                 elif lex[tmpi].type == 'DEFEXP' and tmpPrintIndent == None: pass
                                 elif (lex[tmpi].type in {'ID','FUNCTION'} and (lex[tmpi].value.startswith('print') or lex[tmpi].value.startswith('ASprint')) and lex[tmpi-1].type in typeNewline)\
                                 or (not pyCompatibility and lex[tmpi].type == 'DEFEXP' and lex[tmpi+1].type == 'STRING' and lex[tmpi-1].type in typeNewline):
