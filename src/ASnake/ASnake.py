@@ -740,7 +740,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex[tmpi].value = tmpValue
                                 pipeWrap-=1
                                 break
-                    elif lex[lexIndex-1].type in {'NUMBER','STRING','ID','BUILTINF','BOOL'} and lex[lexIndex-2].type != 'LOOP':
+                    elif lex[lexIndex-1].type in {'NUMBER','STRING','ID','BUILTINF','BOOL','INC'} and lex[lexIndex-2].type != 'LOOP':
                         if lex[lexIndex-1].type == 'NUMBER' and lex[lexIndex-2].type == 'MINUS' and lex[lexIndex-3].type in typeNewline+typeConditionals+('COMMA',):
                             # include minus
                             insertAt = lexIndex-2
@@ -1357,7 +1357,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif tok.type == 'PIPEGO' and tok.value not in reservedIsNowVar:
             pipeWrap+=1
             lex.append(tok)
-        elif tok.type == 'PIPE'   and (tok.value not in reservedIsNowVar or tok.value == '|>'):
+        elif tok.type == 'PIPE'   and(tok.value not in reservedIsNowVar or tok.value == '|>'):
             if tok.value == '|>': tok.value='to'
             willPipe=True
             lex.append(tok)
