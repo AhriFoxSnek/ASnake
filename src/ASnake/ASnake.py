@@ -4902,7 +4902,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             for tmpi in range(token + 1, len(lex) - 1):
                                 #print(lex[token].value,'+!',lex[tmpi].value,lex[tmpi].type,ttenary,inCase,tmpCallsFunction,tmpInOtherFunction,tmpCurrentIndent,tmpIndent)
                                 if not inCase and lex[tmpi].type in {'ID', 'INC', 'BUILTINF', 'FUNCTION'} and (lex[tmpi].value.replace('(', '').replace('+', '').replace('-', '') == lex[token].value or lex[token].value + '.' in lex[tmpi].value) and (not tmpInOtherFunction or not tmpVarIsDefinedInFunction):
-                                    if lex[tmpi + 1].type != 'ASSIGN' or (lex[tmpi + 1].value.strip() not in {'=', 'is'} or determineIfAssignOrEqual(tmpi + 1)):
+                                    if (lex[tmpi + 1].type != 'ASSIGN' or (lex[tmpi + 1].value.strip() not in {'=', 'is'} or not determineIfAssignOrEqual(tmpi + 1))) \
+                                    or lex[tmpi-1].type in typeConditionals+('AND','OR'):
                                         check = False
                                     elif pyIs and lex[tmpi + 1].type == 'ASSIGN' and '=' not in lex[tmpi + 1].value:
                                         check = False
