@@ -2379,6 +2379,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                         if tmpsafe and isinstance(tmpf[0],str) and not pyIs and (lex[tmpi-1].type == 'PYIS' or (lex[tmpi-2].type == 'ASSIGN' and lex[tmpi-1].type == 'INS') or (lex[tmpi-1].type == 'ASSIGN' and determineIfAssignOrEqual(tmpi-1))):
                                                             tmpsafe=False # using Python is on literal will make it bring up syntax warning
 
+                                                        if pythonVersion <= 3.10 and not isinstance(tmpf[0],str) and 'FSTR' == lex[tmpi-1].type and len([True for f in tmpf if f.type == 'FSTR']) > 1:
+                                                            tmpsafe = False # prior versions didnt handle more than 1 nested fstring well
 
                                                         if tmpsafe:
                                                             if debug: print(f'! replacing lex #{tmpi} (lastType:{lex[tmpi-1].type})')
@@ -3496,10 +3498,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         lex[token].type = 'STRING'
                                         if debug: print(f"! evalChrFunc: chr({lex[token + 1].value}) --> {lex[token].value}")
                                     except (TypeError, ValueError): pass
-                            elif optCompilerEvalDict['evalIntFunc'] and lex[token].value == 'int(' and lex[token+1].type in {'STRRAW','STRING','NUMBER'} and lex[token+2].type == 'RPAREN':
+                            elif optCompilerEvalDict['evalIntFunc'] and lex[token].value in {'int(','float('} and lex[token+1].type in {'STRRAW','STRING','NUMBER'} and lex[token+2].type == 'RPAREN':
                                 # int('12') --> 12
                                 safe=True
-                                if lex[token + 1].type == 'STRING' and stripStringQuotes(lex[token + 1].value).startswith('0x'):
+                                if lex[token + 1].type == 'STRING' and lex[token].value.startswith('int') and stripStringQuotes(lex[token + 1].value).startswith('0x'):
                                     # int("0x99") --> 153   string would normally cause ValueError.
                                     # this is an error correction, meaning it does break behaviour, but in a way that fixes a bug
                                     try:
@@ -3507,16 +3509,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     except ValueError: safe=False
                                 else: # all other cases
                                     tmpOG = lex[token + 1].value ; tmpIsHex = False
+                                    tmpInt = 'int' if lex[token].value.startswith('int') else 'float'
                                     if lex[token+1].type in {'STRRAW','STRING'}: lex[token+1].value = f"{stripStringQuotes(lex[token+1].value)}"
                                     elif lex[token+1].type == 'NUMBER' and lex[token+1].value.startswith('0x'): tmpIsHex=True
                                     try:
                                         if tmpIsHex:
                                             lex[token].value = f"{int(lex[token+1].value, 0)}"
                                         else:
-                                            lex[token].value = f"{int(lex[token+1].value)}"
+                                            lex[token].value = f"{int(lex[token+1].value)}" if tmpInt == 'int' else f"{float(lex[token+1].value)}"
                                     except ValueError:
                                         if lex[token + 1].type in {'STRRAW', 'STRING'}:
-                                            return AS_SyntaxError(f'Inside of int({tmpOG}) a ValueError occurs.\n\tString needs to be an integer or float.','int("12")', lex[token].lineno, data)
+                                            return AS_SyntaxError(f'Inside of {tmpInt}({tmpOG}) a ValueError occurs.\n\tString needs to be an integer or float.',f'{tmpInt}("12")', lex[token].lineno, data)
                                         safe = False ; lex[token+1].value = tmpOG
                                     del tmpOG
                                 if safe:
