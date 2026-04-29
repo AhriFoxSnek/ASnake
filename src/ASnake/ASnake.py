@@ -3519,7 +3519,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                             lex[token].value = f"{int(lex[token+1].value)}" if tmpInt == 'int' else f"{float(lex[token+1].value)}"
                                     except ValueError:
                                         if lex[token + 1].type in {'STRRAW', 'STRING'}:
-                                            return AS_SyntaxError(f'Inside of {tmpInt}({tmpOG}) a ValueError occurs.\n\tString needs to be an integer or float.',f'{tmpInt}("12")', lex[token].lineno, data)
+                                            return AS_SyntaxError(f'Inside of {tmpInt}({tmpOG}) a ValueError occurs.\n\tString needs to be an integer or float.',f'{tmpInt}("12")', lex[token+1].lineno, data)
                                         safe = False ; lex[token+1].value = tmpOG
                                     del tmpOG
                                 if safe:
