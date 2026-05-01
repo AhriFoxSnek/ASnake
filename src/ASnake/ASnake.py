@@ -597,7 +597,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
     def addParenUntilDone():
         nonlocal wrapParenEndOfLine, lex, lexIndex, parenScope
         # adds ) until wrapParenEndOfLine is 0, intended for right before a line ends
-        if lexIndex < 2: return
+        if lexIndex < 1: return
         if wrapParenEndOfLine < 0: wrapParenEndOfLine = 0 ; return
         if lex[lexIndex].type == 'ENDIF': position=lexIndex
         else: position=lexIndex+1
@@ -1475,7 +1475,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         if l > len(lex)-1: break
         if lex[l].type == 'FWRAP':
             tmpConvertBack=False
-            if lex[l+2].type == 'LISTCOMP':
+            if l+2 <= len(lex)-1 and lex[l+2].type == 'LISTCOMP':
                 tmpConvertBack=True ; reservedIsNowVar.append(lex[l].value.replace('(',''))
             elif lex[l].value.replace('(','') in reservedIsNowVar:
                 tmpConvertBack=True
@@ -7652,7 +7652,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                         elif compileTo == 'Cython' and tok.type == 'FUNCTION' and tok.value.replace('(','').strip() == 'print' and lex[lexIndex+2].type == 'RPAREN':
                             tok.type='IGNORE' ; cythonPrint(lex[lexIndex+1])
                             lex[lexIndex+1].type='IGNORE' ; lex[lexIndex+2].type='IGNORE' ; continue # continue might be problematic
-                        elif lex[lexIndex+1].type == 'INS': tok.value+=' '
+                        elif lex[lexIndex+1].type in {'INS','FOR'}: tok.value+=' '
 
                     if tok.type == 'FUNCTION' and optimize:
                         if optIfTrue and optLoopAttr \
