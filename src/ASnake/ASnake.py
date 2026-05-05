@@ -6873,7 +6873,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     except (IndexError, ValueError):
                                         if 'and ' in line:
                                             line=line[:-line.index('and ')-1]
-                                        if 'or ' in line:
+                                        elif 'or ' in line:
                                             line=line[:-line.index('or ')-1]
                                         else: line=[]
                                     break
