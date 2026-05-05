@@ -4442,32 +4442,29 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                               if lex[tmpi].type == 'TAB':
                                   if tmpFirstIndent and lex[tmpi].value.count(' ') != tmpIndent: break
                                   tmpIndent=lex[tmpi].value.count(' ') ; tmpFirstIndent=True
-                                  if not tmpInsertAtEnd: tmpInsertAtEnd=tmpi
                               elif lex[tmpi].type == 'NEWLINE':
                                   if tmpFirstIndent and tmpIndent > 0: safe=False ; break
                                   tmpIndent=0 ; tmpFirstIndent=True
-                                  if not tmpInsertAtEnd: tmpInsertAtEnd=tmpi
-                              elif lex[tmpi].type == 'THEN':
-                                  tmpInsertAtEnd = tmpi
+                              tmpInsertAtEnd = tmpi
                           elif lex[tmpi].type in typeConditionals+('LOOP','FOR') \
                           or (lex[tmpi].type == 'ID' and lex[tmpi].value == tmpIDValue) or (lex[tmpi].type=='ID' and lex[tmpi].value in tmpListOfIDs):
                               safe = False ; break
                           elif lex[tmpi].type == 'ASSIGN' and lex[tmpi-1].type == 'ID' and lex[tmpi-1].value == tmpIDValue \
                           and lex[tmpi+1].value != tmpIDValue and lex[tmpi+1].type != 'INDEX' and lex[tmpi-2].type in typeNewline:
                               if lex[tmpi-2].type == 'NEWLINE' or (lex[tmpi-2].type == 'TAB' and lex[tmpi-2].value.count(' ') == tmpIndent) or (lex[token-1].type == 'THEN' and not tmpFirstIndent):
-                                  # success, insert at end
-                                  for t in reversed(tmpf):
-                                      lex.insert(tmpInsertAtEnd, t) ; token+=1
                                   if debug: print('! undoing mod assignment',' '.join([lex[t].value for t in range(tmpi-1,tmpInsertAtEnd+len(tmpf))]))
-                                  newOptimization = True
                                   safe = True ; break
 
                         if safe:
-                          # if success, delete line
+                          newOptimization = True
+                          # delete og line
                           for tmpi in range(token, len(lex) - 1):
                               if lex[tmpi].type in typeNewline:
                                   break
                               else: lex[tmpi].type = 'IGNORE'
+                          # insert at end
+                          for t in reversed(tmpf):
+                              lex.insert(tmpInsertAtEnd, t) ; token += 1
 
 
                     if token > len(lex)-1: break
