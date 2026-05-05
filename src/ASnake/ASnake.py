@@ -6870,7 +6870,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             for tmpi in range(lexIndex-1,0,-1):
                                 if lex[tmpi].type in typeNewline+('ANYOF',):
                                     try: line=line[:-line.index(lex[tmpi+1].value)]
-                                    except (IndexError, ValueError): line=[]
+                                    except (IndexError, ValueError):
+                                        if 'and ' in line:
+                                            line=line[:-line.index('and ')-1]
+                                        if 'or ' in line:
+                                            line=line[:-line.index('and ')-1]
+                                        else: line=[]
                                     break
                                 elif lex[tmpi].type == 'IGNORE': pass
                                 else: tmpfirst.append(lex[tmpi].value)
