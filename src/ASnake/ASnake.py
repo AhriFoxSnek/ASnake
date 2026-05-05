@@ -6874,7 +6874,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         if 'and ' in line:
                                             line=line[:-line.index('and ')-1]
                                         if 'or ' in line:
-                                            line=line[:-line.index('and ')-1]
+                                            line=line[:-line.index('or ')-1]
                                         else: line=[]
                                     break
                                 elif lex[tmpi].type == 'IGNORE': pass
