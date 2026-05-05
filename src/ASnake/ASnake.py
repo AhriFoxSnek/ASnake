@@ -6872,9 +6872,9 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     try: line=line[:-line.index(lex[tmpi+1].value)]
                                     except (IndexError, ValueError):
                                         if 'and ' in line:
-                                            line=line[:-line.index('and ')-1]
+                                            line=line[:-line[::-1].index('and ')]
                                         elif 'or ' in line:
-                                            line=line[:-line.index('or ')-1]
+                                            line=line[:-line[::-1].index('or ')-1]
                                         else: line=[]
                                     break
                                 elif lex[tmpi].type == 'IGNORE': pass
