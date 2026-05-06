@@ -1644,7 +1644,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                             'optCythonConvertTo_libc': True,
                             'startsWithToIndex': True,
                             'idToIs': True,
-                            'deepcopyToPickle':True,
+                            'deepcopyToPickle': True,
+                            'maxsplitIndex': True,
                             }
         optConstantPropagation=True
         optMathEqual=True
@@ -3477,6 +3478,17 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         newOptimization=True
                                     del tmpGetVar
                                 del tmpStart, tmpGetBaseIndent, tmpBeforeCopy
+
+                            if optFuncTricksDict['maxsplitIndex'] and lex[token].type == 'BUILTINF' and lex[token].value.split('.')[-1] == 'split' and lex[token+1].type == 'LPAREN' and lex[token+2].type in {'ID','STRING'} and lex[token+3].type == 'RPAREN' and lex[token+4].type in {'LIST','LINDEX'} and lex[token+5].type == 'NUMBER' and lex[token+6].type in {'LISTEND','LINDEX'}:
+                                try:
+                                    tmp = int(lex[token+5].value)
+                                    safe = True
+                                except ValueError:
+                                    safe = False
+                                if safe:
+                                    lex.insert(token+3, makeToken(lex[token],f'{tmp+1}','NUMBER'))
+                                    lex.insert(token+3,makeToken(lex[token],',','COMMA'))
+                                    newOptimization = True
 
 
                         if optCompilerEval:
