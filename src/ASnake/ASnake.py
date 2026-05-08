@@ -1056,6 +1056,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 tok.value = f"p!{tok.value} !p"
             else:
                 inFrom=True
+            addParenUntilDone()
             lex.append(tok)
         elif tok.type in {'STRAW','STRLIT','STRING'}:
             if tok.type in {'STRRAW','STRLIT'}: tok.type='STRING'
@@ -7032,7 +7033,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             elif tok.type == 'FROM': # idFROM
                 if lastType in typeNewline and lex[lexIndex+1].type == 'ASSIGN':
                     return AS_SyntaxError('from is a reserved keyword, dont use it for assignment', f'customVarName = "something"', lineNumber,data)
-
+                
                 inFuncArg=True ; notInDef=True
                 if insideDef!='': clearFunctionVars()
                 if lexIndex+1 < len(lex)-1:
@@ -7043,6 +7044,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 else:
                     indent=lastIndent[3][-1]
                     lastIndent[3].pop()
+
 
             elif tok.type == 'COMMA': # idCOMMA
                 if lexIndex-1 > 0 and lexIndex+1 < len(lex)-1 and len(line)>0:
