@@ -367,9 +367,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 lexIndex += 1
             else:
                 pruneDict = tmpSkip = False
-                if ':=' in thing.value:
-                    lex.append(makeToken(tok, '{', 'LBRACKET'))
-                    pruneDict=True
                 tmp=thing.value[1:-1] if pruneDict else thing.value
                 for tmptok in miniLex(tmp + ' '):
                     if tmptok.type in {'STRRAW', 'STRLIT'}: tmptok.type = 'STRING'
@@ -398,7 +395,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     elif tmptok.type == 'LBRACKET' and lex[token].type == 'FSTR' and lex[token].value[-1] != '{':
                         tmpSkip=True ; lexIndex-=1 ; lex[token].value+='{'
                     elif tmptok.type == 'ENDIF': tmptok.type = 'COLON'
-                    elif tmptok.type == 'FSTRFRMT' and tmptok.value[-1] == ' ': tmptok.value = tmptok.value[:-1] # account for extra space in minlex
+                    elif tmptok.type == 'FSTRFRMT' and tmptok.value[-1] == ' ': tmptok.value = tmptok.value[:-1] # account for extra space in minilex
                     if tmpSkip: tmpSkip = False
                     elif token == -1:
                         lex.append(tmptok)
