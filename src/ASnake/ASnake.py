@@ -996,6 +996,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 currentTab = 0
             tabBackup = [currentTab, lastIndent[:]]
             lex.append(tok)
+        elif tok.type == 'END' and parenScope > 0: # likely something like print(thing,end='')
+            tok.type = 'ID' ; lex.append(tok)
         elif tok.type == 'INDEX': # grouping [0][1] indexes
             if tok.value.startswith(')'):
                 tok.value=tok.value[1:]
@@ -1301,7 +1303,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     tmptok.type='ID' ; tmptok.value=tmp[0]
                     lex.append(tmptok) ; lexIndex+=1 ; del tmptok
                 lex.append(tok)
-            elif (any(True for x in ASnakeKeywords if x == lex[lexIndex].value.strip()) \
+            elif parenScope <= 0 \
+            and (any(True for x in ASnakeKeywords if x == lex[lexIndex].value.strip()) \
             or any(True for x in [i for i in convertType]+list(defaultTypes) if x == lex[lexIndex].value) \
             or (lex[lexIndex].type == 'BOOL' and lex[lexIndex].value not in {'True','False','None'})):
                 # !! allows reassignment of reserved keywords !!
