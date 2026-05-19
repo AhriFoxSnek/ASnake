@@ -3480,15 +3480,18 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     del tmpGetVar
                                 del tmpStart, tmpGetBaseIndent, tmpBeforeCopy
 
-                            if optFuncTricksDict['maxsplitIndex'] and lex[token].type == 'BUILTINF' and lex[token].value.split('.')[-1] == 'split' and lex[token+1].type == 'LPAREN' and lex[token+2].type in {'ID','STRING'} and lex[token+3].type == 'RPAREN' and lex[token+4].type in {'LIST','LINDEX'} and lex[token+5].type == 'NUMBER' and lex[token+6].type in {'LISTEND','LINDEX'}:
+                            if optFuncTricksDict['maxsplitIndex'] and lex[token].type == 'BUILTINF' and lex[token].value.split('.')[-1] == 'split' and lex[token+1].type == 'LPAREN' and ((lex[token+2].type in {'ID','STRING'} and lex[token+3].type == 'RPAREN' and lex[token+4].type in {'LIST','LINDEX'} and lex[token+5].type == 'NUMBER' and lex[token+6].type in {'LISTEND','LINDEX'})
+                            or                                                                                                                                                            (                                         lex[token+2].type == 'RPAREN' and lex[token+3].type in {'LIST','LINDEX'} and lex[token+4].type == 'NUMBER' and lex[token+5].type in {'LISTEND','LINDEX'})):
+                                tmpf = 1 if lex[token+2].type != 'RPAREN' else 0
                                 try:
-                                    tmp = int(lex[token+5].value)
+                                    tmp = int(lex[token+(4+tmpf)].value)
                                     safe = True
                                 except ValueError:
                                     safe = False
                                 if safe:
-                                    lex.insert(token+3, makeToken(lex[token],f'{tmp+1}','NUMBER'))
-                                    lex.insert(token+3,makeToken(lex[token],',','COMMA'))
+                                    lex.insert(token+(2+tmpf), makeToken(lex[token],f'{tmp+1}','NUMBER'))
+                                    if tmpf: lex.insert(token+(2+tmpf),makeToken(lex[token],',','COMMA'))
+                                    else: autoMakeTokens("maxsplit = ",token+1)
                                     newOptimization = True
 
 
