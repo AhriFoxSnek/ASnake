@@ -1297,7 +1297,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
         elif tok.type == 'ASSIGN':
             if lex[lexIndex].type == 'LISTCOMP':
                 tmp=lex[lexIndex].value.split(':') ; tmp[-1]=tmp[-1].replace(' ','')
-                if tmp[-1] in convertType:
+                if tmp[-1]:# in convertType:
                     lex[lexIndex].type='TYPE' ; lex[lexIndex].value=tmp[-1]
                     tmptok=copy(lex[lexIndex])
                     tmptok.type='ID' ; tmptok.value=tmp[0]
@@ -5130,7 +5130,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
             if var1.value not in storedVarsHistory:
                 storedVarsHistory[var1.value]={}
             if '[' not in staticType.value:
-                storedVarsHistory[var1.value]['type']=convertType[staticType.value]
+                if staticType.value in convertType:
+                    storedVarsHistory[var1.value]['type']=convertType[staticType.value]
                 storedVarsHistory[var1.value]['staticType']=staticType.value
             else:
                 storedVarsHistory[var1.value]['type'] = convertType[staticType.value.split('[')[0]]
@@ -7080,7 +7081,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     return AS_SyntaxError(f"Type must be declared to a variable. '{lex[lexIndex+1].value}' is invalid.",f'{tok.value} variable = value', lineNumber, data)
                 elif lastType in typeCheckers:
                     line.append(tok.value)
-                elif lex[lexIndex-1].type not in typeNewline+('CONSTANT','DEFFUNCT','TYPEWRAP','IGNORE'):
+                elif lex[lexIndex-1].type not in typeNewline+('CONSTANT','DEFFUNCT','TYPEWRAP','IGNORE', 'ASSIGN'):
+                    print(lex[lexIndex-1] in typeNewline)
                     return AS_SyntaxError(f'Invalid token \'{lex[lexIndex-1].type}\' before type declaration.',f'{tok.value} {lex[lexIndex+1].value} = value',lineNumber,data)
                 elif lex[lexIndex+1].type == 'ID' and lex[lexIndex+2].type == 'LISTCOMP':
                     tok.type='ID' ; line.append(tok.value)
