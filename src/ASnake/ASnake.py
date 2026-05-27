@@ -4864,7 +4864,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                         and ( (lex[tmptmp].type == 'PYDEF'    and (lex[tmptmp-1].type == 'NEWLINE' or (lex[tmptmp-1].type == 'TAB' and lex[tmptmp-1].value.count(' ') < tmptmpIndent))) \
                                         or    (lex[tmptmp].type == 'DEFFUNCT' and (lex[tmptmp-2].type == 'NEWLINE' or (lex[tmptmp-1].type == 'TAB' and lex[tmptmp-2].value.count(' ') < tmptmpIndent)))):
                                             if tmpVarIsDefinedInFunction == None: tmpVarIsDefinedInFunction = True
-                                            check=False ; tmpInsideFunction=True ; break
+                                            tmpInsideFunction=True ; break
                                     if not check: break
                                 else:
                                     check = False ; break
