@@ -802,13 +802,12 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex[lexIndex].type = 'RPAREN' ; lex[lexIndex].value = ')'
                                 lex.insert(tmpAddBy+1 if tmpAddBy!=None else tmpi+1,makeToken(tok,tmpValue,'FUNCTION'))
                                 lexIndex+=1 ; break
-
-
+                willPipe = False
+            elif tok.type in typeNewline+("IGNORENL",): willPipe = True
             else:
                 return AS_SyntaxError(
                     f"Line {lineNumber} pipes to invalid syntax, '{tok.value}'. Can only pipe to functions.",
                     '12 to str', lineNumber, data)
-            willPipe=False
 
         if not lex:
             tmptok=copy(tok)
