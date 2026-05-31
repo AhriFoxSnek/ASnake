@@ -803,7 +803,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lex.insert(tmpAddBy+1 if tmpAddBy!=None else tmpi+1,makeToken(tok,tmpValue,'FUNCTION'))
                                 lexIndex+=1 ; break
                 willPipe = False
-            elif tok.type in typeNewline+("IGNORENL",): willPipe = True
+            elif tok.type in typeNewline+("IGNORENL",): willPipe = True ; lexIndex-=1 ; tok.type="IGNORE"
             else:
                 return AS_SyntaxError(
                     f"Line {lineNumber} pipes to invalid syntax, '{tok.value}'. Can only pipe to functions.",
