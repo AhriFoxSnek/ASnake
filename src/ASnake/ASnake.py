@@ -6284,7 +6284,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if tok.type != 'TAB': continue
             elif tok.type == 'ASSIGN': #idASSIGN
                 if pyIs == True and 'is' in tok.value:
-                    line.append(decideIfIndentLine(indent,'is '))
+                    line.append(decideIfIndentLine(indent,' is '))
                     tok.type='PYIS'
                 elif tok.value[0] != ':' and parenScope > 0 and lex[lexIndex-3].type!='COMMA' and (lex[lexIndex-2].type in typeNewline or lex[lexIndex-2].value.startswith('\n ')):
                     line=line[:-1]
