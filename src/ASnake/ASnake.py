@@ -1499,6 +1499,30 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
 
 
 
+
+    # function needed for both optimize and main phase
+    def matchAhead(lexIndex, matchType = '', matchValue: str = '', stopOnTypes=typeNewline, careAboutParenScope=True, backwards=False):
+        parenScope=0
+        step = -1 if backwards else 1
+        start = lexIndex if not backwards else lexIndex
+        end = -1 if backwards else len(lex)-1
+        for t in range(start, end, step):
+            if lex[t].type in stopOnTypes: break
+            elif matchType and ((isinstance(matchType, str) and lex[t].type == matchType) or lex[t].type in matchType):
+                if careAboutParenScope:
+                    if parenScope == 0: return t
+                else:
+                    return t
+            elif matchValue and lex[t].value == matchValue:
+                if careAboutParenScope:
+                    if parenScope == 0: return t
+                else: return t
+            if careAboutParenScope and lex[t].type in {'LPAREN','FUNCTION','RPAREN'}:
+                if lex[t].type == 'LPAREN' or (lex[t].type == 'FUNCTION' and lex[t].value.strip()[-1] == '('):
+                                              parenScope += 1
+                elif lex[t].type == 'RPAREN': parenScope -= 1
+        return False
+
     # optimize section
     if optimize == True:
 
@@ -1600,26 +1624,6 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     return False
                 insideIndex.append(copy(lex[li]))
             return False
-
-        def matchAhead(lexIndex, matchType = '', matchValue: str = '', stopOnTypes=typeNewline, careAboutParenScope=True):
-            parenScope=0
-            for t in range(lexIndex,len(lex)-1):
-                if lex[t].type in stopOnTypes: break
-                elif matchType and ((isinstance(matchType, str) and lex[t].type == matchType) or lex[t].type in matchType):
-                    if careAboutParenScope:
-                        if parenScope == 0: return t
-                    else:
-                        return t
-                elif matchValue and lex[t].value == matchValue:
-                    if careAboutParenScope:
-                        if parenScope == 0: return t
-                    else: return t
-                if careAboutParenScope and lex[t].type in {'LPAREN','FUNCTION','RPAREN'}:
-                    if lex[t].type == 'LPAREN' or (lex[t].type == 'FUNCTION' and lex[t].value.strip()[-1] == '('):
-                                                  parenScope += 1
-                    elif lex[t].type == 'RPAREN': parenScope -= 1
-            return False
-
 
         # idOPTARGS
         # vv you can choose to disable specific optimizations
@@ -5726,6 +5730,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     tok.type='IGNORE'
                     lex[lexIndex-1].type='IGNORE'
                     line=line[:-1]
+                elif tok.type == 'ID' and tok.value.strip() in defaultTypes and lex[lexIndex-1].type == 'ASSIGN' and matchAhead(lexIndex, matchType=typeConditionals+('OR','AND'), backwards=True):
+                    # if x is str  -->  if isinstance(x, str)
+                    line.pop() # get rid of ==
+                    tmp = next((i for i, t in enumerate(line) if t.strip() in {"and", "or", "if", "elif"}), len(line))
+                    if tmp == len(line): # start of conditional
+                        tmpf = line ; line = []
+                    else: # in middle of conditional
+                        tmpf = line[tmp+1:] ; line = line[:tmp+1]
+                    line.append(f"isinstance({''.join(tmpf)}, {tok.value})")
                 else:
                     if tok.type == 'LIST' and lastType == 'ID' and lex[lexIndex+1].type != 'LISTEND' and lastValue in storedVarsHistory:
                         # convert LIST into LINDEX ... RINDEX if there are no COMMA
