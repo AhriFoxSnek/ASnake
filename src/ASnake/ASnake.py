@@ -782,7 +782,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                     lex.insert(tmpi+1, makeToken(tok, tmpValue, 'FUNCTION')) ; lexIndex+=1
                                 break
                 elif lex[lexIndex].value.strip() == 'into':
-                    tok.type = 'IGNORE' ; tmpAddBy=None
+                    tok.type = 'IGNORE'
                     for tmpi in range(lexIndex-1, -1, -1):
                         if lex[tmpi].type in typeNewline+('ASSIGN','PYDEF','DEFFUNCT')+typeConditionals:
                             tmp=True
@@ -790,17 +790,15 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 if ':' in lex[tmpi].value: tmp=False
                                 elif 'is' in lex[tmpi].value and lex[tmpi-1].type in typeAssignables and lex[tmpi-1].type not in {'ID','BUILTINF','RINDEX'}:
                                     tmp=False
-                                elif '=' == lex[tmpi].value:
+                                elif '=' == lex[tmpi].value.strip():
                                     for tt in range(tmpi-1,-1,-1):
-                                        if lex[tt].type in {'LPAREN','FUNCTION'}:
-                                            tmp=False
+                                        if lex[tt].type in {'LPAREN','FUNCTION','COMMA'}:
+                                            tmp=False ; break
                                         elif lex[tt].type in typeNewline+('PYDEF','DEFFUNCT'):
-                                            if lex[tt].type in {'PYDEF','DEFFUNCT'}: tmpAddBy=tt
-                                            if tmp: break
-                                            else: tmpAddBy=tt ; tmp=True ; break
+                                            break
                             if tmp:
                                 lex[lexIndex].type = 'RPAREN' ; lex[lexIndex].value = ')'
-                                lex.insert(tmpAddBy+1 if tmpAddBy!=None else tmpi+1,makeToken(tok,tmpValue,'FUNCTION'))
+                                lex.insert(tmpi+1,makeToken(tok,tmpValue,'FUNCTION'))
                                 lexIndex+=1 ; break
                 willPipe = False
             elif tok.type in typeNewline+("IGNORENL",): willPipe = True ; lexIndex-=1 ; tok.type="IGNORE"
@@ -5731,6 +5729,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     lex[lexIndex-1].type='IGNORE'
                     line=line[:-1]
                 elif tok.type == 'ID' and tok.value.strip() in defaultTypes and lex[lexIndex-1].type == 'ASSIGN' and matchAhead(lexIndex, matchType=typeConditionals+('OR','AND'), backwards=True):
+                    # TODO add support for isnt !=
                     # if x is str  -->  if isinstance(x, str)
                     line.pop() # get rid of ==
                     tmp = next((i for i, t in enumerate(line) if t.strip() in {"and", "or", "if", "elif"}), len(line))
