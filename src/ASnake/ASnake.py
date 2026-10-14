@@ -133,7 +133,7 @@ class Lexer(Lexer):
     TRY     = r'(((try)|(except +([A-Z]\w+|\w+\.\w+)( +as +\w*)?)|(except)|(finally))(( *:?)|( +(do|then))))'
     LAMBDA  = r'lambda ?(\w* *,?)*:'
     FSTRFRMT= r':,? *(?:\=?[*=._]?[><^|%.+])?(?:(?:\d+(?:\.\d+)?[dfxsn%]?)| *[dbxXogGeEncs](?![^}])|(?: *%[YmdHMS][:-]? *)+)'  # for formatting at end of fstrings brackets
-    LISTCOMP= r'''\-?\w*: ([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*(?!"|')'''
+    LISTCOMP= r'''\-?[.a-zA-Z0-9_]*: ([^\u0000-\u007F\s]|[a-zA-Z_])([^\u0000-\u007F\s]|[a-zA-Z0-9_])*(?!"|')'''
     STRING  = r"([tfubTFUB]?\"\"\"(?:[^\"\\]|\\.|\"(?!\"\"))*\"\"\")|([tfubTFUB]?'''(?:[^'\\]|\\.|'(?!''))*''')|([tfubTFUB]?\"(?:\\.|[^\"\\])*\")|([tfubTFUB]?'(?:\\.|[^'\\])*')"
     LBRACKET= r'{'
     RBRACKET= r'}'
@@ -802,6 +802,8 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                 lexIndex+=1 ; break
                 willPipe = False
             elif tok.type in typeNewline+("IGNORENL",): willPipe = True ; lexIndex-=1 ; tok.type="IGNORE"
+            elif tok.type == 'ASSIGN' and tok.value.strip() == '=' and lex[-2].type in typeNewline and lex[-1].type == 'PIPE':
+                willPipe = False ; reservedIsNowVar.append(lex[-1].value.strip()) ; lex[-1].type = 'ID'
             else:
                 return AS_SyntaxError(
                     f"Line {lineNumber} pipes to invalid syntax, '{tok.value}'. Can only pipe to functions.",
@@ -2502,7 +2504,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                                                             else:
                                                                 tmpf=''.join(tmpf)
                                                                 lex[tmpi+tmp].value=tmpf ; lex[tmpi+tmp].type=vartype
-                                                    elif lex[tmpi].type == 'LISTCOMP' and lex[tmpi].value.split(':')[0] == lex[token].value:
+                                                    elif lex[tmpi].type == 'LISTCOMP' and lex[tmpi].value.split(':')[0] == lex[token].value and lex[tmpi+1].type != {'ASSIGN','LIST','LINDEX'}:
                                                         if isinstance(tmpf[0], str):
                                                             lex[tmpi].value=tmpf+':'+''.join(lex[tmpi].value.split(':')[1:])
                                                             if debug: print(f'! replacing lex #{tmpi} (lastType:{lex[tmpi-1].type})')
@@ -6023,7 +6025,10 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                 if lex[lexIndex+1].type == 'ASSIGN' or (lex[lexIndex+1].type == 'BUILTINF' and lex[lexIndex+2].type == 'ASSIGN'):
                     # not a list comp, but a type assign
                     line.append(decideIfIndentLine(indent,tok.value))
-                    tok.type='ID' ; tok.type = lex[lexIndex-1].type
+                    tok.type = lex[lexIndex-1].type
+                if lex[lexIndex+1].type in {'ASSIGN','LIST','LINDEX'} and lex[lexIndex-1].type in {'ID','BUILTINF'}:
+                    # same as above
+                    tok.type='TYPE' ; line.append(tok.value)
                 elif bracketScope > 0:
                     # not a list comp, but inside of a dict
                     tmp=tok.value.lstrip(':')
