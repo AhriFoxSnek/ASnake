@@ -6026,7 +6026,7 @@ def build(data,optimize=True,comment=True,debug=False,compileTo='Python',pythonV
                     # not a list comp, but a type assign
                     line.append(decideIfIndentLine(indent,tok.value))
                     tok.type = lex[lexIndex-1].type
-                if lex[lexIndex+1].type in {'ASSIGN','LIST','LINDEX'} and lex[lexIndex-1].type in {'ID','BUILTINF'}:
+                elif lex[lexIndex+1].type in {'ASSIGN','LIST','LINDEX'} and lex[lexIndex-1].type in {'ID','BUILTINF'}:
                     # same as above
                     tok.type='TYPE' ; line.append(tok.value)
                 elif bracketScope > 0:
